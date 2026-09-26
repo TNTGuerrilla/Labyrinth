@@ -117,6 +117,14 @@ def test_multi_lead_reaches_solve_with_perfect_maze():
     assert_perfect(b.grid)
 
 
+def test_lookahead_zero_still_completes_solve():
+    settings = Settings(min_cells=4, max_cells=6, gen_speed=1000, solve_speed=500,
+                        hold_seconds=0.5, lookahead=0)
+    b = Board(400, 300, settings, random.Random(8))
+    run_until(b, Phase.HOLD)
+    assert b.solved
+
+
 def test_welds_flash_then_expire():
     for seed in range(100):
         b = Board(400, 300, FAST, random.Random(seed))

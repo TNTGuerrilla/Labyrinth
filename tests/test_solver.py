@@ -1,7 +1,10 @@
 import random
+from collections import deque
+
+import pytest
 
 from maze_saver.maze import Grid, edge_key, multi_snake, single_snake
-from maze_saver.solver import DETOUR_MAX, LOOKAHEAD, Advance, Backtrack, Solved, solve
+from maze_saver.solver import DEFAULT_LOOKAHEAD, DETOUR_MAX, Advance, Backtrack, Solved, solve
 from tests.mazeutil import bfs_path
 
 
@@ -83,30 +86,54 @@ def _excursion_lengths(events, on_path):
     return lengths
 
 
-def _branch_is_visible_dead_end(grid, c, n, end, lookahead=LOOKAHEAD):
-    """Independent reimplementation of the solver's lookahead rule, for verification."""
+def _branch_distances(grid, c, n, lookahead):
+    """BFS distances from c (n is distance 1) for the branch through n, never back through c.
+    Independent reimplementation for verification: does not stop early at end."""
+    if lookahead <= 0:
+        return {}
+    dist = {n: 1}
+    visited = {c, n}
+    queue = deque([n])
+    while queue:
+        cell = queue.popleft()
+        d = dist[cell]
+        if d >= lookahead:
+            continue
+        for nb in grid.open_neighbors(cell):
+            if nb in visited:
+                continue
+            visited.add(nb)
+            dist[nb] = d + 1
+            queue.append(nb)
+    return dist
+
+
+def _branch_is_visible_dead_end(grid, c, n, end, lookahead=DEFAULT_LOOKAHEAD):
+    """Independent reimplementation of the distance-from-fork dead-end rule, for verification."""
+    if lookahead <= 0:
+        return False
     if n == end:
         return False
-    visited = {c, n}
-    frontier = {n}
-    for _ in range(lookahead):
-        next_frontier = set()
-        for cell in frontier:
+    dist = _branch_distances(grid, c, n, lookahead)
+    if end in dist:
+        return False
+    visited = set(dist) | {c}
+    for cell, d in dist.items():
+        if d == lookahead:
             for nb in grid.open_neighbors(cell):
-                if nb in visited:
-                    continue
-                visited.add(nb)
-                if nb == end:
+                if nb not in visited:
                     return False
-                next_frontier.add(nb)
-        frontier = next_frontier
-        if not frontier:
-            return True
-    for cell in frontier:
-        for nb in grid.open_neighbors(cell):
-            if nb not in visited:
-                return False
     return True
+
+
+def _finish_in_sight_ref(grid, c, n, end, lookahead=DEFAULT_LOOKAHEAD):
+    """Independent reimplementation of the distance-from-fork finish-in-sight rule."""
+    if lookahead <= 0:
+        return False
+    if n == end:
+        return True
+    dist = _branch_distances(grid, c, n, lookahead)
+    return end in dist
 
 
 def test_detours_are_bounded():
@@ -121,15 +148,51 @@ def test_detours_are_bounded():
             max_excursion = max(max_excursion, length)
 
 
-def test_never_enters_a_visible_dead_end():
+@pytest.mark.parametrize("d", [1, 4, 8])
+def test_never_enters_a_visible_dead_end(d):
     for seed in range(20):
         g = make_maze(20, 15, seed)
         start, end = (0, 0), (19, 14)
         on_path = set(bfs_path(g, start, end))
-        events = list(solve(g, start, end, random.Random(seed)))
+        events = list(solve(g, start, end, random.Random(seed), lookahead=d))
         for e in events[:-1]:
             if isinstance(e, Advance) and e.b not in on_path:
-                assert not _branch_is_visible_dead_end(g, e.a, e.b, end)
+                assert not _branch_is_visible_dead_end(g, e.a, e.b, end, d)
+
+
+def test_finish_in_sight_always_taken():
+    occurred_at_d4 = False
+    for d in (2, 4, 6):
+        for seed in range(40):
+            g = make_maze(20, 15, seed)
+            start, end = (0, 0), (19, 14)
+            path = bfs_path(g, start, end)
+            next_on_path = {path[i]: path[i + 1] for i in range(len(path) - 1)}
+            events = list(solve(g, start, end, random.Random(seed), lookahead=d))
+            for e in events[:-1]:
+                if isinstance(e, Advance) and e.a in next_on_path:
+                    correct = next_on_path[e.a]
+                    if _finish_in_sight_ref(g, e.a, correct, end, d):
+                        assert e.b == correct
+                        if d == 4:
+                            occurred_at_d4 = True
+    assert occurred_at_d4
+
+
+def test_lookahead_zero_disables_filtering():
+    saw_one_cell_dead_end_entry = False
+    for seed in range(20):
+        g = make_maze(20, 15, seed)
+        start, end = (0, 0), (19, 14)
+        events = list(solve(g, start, end, random.Random(seed), lookahead=0))
+        assert isinstance(events[-1], Solved)
+        assert list(events[-1].path) == bfs_path(g, start, end)
+        for e in events[:-1]:
+            if isinstance(e, Advance):
+                others = [nb for nb in g.open_neighbors(e.b) if nb != e.a]
+                if not others and e.b != end:
+                    saw_one_cell_dead_end_entry = True
+    assert saw_one_cell_dead_end_entry
 
 
 def test_long_mazes_finish_reasonably():

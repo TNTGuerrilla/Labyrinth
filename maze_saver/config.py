@@ -16,6 +16,7 @@ class Settings:
     max_cells: int = 40
     gen_speed: float = 60.0
     solve_speed: float = 20.0
+    lookahead: int = 4
     hold_seconds: float = 4.0
     max_leads: int = 12
     fps_cap: FpsCap = "auto"
@@ -27,6 +28,7 @@ NUMERIC_RANGES = {
     "max_cells": (4, 200, True),
     "gen_speed": (5, 1000, False),
     "solve_speed": (2, 500, False),
+    "lookahead": (0, 12, True),
     "hold_seconds": (0, 30, False),
     "max_leads": (2, 16, True),
 }

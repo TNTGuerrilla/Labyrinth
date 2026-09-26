@@ -230,7 +230,8 @@ class Board:
         self.phase = Phase.SOLVE
         self.heads.clear()
         self.dot = self.start
-        self._solve_events = solve(self.grid, self.start, self.end, self.rng)
+        self._solve_events = solve(self.grid, self.start, self.end, self.rng,
+                                    lookahead=self.settings.lookahead)
         self._steps = StepAccumulator(self.settings.solve_speed)
         changes.cells.add(self.start)
 
