@@ -7,9 +7,12 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Iterator, Union
+from typing import Iterator, Optional, Union
 
 Cell = tuple[int, int]
+
+CELLS_PER_EXTRA_LEAD = 250
+BASE_MAX_LEADS = 4
 
 N, E, S, W = 1, 2, 4, 8
 DELTAS: dict[int, tuple[int, int]] = {N: (0, -1), E: (1, 0), S: (0, 1), W: (-1, 0)}
@@ -191,9 +194,23 @@ def _weld_regions(grid: Grid, rng: random.Random, region_of: dict, count: int) -
             yield Weld(a, b)
 
 
-def choose_generator(grid: Grid, rng: random.Random) -> tuple[int, Iterator[GenEvent]]:
-    """Pick a growth style at random. Returns (region count, event iterator)."""
+def choose_generator(grid: Grid, rng: random.Random, max_heads: int = 12,
+                     forced_heads: Optional[int] = None) -> tuple[int, Iterator[GenEvent]]:
+    """Pick a growth style. Returns (region count, event iterator).
+
+    Without forced_heads, style is a 50/50 coin flip; the multi-snake head count scales
+    with board size, from 2 up to max_heads. With forced_heads, that style and count are
+    used directly (no coin flip, so forced runs are deterministic in style): 1 forces a
+    single snake, 2+ forces multi snake with that many heads, clamped to the cell count.
+    """
+    cells = grid.cols * grid.rows
+    if forced_heads is not None:
+        if forced_heads <= 1:
+            return 1, single_snake(grid, rng)
+        heads = min(forced_heads, cells)
+        return heads, multi_snake(grid, rng, heads)
     if rng.random() < 0.5:
         return 1, single_snake(grid, rng)
-    heads = min(rng.randint(2, 4), grid.cols * grid.rows)
+    upper = max(2, min(max_heads, BASE_MAX_LEADS + cells // CELLS_PER_EXTRA_LEAD))
+    heads = min(rng.randint(2, upper), cells)
     return heads, multi_snake(grid, rng, heads)

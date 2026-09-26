@@ -17,6 +17,7 @@ class Settings:
     gen_speed: float = 60.0
     solve_speed: float = 20.0
     hold_seconds: float = 4.0
+    max_leads: int = 12
     fps_cap: FpsCap = "auto"
 
 
@@ -27,6 +28,7 @@ NUMERIC_RANGES = {
     "gen_speed": (5, 1000, False),
     "solve_speed": (2, 500, False),
     "hold_seconds": (0, 30, False),
+    "max_leads": (2, 16, True),
 }
 FPS_CAP_CHOICES = ("auto", 60, 120)
 

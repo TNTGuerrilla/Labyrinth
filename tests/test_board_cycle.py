@@ -87,6 +87,14 @@ def test_hold_then_clears_and_resets():
     assert b.geometry is None and b.trail == {} and b.dot is None
 
 
+def test_forced_leads_sets_head_count():
+    settings = Settings(min_cells=20, max_cells=20, gen_speed=1000, solve_speed=500,
+                        hold_seconds=0.5)
+    b = Board(800, 600, settings, random.Random(1), forced_leads=6)
+    run_until(b, Phase.DOTS)
+    assert len(b.hues) == 6
+
+
 def test_welds_flash_then_expire():
     for seed in range(100):
         b = Board(400, 300, FAST, random.Random(seed))

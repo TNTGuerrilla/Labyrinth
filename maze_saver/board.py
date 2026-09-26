@@ -113,11 +113,12 @@ class Board:
     """One monitor's maze cycle: black, dots, generate, solve, hold, repeat."""
 
     def __init__(self, width: int, height: int, settings: Settings, rng: random.Random,
-                 initial_delay: float = 0.0):
+                 initial_delay: float = 0.0, forced_leads: Optional[int] = None):
         self.width = width
         self.height = height
         self.settings = settings
         self.rng = rng
+        self.forced_leads = forced_leads
         self.time = 0.0
         self._reset()
         self._enter_black(initial_delay)
@@ -176,7 +177,8 @@ class Board:
         self.geometry = compute_geometry(self.width, self.height, s.min_cells, s.max_cells, self.rng)
         self.grid = Grid(self.geometry.cols, self.geometry.rows)
         self.start, self.end = choose_endpoints(self.geometry.cols, self.geometry.rows, self.rng)
-        count, self._gen_events = choose_generator(self.grid, self.rng)
+        count, self._gen_events = choose_generator(self.grid, self.rng, self.settings.max_leads,
+                                                    self.forced_leads)
         base = self.rng.random()
         self.hues = [(base + i / count) % 1.0 for i in range(count)]
         self.phase = Phase.DOTS

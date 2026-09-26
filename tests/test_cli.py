@@ -22,6 +22,14 @@ from maze_saver.cli import Command, parse_args
     (["--window"], Command("window")),
     (["/s", "--multiwindow"], Command("saver", multiwindow=True)),
     (["--multiwindow", "/s"], Command("saver", multiwindow=True)),
+    (["/s", "--leads", "8"], Command("saver", leads=8)),
+    (["--leads", "8", "/s"], Command("saver", leads=8)),
+    (["--window", "--leads", "6"], Command("window", leads=6)),
+    (["/s", "--leads", "abc"], Command("saver")),
+    (["/s", "--leads"], Command("saver")),
+    (["/s", "--leads", "0"], Command("saver")),
+    (["/s", "--leads", "17"], Command("saver")),
+    (["/s", "--multiwindow", "--leads", "4"], Command("saver", multiwindow=True, leads=4)),
 ])
 def test_parse_args(argv, expected):
     assert parse_args(argv) == expected

@@ -3,8 +3,8 @@ from maze_saver.config import Settings, default_path, from_dict, load, save
 
 def test_defaults():
     s = Settings()
-    assert (s.min_cells, s.max_cells, s.gen_speed, s.solve_speed, s.hold_seconds, s.fps_cap) == (
-        12, 40, 60.0, 20.0, 4.0, "auto")
+    assert (s.min_cells, s.max_cells, s.gen_speed, s.solve_speed, s.hold_seconds, s.max_leads,
+            s.fps_cap) == (12, 40, 60.0, 20.0, 4.0, 12, "auto")
 
 
 def test_missing_file_gives_defaults(tmp_path):
@@ -57,9 +57,18 @@ def test_fps_cap_choices():
 def test_round_trip(tmp_path):
     p = tmp_path / "config.json"
     s = Settings(min_cells=8, max_cells=30, gen_speed=120.0, solve_speed=15.5,
-                 hold_seconds=0.0, fps_cap=120)
+                 hold_seconds=0.0, max_leads=16, fps_cap=120)
     save(s, p)
     assert load(p) == s
+
+
+def test_max_leads_bad_values_fall_back_to_default():
+    assert from_dict({"max_leads": 1}).max_leads == 12
+    assert from_dict({"max_leads": 17}).max_leads == 12
+
+
+def test_max_leads_accepts_upper_bound():
+    assert from_dict({"max_leads": 16}).max_leads == 16
 
 
 def test_save_creates_parent_dirs(tmp_path):

@@ -97,3 +97,61 @@ def test_choose_generator_uses_both_styles():
         region_counts.add(regions)
     assert 1 in region_counts
     assert region_counts & {2, 3, 4}
+
+
+@pytest.mark.parametrize("cols,rows,expected_upper", [
+    (12, 12, 4), (24, 38, 7), (40, 60, 12), (98, 40, 12),
+])
+def test_choose_generator_scales_leads_with_board_size(cols, rows, expected_upper):
+    region_counts = set()
+    for seed in range(200):
+        g = Grid(cols, rows)
+        regions, events = choose_generator(g, random.Random(seed), max_heads=12)
+        list(events)
+        assert_perfect(g)
+        if regions > 1:
+            assert 2 <= regions <= expected_upper
+        region_counts.add(regions)
+    if cols * rows == 40 * 60:
+        assert 1 in region_counts
+        assert any(r >= 8 for r in region_counts)
+
+
+def test_choose_generator_max_heads_caps_upper_bound():
+    region_counts = set()
+    for seed in range(200):
+        g = Grid(40, 60)
+        regions, events = choose_generator(g, random.Random(seed), max_heads=3)
+        list(events)
+        assert_perfect(g)
+        region_counts.add(regions)
+    assert max(region_counts) <= 3
+
+
+def test_choose_generator_forced_heads_one_is_single_snake():
+    for seed in range(20):
+        g = Grid(24, 38)
+        regions, events = choose_generator(g, random.Random(seed), forced_heads=1)
+        starts = [e for e in list(events) if isinstance(e, Start)]
+        assert regions == 1
+        assert len(starts) == 1
+        assert_perfect(g)
+
+
+def test_choose_generator_forced_heads_multi():
+    for seed in range(20):
+        g = Grid(40, 60)
+        regions, events = choose_generator(g, random.Random(seed), forced_heads=8)
+        starts = [e for e in list(events) if isinstance(e, Start)]
+        assert regions == 8
+        assert len(starts) == 8
+        assert_perfect(g)
+
+
+def test_choose_generator_forced_heads_clamped_to_cell_count():
+    g = Grid(2, 2)
+    regions, events = choose_generator(g, random.Random(0), forced_heads=8)
+    starts = [e for e in list(events) if isinstance(e, Start)]
+    assert regions == 4
+    assert len(starts) == 4
+    assert_perfect(g)

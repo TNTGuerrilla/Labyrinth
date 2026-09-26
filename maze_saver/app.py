@@ -37,13 +37,14 @@ class Slot:
 
 
 def make_slots(surface: pygame.Surface, rects: Sequence[Rect], settings: Settings,
-               rng: random.Random, first_cycle: bool) -> list[Slot]:
+               rng: random.Random, first_cycle: bool, forced_leads: Optional[int] = None) -> list[Slot]:
     """One board per rect; rects are in `surface` coordinates."""
     slots = []
     for r in rects:
         sub = surface.subsurface(pygame.Rect(r.x, r.y, r.w, r.h))
         delay = rng.uniform(0.0, FIRST_DELAY_MAX) if first_cycle else 0.0
-        slots.append(Slot(Board(r.w, r.h, settings, rng, delay), BoardRenderer(sub), (r.x, r.y)))
+        slots.append(Slot(Board(r.w, r.h, settings, rng, delay, forced_leads), BoardRenderer(sub),
+                          (r.x, r.y)))
     return slots
 
 
@@ -74,7 +75,8 @@ class Stage:
                 slot.window.destroy()
 
 
-def _open_single(layout: Layout, settings: Settings, rng: random.Random, first_cycle: bool) -> Stage:
+def _open_single(layout: Layout, settings: Settings, rng: random.Random, first_cycle: bool,
+                 forced_leads: Optional[int] = None) -> Stage:
     win = layout.window
     os.environ["SDL_VIDEO_WINDOW_POS"] = f"{win.x},{win.y}"
     surface = pygame.display.set_mode((win.w, win.h), pygame.NOFRAME)
@@ -85,10 +87,11 @@ def _open_single(layout: Layout, settings: Settings, rng: random.Random, first_c
     surface.fill(BLACK)
     pygame.display.flip()
     rects = [r.moved(-win.x, -win.y) for r in layout.boards]
-    return Stage(make_slots(surface, rects, settings, rng, first_cycle), layout.fps)
+    return Stage(make_slots(surface, rects, settings, rng, first_cycle, forced_leads), layout.fps)
 
 
-def _open_multi(layout: Layout, settings: Settings, rng: random.Random, first_cycle: bool) -> Stage:
+def _open_multi(layout: Layout, settings: Settings, rng: random.Random, first_cycle: bool,
+                forced_leads: Optional[int] = None) -> Stage:
     slots = []
     for r in layout.boards:
         window = pygame.Window(TITLE, (r.w, r.h), (r.x, r.y), borderless=True, always_on_top=True)
@@ -96,7 +99,8 @@ def _open_multi(layout: Layout, settings: Settings, rng: random.Random, first_cy
         surface = window.get_surface()
         surface.fill(BLACK)
         window.flip()
-        slot = make_slots(surface, [Rect(0, 0, r.w, r.h)], settings, rng, first_cycle)[0]
+        slot = make_slots(surface, [Rect(0, 0, r.w, r.h)], settings, rng, first_cycle,
+                          forced_leads)[0]
         slot.window = window
         slots.append(slot)
     slots[0].window.focus()
@@ -105,10 +109,11 @@ def _open_multi(layout: Layout, settings: Settings, rng: random.Random, first_cy
 
 
 def open_stage(monitor_list: Sequence[Monitor], settings: Settings, rng: random.Random,
-               force_multiwindow: bool, first_cycle: bool) -> Stage:
+               force_multiwindow: bool, first_cycle: bool,
+               forced_leads: Optional[int] = None) -> Stage:
     layout = plan_layout(monitor_list, settings.fps_cap, force_multiwindow)
     opener = _open_multi if layout.multiwindow else _open_single
-    return opener(layout, settings, rng, first_cycle)
+    return opener(layout, settings, rng, first_cycle, forced_leads)
 
 
 def needs_rebuild(opened_signature: tuple[int, int, int, int, int],
@@ -118,7 +123,7 @@ def needs_rebuild(opened_signature: tuple[int, int, int, int, int],
     return opened_signature != current_signature
 
 
-def run_saver(settings: Settings, force_multiwindow: bool = False) -> None:
+def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Optional[int] = None) -> None:
     monitors.enable_dpi_awareness()
     mutex = monitors.acquire_single_instance(MUTEX_NAME)
     if mutex is None:
@@ -128,7 +133,7 @@ def run_saver(settings: Settings, force_multiwindow: bool = False) -> None:
         pygame.display.init()
         rng = random.Random()
         current = monitors.get_monitors()
-        stage = open_stage(current, settings, rng, force_multiwindow, first_cycle=True)
+        stage = open_stage(current, settings, rng, force_multiwindow, first_cycle=True, forced_leads=leads)
         pygame.mouse.set_visible(False)
         clock = pygame.time.Clock()
         watcher = ExitWatcher(time.monotonic(), monitors.cursor_pos())
@@ -143,7 +148,8 @@ def run_saver(settings: Settings, force_multiwindow: bool = False) -> None:
             stage.close()
             pygame.display.quit()
             pygame.display.init()
-            stage = open_stage(current, settings, rng, force_multiwindow, first_cycle=False)
+            stage = open_stage(current, settings, rng, force_multiwindow, first_cycle=False,
+                               forced_leads=leads)
             pygame.mouse.set_visible(False)
             watcher = ExitWatcher(time.monotonic(), monitors.cursor_pos())
             signature = monitors.virtual_screen_signature()
@@ -190,7 +196,7 @@ def run_preview(hwnd: int, settings: Settings) -> None:
         pygame.quit()
 
 
-def run_debug_window(settings: Settings) -> None:
+def run_debug_window(settings: Settings, leads: Optional[int] = None) -> None:
     """A scaled-down copy of the real monitor layout in a normal window."""
     monitors.enable_dpi_awareness()
     pygame.display.init()
@@ -200,7 +206,7 @@ def run_debug_window(settings: Settings) -> None:
         pygame.display.set_caption(f"{TITLE} (debug)")
         surface.fill(DEBUG_GAP_COLOR)
         pygame.display.flip()
-        stage = Stage(make_slots(surface, rects, settings, random.Random(), True), DEBUG_FPS)
+        stage = Stage(make_slots(surface, rects, settings, random.Random(), True, leads), DEBUG_FPS)
         clock = pygame.time.Clock()
         while True:
             dt = clock.tick(stage.fps) / 1000.0

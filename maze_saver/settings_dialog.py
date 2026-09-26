@@ -12,8 +12,10 @@ FIELDS = [
     ("gen_speed", "Growth speed (steps per second)"),
     ("solve_speed", "Solve speed (steps per second)"),
     ("hold_seconds", "Show solved maze for (seconds)"),
+    ("max_leads", "Maximum leads"),
 ]
-INCREMENTS = {"min_cells": 1, "max_cells": 1, "gen_speed": 5, "solve_speed": 1, "hold_seconds": 0.5}
+INCREMENTS = {"min_cells": 1, "max_cells": 1, "gen_speed": 5, "solve_speed": 1, "hold_seconds": 0.5,
+             "max_leads": 1}
 FPS_LABELS: dict[FpsCap, str] = {"auto": "Match fastest monitor", 60: "60", 120: "120"}
 
 

@@ -10,6 +10,7 @@ class Command:
     mode: str  # "saver", "config", "preview", "window" or "none"
     hwnd: Optional[int] = None
     multiwindow: bool = False
+    leads: Optional[int] = None
 
 
 def _parse_int(text: str) -> Optional[int]:
@@ -19,12 +20,27 @@ def _parse_int(text: str) -> Optional[int]:
         return None
 
 
+def _parse_leads(text: str) -> Optional[int]:
+    value = _parse_int(text)
+    if value is None or not 1 <= value <= 16:
+        return None
+    return value
+
+
 def parse_args(argv: Sequence[str]) -> Command:
     args = list(argv)
     multiwindow = "--multiwindow" in args
     args = [a for a in args if a != "--multiwindow"]
+    leads = None
+    if "--leads" in args:
+        i = args.index("--leads")
+        if i + 1 < len(args):
+            leads = _parse_leads(args[i + 1])
+            del args[i:i + 2]
+        else:
+            del args[i]
     if "--window" in args:
-        return Command("window")
+        return Command("window", leads=leads)
     if not args:
         return Command("config")
     first = args[0].strip()
@@ -37,7 +53,7 @@ def parse_args(argv: Sequence[str]) -> Command:
     else:
         hwnd = _parse_int(args[1]) if len(args) > 1 else None
     if letter == "s":
-        return Command("saver", multiwindow=multiwindow)
+        return Command("saver", multiwindow=multiwindow, leads=leads)
     if letter == "p":
         return Command("preview", hwnd) if hwnd is not None else Command("none")
     return Command("config", hwnd)

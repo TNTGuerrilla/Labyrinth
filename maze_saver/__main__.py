@@ -34,11 +34,11 @@ def _run(argv: Sequence[str]) -> None:
     from . import app
     settings = config.load()
     if command.mode == "saver":
-        app.run_saver(settings, command.multiwindow)
+        app.run_saver(settings, command.multiwindow, command.leads)
     elif command.mode == "preview":
         app.run_preview(command.hwnd, settings)
     elif command.mode == "window":
-        app.run_debug_window(settings)
+        app.run_debug_window(settings, command.leads)
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:

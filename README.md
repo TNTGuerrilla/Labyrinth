@@ -15,9 +15,10 @@ Build it (below), then right-click `dist\MazeScreensaver.scr` and choose **Insta
     .venv\Scripts\python -m maze_saver /s             # real screensaver
     .venv\Scripts\python -m maze_saver /s --multiwindow
     .venv\Scripts\python -m maze_saver /c             # settings dialog
+    .venv\Scripts\python -m maze_saver --window --leads 8   # force every maze to 8 leads
 
 ## Build
 
     powershell -ExecutionPolicy Bypass -File .\build.ps1
 
-Output: `dist\MazeScreensaver.scr`. Unexpected errors are logged to `%APPDATA%\MazeScreensaver\error.log`.
+Output: `dist\MazeScreensaver.scr`. Unexpected errors are logged to `%APPDATA%\MazeScreensaver\error.log`. Each build gets a unique version so the unpack cache under `%LOCALAPPDATA%\MazeScreensaver` never runs stale files; old version folders there can be deleted.
