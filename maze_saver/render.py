@@ -58,6 +58,7 @@ class BoardRenderer:
         if changes.clear:
             self.surface.fill(BLACK)
             rects.append(self.surface.get_rect())
+            self._palettes.clear()
         if board.geometry is not None:
             for c in changes.cells:
                 rects.append(self._draw_cell(board, c))

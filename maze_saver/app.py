@@ -111,6 +111,13 @@ def open_stage(monitor_list: Sequence[Monitor], settings: Settings, rng: random.
     return opener(layout, settings, rng, first_cycle)
 
 
+def needs_rebuild(opened_signature: tuple[int, int, int, int, int],
+                  current_signature: tuple[int, int, int, int, int]) -> bool:
+    """True when the virtual screen signature has changed since the stage was opened,
+    meaning a monitor was added/removed/rearranged and the stage must be rebuilt."""
+    return opened_signature != current_signature
+
+
 def run_saver(settings: Settings, force_multiwindow: bool = False) -> None:
     monitors.enable_dpi_awareness()
     mutex = monitors.acquire_single_instance(MUTEX_NAME)
@@ -118,30 +125,40 @@ def run_saver(settings: Settings, force_multiwindow: bool = False) -> None:
         return
     try:
         monitors.set_below_normal_priority()
-        pygame.init()
+        pygame.display.init()
         rng = random.Random()
         current = monitors.get_monitors()
         stage = open_stage(current, settings, rng, force_multiwindow, first_cycle=True)
         pygame.mouse.set_visible(False)
         clock = pygame.time.Clock()
         watcher = ExitWatcher(time.monotonic(), monitors.cursor_pos())
+        signature = monitors.virtual_screen_signature()
         next_poll = time.monotonic() + DISPLAY_POLL_SECONDS
+
+        def rebuild() -> None:
+            nonlocal stage, watcher, signature
+            stage.close()
+            pygame.display.quit()
+            pygame.display.init()
+            stage = open_stage(current, settings, rng, force_multiwindow, first_cycle=False)
+            pygame.mouse.set_visible(False)
+            watcher = ExitWatcher(time.monotonic(), monitors.cursor_pos())
+            signature = monitors.virtual_screen_signature()
+
         while True:
             dt = clock.tick(stage.fps) / 1000.0
             input_event = any(e.type in EXIT_EVENTS for e in pygame.event.get())
             now = time.monotonic()
-            if watcher.should_exit(now, monitors.cursor_pos(), input_event):
+            if needs_rebuild(signature, monitors.virtual_screen_signature()):
+                rebuild()
+            elif watcher.should_exit(now, monitors.cursor_pos(), input_event):
                 break
             if now >= next_poll:
                 next_poll = now + DISPLAY_POLL_SECONDS
                 latest = monitors.get_monitors()
                 if latest and latest != current:
                     current = latest
-                    stage.close()
-                    pygame.display.quit()
-                    pygame.display.init()
-                    stage = open_stage(current, settings, rng, force_multiwindow, first_cycle=False)
-                    pygame.mouse.set_visible(False)
+                    rebuild()
             stage.frame(dt)
     finally:
         pygame.quit()
@@ -154,7 +171,7 @@ def run_preview(hwnd: int, settings: Settings) -> None:
         return
     monitors.enable_dpi_awareness()
     os.environ["SDL_WINDOWID"] = str(hwnd)
-    pygame.init()
+    pygame.display.init()
     try:
         w, h = monitors.client_size(hwnd)
         w, h = max(1, w), max(1, h)
@@ -173,7 +190,7 @@ def run_preview(hwnd: int, settings: Settings) -> None:
 def run_debug_window(settings: Settings) -> None:
     """A scaled-down copy of the real monitor layout in a normal window."""
     monitors.enable_dpi_awareness()
-    pygame.init()
+    pygame.display.init()
     try:
         size, rects = scale_to_fit(monitors.get_monitors(), *DEBUG_WINDOW_MAX)
         surface = pygame.display.set_mode(size)

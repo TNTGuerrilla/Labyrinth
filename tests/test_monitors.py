@@ -29,6 +29,25 @@ def test_cursor_pos_is_two_ints():
     assert isinstance(x, int) and isinstance(y, int)
 
 
+def test_cursor_pos_returns_last_known_on_failure(monkeypatch):
+    monkeypatch.setattr(monitors, "_last_cursor", (123, 456))
+    monkeypatch.setattr(monitors.user32, "GetCursorPos", lambda p: 0)
+    assert monitors.cursor_pos() == (123, 456)
+
+
+def test_cursor_pos_returns_zero_zero_when_never_succeeded(monkeypatch):
+    monkeypatch.setattr(monitors, "_last_cursor", None)
+    monkeypatch.setattr(monitors.user32, "GetCursorPos", lambda p: 0)
+    assert monitors.cursor_pos() == (0, 0)
+
+
+def test_virtual_screen_signature():
+    x, y, w, h, count = monitors.virtual_screen_signature()
+    assert all(isinstance(v, int) for v in (x, y, w, h, count))
+    assert w > 0 and h > 0
+    assert count >= 1
+
+
 def test_is_window_rejects_null():
     assert not monitors.is_window(0)
 

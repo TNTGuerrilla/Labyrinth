@@ -1,3 +1,3 @@
 -r requirements.txt
 pytest
-nuitka
+nuitka==4.2.2

@@ -24,6 +24,11 @@ DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4
 PROCESS_PER_MONITOR_DPI_AWARE = 2
 MDT_EFFECTIVE_DPI = 0
 DEFAULT_DPI = 96
+SM_XVIRTUALSCREEN = 76
+SM_YVIRTUALSCREEN = 77
+SM_CXVIRTUALSCREEN = 78
+SM_CYVIRTUALSCREEN = 79
+SM_CMONITORS = 80
 
 
 class MONITORINFOEXW(ctypes.Structure):
@@ -95,6 +100,10 @@ user32.IsWindow.argtypes = [wintypes.HWND]
 user32.IsWindow.restype = wintypes.BOOL
 user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
 user32.GetClientRect.restype = wintypes.BOOL
+user32.GetSystemMetrics.argtypes = [ctypes.c_int]
+user32.GetSystemMetrics.restype = ctypes.c_int
+user32.GetParent.argtypes = [wintypes.HWND]
+user32.GetParent.restype = wintypes.HWND
 kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
 kernel32.CreateMutexW.restype = wintypes.HANDLE
 kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
@@ -161,10 +170,34 @@ def get_monitors() -> list[Monitor]:
     return sorted(found, key=lambda m: (m.x, m.y))
 
 
+_last_cursor: Optional[tuple[int, int]] = None
+
+
 def cursor_pos() -> tuple[int, int]:
+    """Returns the cursor position, or the last known-good one if GetCursorPos fails
+    (happens on the secure desktop / lock screen). Returns (0, 0) if it has never succeeded."""
+    global _last_cursor
     point = wintypes.POINT()
-    user32.GetCursorPos(ctypes.byref(point))
-    return (int(point.x), int(point.y))
+    if user32.GetCursorPos(ctypes.byref(point)):
+        _last_cursor = (int(point.x), int(point.y))
+        return _last_cursor
+    if _last_cursor is not None:
+        return _last_cursor
+    return (0, 0)
+
+
+def virtual_screen_signature() -> tuple[int, int, int, int, int]:
+    """Cheap snapshot of the virtual desktop's extent and monitor count, for detecting
+    monitor changes without a full get_monitors() enumeration."""
+    metrics = user32.GetSystemMetrics
+    return (metrics(SM_XVIRTUALSCREEN), metrics(SM_YVIRTUALSCREEN), metrics(SM_CXVIRTUALSCREEN),
+            metrics(SM_CYVIRTUALSCREEN), metrics(SM_CMONITORS))
+
+
+def get_parent(hwnd: int) -> int:
+    if not hwnd:
+        return 0
+    return user32.GetParent(hwnd) or 0
 
 
 def set_topmost(hwnd: int, x: int, y: int, w: int, h: int) -> None:

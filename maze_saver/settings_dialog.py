@@ -1,7 +1,6 @@
 """The Settings dialog Windows opens with /c. tkinter, loaded only in this mode."""
 from __future__ import annotations
 
-import ctypes
 from pathlib import Path
 from typing import Optional
 
@@ -10,8 +9,8 @@ from .config import NUMERIC_RANGES, FpsCap, Settings, from_dict, load, save
 FIELDS = [
     ("min_cells", "Minimum rows/columns"),
     ("max_cells", "Maximum rows/columns"),
-    ("gen_speed", "Growth speed (cells per second)"),
-    ("solve_speed", "Solve speed (cells per second)"),
+    ("gen_speed", "Growth speed (steps per second)"),
+    ("solve_speed", "Solve speed (steps per second)"),
     ("hold_seconds", "Show solved maze for (seconds)"),
 ]
 INCREMENTS = {"min_cells": 1, "max_cells": 1, "gen_speed": 5, "solve_speed": 1, "hold_seconds": 0.5}
@@ -71,7 +70,11 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None) ->
         if error:
             messagebox.showerror("Maze Screensaver", error, parent=root)
             return
-        save(settings, path)
+        try:
+            save(settings, path)
+        except OSError as exc:
+            messagebox.showerror("Maze Screensaver", f"Could not save settings: {exc}", parent=root)
+            return
         root.destroy()
 
     def on_reset() -> None:
@@ -91,6 +94,6 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None) ->
     root.update_idletasks()
     if owner_hwnd:
         from . import monitors
-        toplevel = ctypes.windll.user32.GetParent(root.winfo_id())
+        toplevel = monitors.get_parent(root.winfo_id())
         monitors.set_owner(toplevel, owner_hwnd)
     root.mainloop()
