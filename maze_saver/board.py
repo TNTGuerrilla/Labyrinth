@@ -138,6 +138,7 @@ class Board:
         self._gen_events: Optional[Iterator[GenEvent]] = None
         self._solve_events: Optional[Iterator[SolveEvent]] = None
         self._steps: Optional[StepAccumulator] = None
+        self._active_leads = 0
 
     @property
     def head_cells(self) -> set:
@@ -179,6 +180,7 @@ class Board:
         self.start, self.end = choose_endpoints(self.geometry.cols, self.geometry.rows, self.rng)
         count, self._gen_events = choose_generator(self.grid, self.rng, self.settings.max_leads,
                                                     self.forced_leads)
+        self._active_leads = count
         base = self.rng.random()
         self.hues = [(base + i / count) % 1.0 for i in range(count)]
         self.phase = Phase.DOTS
@@ -190,6 +192,7 @@ class Board:
         self._steps = StepAccumulator(self.settings.gen_speed)
 
     def _run_generator(self, dt: float, changes: Changes) -> None:
+        self._steps.rate = self.settings.gen_speed * max(1, self._active_leads)
         for _ in range(self._steps.take(dt)):
             event = next(self._gen_events, None)
             if event is None:
@@ -211,6 +214,7 @@ class Board:
             changes.cells.update((event.frm, event.to))
         elif isinstance(event, Finish):
             self.heads.pop(event.region, None)
+            self._active_leads = max(0, self._active_leads - 1)
             changes.cells.add(event.cell)
         elif isinstance(event, Weld):
             self.welds[edge_key(event.a, event.b)] = self.time + WELD_FLASH_SECONDS

@@ -10,7 +10,7 @@ FIELDS = [
     ("min_cells", "Minimum rows/columns"),
     ("max_cells", "Maximum rows/columns"),
     ("max_leads", "Maximum leads"),
-    ("gen_speed", "Growth speed (steps per second)"),
+    ("gen_speed", "Growth speed per lead (steps per second)"),
     ("solve_speed", "Solve speed (steps per second)"),
     ("hold_seconds", "Show solved maze for (seconds)"),
 ]
