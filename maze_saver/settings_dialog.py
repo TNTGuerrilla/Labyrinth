@@ -9,10 +9,10 @@ from .config import NUMERIC_RANGES, FpsCap, Settings, from_dict, load, save
 FIELDS = [
     ("min_cells", "Minimum rows/columns"),
     ("max_cells", "Maximum rows/columns"),
+    ("max_leads", "Maximum leads"),
     ("gen_speed", "Growth speed (steps per second)"),
     ("solve_speed", "Solve speed (steps per second)"),
     ("hold_seconds", "Show solved maze for (seconds)"),
-    ("max_leads", "Maximum leads"),
 ]
 INCREMENTS = {"min_cells": 1, "max_cells": 1, "gen_speed": 5, "solve_speed": 1, "hold_seconds": 0.5,
              "max_leads": 1}
