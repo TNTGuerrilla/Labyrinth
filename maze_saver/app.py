@@ -136,7 +136,10 @@ def run_saver(settings: Settings, force_multiwindow: bool = False) -> None:
         next_poll = time.monotonic() + DISPLAY_POLL_SECONDS
 
         def rebuild() -> None:
-            nonlocal stage, watcher, signature
+            nonlocal stage, watcher, signature, current
+            fresh = monitors.get_monitors()
+            if fresh:
+                current = fresh
             stage.close()
             pygame.display.quit()
             pygame.display.init()
