@@ -12,7 +12,8 @@ import pygame
 
 from maze_saver.maze import E, N, S, W
 
-from . import config, difficulty
+from . import benchmark, config, difficulty
+from .assist import route
 from .camera import Camera
 from .config import GameSettings
 from .game_render import GameRenderer
@@ -23,6 +24,7 @@ from .ui.custom_dialog import CustomDialog
 from .ui.settings_model import SettingsModel
 from .ui.settings_panel import SettingsPanel
 from .ui.toolbar import TOOLBAR_H, Toolbar, ToolbarState
+from .ui.widgets import draw_progress
 from .ui.win_screen import WinScreen
 
 TITLE = "Maze Game"
@@ -42,6 +44,10 @@ NAV_KEYS = {"up": "up", "down": "down", "left": "left", "right": "right", "retur
             "backspace": "backspace"}
 
 Dialog = Union[CustomDialog, SettingsPanel]
+
+
+class BenchmarkCancelled(Exception):
+    """Esc pressed, or the window closed, while the benchmark was running."""
 
 
 def nav_for(key_name: str, keymap: Keymap) -> Optional[str]:
@@ -401,6 +407,94 @@ class Game:
             r.gen_speed = self.settings.gen_speed
             self.renderer.invalidate(clear=False)
             self._close_dialog()
+        elif outcome == "benchmark":
+            if self.run_benchmark() is None:
+                return
+            s = self.settings
+            if isinstance(d, CustomDialog):
+                d.bench_size, d.bench_rate = s.bench_size, s.bench_rate
+            else:
+                d.model.draft = replace(d.model.draft, bench_size=s.bench_size,
+                                        bench_rate=s.bench_rate,
+                                        bench_resolution=s.bench_resolution)
+
+    # --- benchmark --------------------------------------------------------------
+
+    def run_benchmark(self) -> Optional[int]:
+        """Find the recommended Custom size for this play area and save it with the build
+        rate. Returns the size, or None if cancelled."""
+        pr = self.play_rect
+        tested: list[int] = []
+        rates: list[float] = []
+
+        def measure(n: int) -> float:
+            times, rate = self._bench_scene(n, len(tested))
+            rates.append(rate)
+            return benchmark.score(times)
+
+        try:
+            size = benchmark.find_recommended(measure, difficulty.ceiling(pr.w, pr.h),
+                                              on_step=tested.append)
+        except BenchmarkCancelled:
+            return None
+        self.settings = replace(self.settings, bench_size=size,
+                                bench_rate=benchmark.median(rates),
+                                bench_resolution=(pr.w, pr.h))
+        self.save()
+        return size
+
+    def _bench_scene(self, n: int, index: int) -> tuple[list[float], float]:
+        """The benchmark scene for short side n at 100% zoom. Returns the frame times of
+        the rendered part and the build rate in seconds per cell."""
+        pr = self.play_rect
+        cols, rows = difficulty.grid_size(n, pr.w, pr.h)
+        s = replace(self.settings, animated=True)
+        rng = random.Random(n)
+        label = f"Measuring performance: {n} cells (test {index})"
+        draw_progress(self.screen, pr, label, 0.0)
+        self.window.flip()
+        scene = Round(cols, rows, s, rng)
+        started = time.perf_counter()
+        carved = scene.build_until(benchmark.BUILD_FRACTION, on_chunk=self._bench_events)
+        rate = (time.perf_counter() - started) / max(1, carved)
+        scene.skip_growth()
+        camera = Camera(cols, rows, pr.w, pr.h)
+        renderer = GameRenderer(pr.size)
+        times: list[float] = []
+        self._bench_events()
+        last = time.perf_counter()
+
+        def show(changed: set, fraction: float) -> None:
+            nonlocal last
+            renderer.render(self.screen, pr, scene, camera, changed)
+            draw_progress(self.screen, pr, label, fraction)
+            self.window.flip()
+            self._bench_events()
+            now = time.perf_counter()
+            times.append(now - last)
+            last = now
+
+        phase_start = last
+        while (scene.phase is Phase.GROW
+               and last - phase_start < benchmark.FINISH_SECONDS):
+            dt = times[-1] if times else 0.0
+            show(scene.update(dt), 0.5 * (last - phase_start) / benchmark.FINISH_SECONDS)
+        scene.finish_growth_now()
+        steer = PathSteer(route(scene.grid, scene.start, scene.end)[1:])
+        last = phase_start = time.perf_counter()
+        while scene.phase is Phase.PLAY and last - phase_start < benchmark.RUN_SECONDS:
+            dt = times[-1] if times else 0.0
+            changed = scene.update(dt) | scene.move(dt * s.solve_speed, steer.choose, True)
+            show(changed, 0.5 + 0.5 * (last - phase_start) / benchmark.RUN_SECONDS)
+        return times, rate
+
+    def _bench_events(self) -> None:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.event.post(pygame.event.Event(pygame.QUIT))
+                raise BenchmarkCancelled
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                raise BenchmarkCancelled
 
 
 def run(settings: GameSettings, keymap: Keymap, config_path: Optional[Path] = None) -> None:
