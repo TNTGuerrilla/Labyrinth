@@ -175,7 +175,35 @@ def test_timer_pauses_while_a_dialog_is_open(game):
     until_play(game)
     game.do("autosolve")
     frames(game, 5)
+    assert game.round.elapsed > 0
+    assert game.round.phase is Phase.PLAY
     game.do("settings")
     before = game.round.elapsed
     frames(game, 30)
     assert game.round.elapsed == before
+
+
+def test_focus_lost_clears_press_and_dragging(game):
+    until_play(game)
+    r = game.round
+    n = next(step(r.start, d) for d in (N, E, S, W) if r.grid.open_dirs(r.start) & d)
+    x, y, w, h = game.camera.cell_rect(n)
+    pr = game.play_rect
+    pos = (pr.x + x + w // 2, pr.y + y + h // 2)
+    game.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=pos))
+    game.dragging = True
+    game.handle(pygame.event.Event(pygame.WINDOWFOCUSLOST))
+    assert game.press is None
+    assert game.dragging is False
+
+
+def test_minimized_pauses_movement(game):
+    until_play(game)
+    game.do("autosolve")
+    frames(game, 3)
+    r = game.round
+    game.minimized = True
+    steps_before, auto_steps_before = r.steps, r.auto_steps
+    frames(game, 30)
+    assert r.steps == steps_before
+    assert r.auto_steps == auto_steps_before

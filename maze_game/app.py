@@ -66,13 +66,11 @@ class Game:
         self.keymap = keymap
         self.config_path = config_path
         self.rng = random.Random()
-        pygame.display.set_caption(TITLE)
-        pygame.display.set_mode(START_SIZE, pygame.RESIZABLE)
-        self.window = pygame.Window.from_display_module()
+        self.window = pygame.Window(TITLE, START_SIZE, resizable=True)
         self.window.minimum_size = MIN_SIZE
         self.window.maximize()
         pygame.event.pump()
-        self.screen = pygame.display.get_surface()
+        self.screen = self.window.get_surface()
         self.toolbar = Toolbar()
         self.win_screen = WinScreen()
         self.keys = KeyboardSteer()
@@ -191,6 +189,8 @@ class Game:
             self.minimized = False
         elif t == pygame.WINDOWFOCUSLOST:
             self.keys.clear()
+            self.press = None
+            self.dragging = False
         elif t == pygame.KEYDOWN:
             self._key_down(pygame.key.name(event.key))
         elif t == pygame.KEYUP:
@@ -293,7 +293,7 @@ class Game:
         r = self.round
         before = r.phase
         changed = r.update(dt)
-        if self.dialog is None and r.phase is Phase.PLAY:
+        if self.dialog is None and r.phase is Phase.PLAY and not self.minimized:
             if (self.press is not None and not self.dragging
                     and time.monotonic() - self.press[0] > CLICK_SECONDS):
                 self.dragging = True
@@ -303,8 +303,7 @@ class Game:
                 self.auto = None
             if self.dash is not None and self.dash.done and not r.mover.moving:
                 self.dash = None
-            if not self.minimized:
-                r.tick_timer(dt)
+            r.tick_timer(dt)
         if r.phase is not before:
             self.renderer.invalidate(clear=False)
         self.camera.follow(r.mover.position(), dt)
@@ -322,12 +321,12 @@ class Game:
         self.toolbar.draw(self.screen, self.keymap, state, mouse)
         if self.dialog is not None:
             self.dialog.draw(self.screen)
-        pygame.display.flip()
+        self.window.flip()
 
     # --- window -----------------------------------------------------------------
 
     def _resized(self) -> None:
-        self.screen = pygame.display.get_surface()
+        self.screen = self.window.get_surface()
         pr = self.play_rect
         self.camera.resize(pr.w, pr.h)
         self.renderer.resize(pr.size)
