@@ -9,17 +9,32 @@ from typing import Iterable, Iterator, Optional
 from maze_saver.maze import Cell, Grid, direction, step
 from maze_saver.solver import SolveEvent, Solved, solve
 
+from .assist import dead_end_within
+
 
 class KeyboardSteer:
-    """Pac-Man style: the most recently pressed held direction is the wanted one."""
+    """Keyboard steering.
+
+    Follow bends off: the most recently pressed held direction steers; the dot stops
+    where that way is closed. Follow bends on: held keys keep the dot moving along its
+    heading and through corridor bends; only a fresh press (the request) turns it into
+    a side passage; forks pause for `pause` seconds so the player can react, then carry
+    straight on if a key is still held. Branches that visibly dead-end within the
+    look-ahead distance are not counted as choices.
+    """
 
     def __init__(self):
         self.held: list[int] = []
+        self.request: Optional[int] = None
+        self.now = 0.0
+        self._pause_cell: Optional[Cell] = None
+        self._pause_until = 0.0
 
     def press(self, d: int) -> None:
         if d in self.held:
             self.held.remove(d)
         self.held.append(d)
+        self.request = d
 
     def release(self, d: int) -> None:
         if d in self.held:
@@ -27,23 +42,58 @@ class KeyboardSteer:
 
     def clear(self) -> None:
         self.held.clear()
+        self.request = None
+        self._pause_cell = None
+
+    def tick(self, dt: float) -> None:
+        self.now += dt
 
     @property
     def wanted(self) -> Optional[int]:
         return self.held[-1] if self.held else None
 
     def choose(self, grid: Grid, cell: Cell, came_from: Optional[Cell], follow_bends: bool,
-               stops: Iterable[Cell]) -> Optional[Cell]:
-        d = self.wanted
-        if d is None:
+               stops: Iterable[Cell], end: Cell, lookahead: int,
+               pause: float) -> Optional[Cell]:
+        if not follow_bends:
+            d = self.wanted
+            if d is not None and grid.open_dirs(cell) & d:
+                return step(cell, d)
             return None
-        if grid.open_dirs(cell) & d:
-            return step(cell, d)
-        if not follow_bends or came_from is None or cell in stops:
+        return self._guided(grid, cell, came_from, stops, end, lookahead, pause)
+
+    def _guided(self, grid: Grid, cell: Cell, came_from: Optional[Cell], stops: Iterable[Cell],
+                end: Cell, lookahead: int, pause: float) -> Optional[Cell]:
+        r = self.request
+        if r is not None and grid.open_dirs(cell) & r:
+            self.request = None
+            self._pause_cell = None
+            return step(cell, r)
+        if came_from is None or cell in stops:
+            self.request = None
             return None
-        exits = grid.open_neighbors(cell)
-        if len(exits) == 2 and came_from in exits:
-            return exits[0] if exits[1] == came_from else exits[1]
+        heading = direction(came_from, cell)
+        exits = [n for n in grid.open_neighbors(cell)
+                 if n != came_from and not dead_end_within(grid, cell, n, end, lookahead)]
+        if not exits:
+            self.request = None
+            return None
+        if len(exits) == 1:
+            if not self.held:
+                return None
+            nxt = exits[0]
+            if direction(cell, nxt) != heading:
+                self.request = None
+            return nxt
+        if self._pause_cell != cell:
+            self._pause_cell = cell
+            self._pause_until = self.now + pause
+        if self.now < self._pause_until:
+            return None
+        self.request = None
+        if self.held and grid.open_dirs(cell) & heading:
+            self._pause_cell = None
+            return step(cell, heading)
         return None
 
 

@@ -35,6 +35,26 @@ def hint_cells(grid: Grid, cell: Cell, end: Cell, length: int) -> list[Cell]:
     return route(grid, cell, end)[1:1 + length]
 
 
+def dead_end_within(grid: Grid, frm: Cell, n: Cell, end: Cell, depth: int) -> bool:
+    """True if the branch entered from `frm` into `n` visibly ends within `depth` cells
+    of `frm` (n is 1) without containing `end`. depth <= 0 never hides a branch."""
+    if depth <= 0:
+        return False
+    seen = {frm, n}
+    frontier = [n]
+    dist = 1
+    while frontier:
+        if end in frontier:
+            return False
+        nxt = [m for c in frontier for m in grid.open_neighbors(c) if m not in seen]
+        if dist >= depth:
+            return not nxt
+        seen.update(nxt)
+        frontier = nxt
+        dist += 1
+    return True
+
+
 def toward_end(grid: Grid, end: Cell) -> dict[Cell, Cell]:
     """BFS from end over open passages: toward_end[c] is the neighbor one step closer to
     end. Lets Round build one parent map per maze instead of a fresh BFS per hint press."""
