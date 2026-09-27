@@ -29,7 +29,8 @@ class KeyboardSteer:
         self.now = 0.0
         self._pause_cell: Optional[Cell] = None
         self._pause_until = 0.0
-        self._resting = False
+        self._stopped = False
+        self._last_cell: Optional[Cell] = None
 
     def press(self, d: int) -> None:
         if d in self.held:
@@ -45,6 +46,8 @@ class KeyboardSteer:
         self.held.clear()
         self.request = None
         self._pause_cell = None
+        self._stopped = False
+        self._last_cell = None
 
     def tick(self, dt: float) -> None:
         self.now += dt
@@ -61,27 +64,36 @@ class KeyboardSteer:
             if d is not None and grid.open_dirs(cell) & d:
                 return step(cell, d)
             return None
+        # The pause and the stopped state are only meaningful across repeated idle
+        # frames at the same cell. The game calls this chooser every idle frame at
+        # the dot's current cell, including right after mouse or dash steering lets
+        # go of it; if that cell differs from the one we were last consulted about,
+        # any pause or stop left over from before is stale and must not linger.
+        if self._last_cell != cell:
+            self._pause_cell = None
+            self._stopped = False
+        self._last_cell = cell
         result = self._guided(grid, cell, came_from, stops, end, lookahead, pause)
-        self._resting = result is None
+        if result is not None:
+            self._stopped = False
         return result
 
     def _guided(self, grid: Grid, cell: Cell, came_from: Optional[Cell], stops: Iterable[Cell],
                 end: Cell, lookahead: int, pause: float) -> Optional[Cell]:
-        if self._pause_cell is not None and self._pause_cell != cell:
-            self._pause_cell = None
         r = self.request
         if r is not None:
             if grid.open_dirs(cell) & r:
                 self.request = None
                 self._pause_cell = None
                 return step(cell, r)
-            if self._resting:
+            if self._stopped:
                 # The dot is standing still: an unusable press does nothing rather
                 # than launching it along its old, stale heading.
                 self.request = None
                 return None
         if came_from is None or cell in stops:
             self.request = None
+            self._stopped = True
             return None
         heading = direction(came_from, cell)
         raw = [n for n in grid.open_neighbors(cell) if n != came_from]
@@ -91,10 +103,17 @@ class KeyboardSteer:
         exits = pruned or raw
         if not exits:
             self.request = None
+            self._stopped = True
             return None
         if len(exits) == 1:
+            if self._stopped:
+                # Merely still being held is not enough once genuinely stopped;
+                # only a fresh, usable press (handled above) moves it again.
+                self.request = None
+                return None
             if not self.held:
                 self.request = None
+                self._stopped = True
                 return None
             nxt = exits[0]
             if direction(cell, nxt) != heading:
@@ -103,12 +122,16 @@ class KeyboardSteer:
         if self._pause_cell != cell:
             self._pause_cell = cell
             self._pause_until = self.now + pause
+            return None
         if self.now < self._pause_until:
             return None
         self.request = None
+        if self._stopped:
+            return None
         if self.held and grid.open_dirs(cell) & heading:
             self._pause_cell = None
             return step(cell, heading)
+        self._stopped = True
         return None
 
 

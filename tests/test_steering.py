@@ -24,6 +24,7 @@ CROSS = (((0, 1), (1, 1)), ((1, 1), (2, 1)), ((1, 1), (1, 0)), ((1, 1), (1, 2)))
 TEE = (((0, 1), (1, 1)), ((1, 1), (1, 0)), ((1, 1), (1, 2)))
 BEND = (((0, 0), (1, 0)), ((1, 0), (1, 1)))
 STRAIGHT = (((0, 1), (1, 1)), ((1, 1), (2, 1)))
+TRIFORK = (((0, 1), (1, 1)), ((1, 1), (2, 1)), ((1, 1), (1, 0)))  # W(came)-E-N open, S closed
 FAR = (9, 9)  # an end cell outside these little grids
 
 
@@ -136,7 +137,9 @@ def test_press_into_a_wall_at_rest_does_nothing():
     k.press(N)  # closed here
     assert guided(k, g, (1, 1), (0, 1)) is None
     assert k.request is None
-    k.press(W)  # open (back the way it came)
+    assert guided(k, g, (1, 1), (0, 1)) is None  # frame 2: N still held, still no move
+    assert guided(k, g, (1, 1), (0, 1)) is None  # frame 3: still no move
+    k.press(W)  # a fresh, open press (back the way it came)
     assert guided(k, g, (1, 1), (0, 1)) == (0, 1)
 
 
@@ -149,8 +152,34 @@ def test_press_into_a_wall_at_a_stopped_fork_does_nothing():
     k.press(E)  # still closed
     assert guided(k, g, (1, 1), (0, 1)) is None
     assert k.request is None
+    assert guided(k, g, (1, 1), (0, 1)) is None  # frame 2: E still held, still no move
+    assert guided(k, g, (1, 1), (0, 1)) is None  # frame 3: still no move
     k.press(N)  # open
     assert guided(k, g, (1, 1), (0, 1)) == (1, 0)
+
+
+def test_stopped_dot_ignores_a_held_key_without_a_fresh_press():
+    """The idle chooser is asked again every frame; merely still being held (with
+    no new press behind it) must not resume movement after a genuine stop."""
+    g = grid_of(3, 2, STRAIGHT)
+    k = held_since_before(E)
+    k.release(E)
+    assert guided(k, g, (1, 1), (0, 1)) is None  # nothing held, genuinely stops
+    k.held.append(E)  # held again, but no fresh press: request stays None
+    assert guided(k, g, (1, 1), (0, 1)) is None
+    assert guided(k, g, (1, 1), (0, 1)) is None
+    k.press(E)  # a real, fresh press of the same, now-open direction
+    assert guided(k, g, (1, 1), (0, 1)) == (2, 1)
+
+
+def test_pressing_a_closed_direction_during_the_pause_still_carries_on():
+    g = grid_of(3, 3, TRIFORK)
+    k = held_since_before(E)
+    assert guided(k, g, (1, 1), (0, 1)) is None  # starts the pause
+    k.press(S)  # closed here; must not derail the eventual straight continuation
+    assert guided(k, g, (1, 1), (0, 1)) is None  # still paused
+    k.tick(1.0)
+    assert guided(k, g, (1, 1), (0, 1)) == (2, 1)  # carries straight on once it elapses
 
 
 def test_pause_resets_if_the_fork_is_left_by_other_means():
