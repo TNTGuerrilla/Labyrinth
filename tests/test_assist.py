@@ -1,0 +1,49 @@
+from maze_saver.maze import Grid
+from maze_game.assist import dead_end_within, hint_cells, perfect_steps, route, toward_end
+from tests.gameutil import fork_grid
+
+
+def test_route_and_perfect_steps():
+    g = fork_grid()
+    assert route(g, (0, 1), (1, 1)) == [(0, 1), (0, 0), (1, 0), (1, 1)]
+    assert perfect_steps(g, (0, 1), (1, 1)) == 3
+
+
+def test_route_to_itself():
+    assert route(fork_grid(), (1, 0), (1, 0)) == [(1, 0)]
+
+
+def test_hint_from_off_the_path_leads_back():
+    assert hint_cells(fork_grid(), (2, 1), (0, 1), 2) == [(2, 0), (1, 0)]
+
+
+def test_hint_stops_at_the_end():
+    assert hint_cells(fork_grid(), (0, 1), (2, 1), 8) == [(0, 0), (1, 0), (2, 0), (2, 1)]
+
+
+def test_toward_end_gives_the_parent_map_toward_the_end():
+    g = fork_grid()
+    assert toward_end(g, (1, 1)) == {
+        (1, 0): (1, 1),
+        (0, 0): (1, 0),
+        (2, 0): (1, 0),
+        (0, 1): (0, 0),
+        (2, 1): (2, 0),
+    }
+
+
+def stub_grid():
+    """(0,0)-(1,0)-(2,0)-(3,0) with a one-cell stub (1,0)-(1,1)."""
+    g = Grid(4, 2)
+    for a, b in (((0, 0), (1, 0)), ((1, 0), (2, 0)), ((2, 0), (3, 0)), ((1, 0), (1, 1))):
+        g.carve(a, b)
+    return g
+
+
+def test_dead_end_within():
+    g = stub_grid()
+    assert dead_end_within(g, (1, 0), (1, 1), (3, 0), 4)
+    assert not dead_end_within(g, (1, 0), (2, 0), (3, 0), 4)  # holds the finish
+    assert dead_end_within(g, (1, 0), (2, 0), (0, 0), 4)  # two cells, then a wall
+    assert not dead_end_within(g, (1, 0), (2, 0), (0, 0), 1)  # goes on past the limit
+    assert not dead_end_within(g, (1, 0), (1, 1), (3, 0), 0)  # depth 0 never hides
