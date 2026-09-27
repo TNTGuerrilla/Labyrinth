@@ -5,8 +5,10 @@ import pygame
 import pytest
 
 from maze_game import game_render
+from maze_game.assist import route
 from maze_game.camera import Camera
 from maze_game.game_render import GameRenderer
+from maze_game.steering import PathSteer
 from maze_saver.render import START_COLOR
 from tests.gameutil import FAST, grown
 
@@ -135,3 +137,50 @@ def test_resize_keeps_drawing():
     bigger = pygame.Rect(0, 40, 500, 400)
     settle(renderer, pygame.Surface((500, 440)), bigger, r, camera)
     assert renderer.layer.get_size() == (500, 400)
+
+
+def test_two_resizes_before_a_render_keep_the_stretch_preview():
+    r = big_round()
+    camera, renderer, screen = setup(r, fake_clock())
+    settle(renderer, screen, PLAY, r, camera)
+    camera.resize(500, 400)
+    renderer.resize((500, 400))
+    camera.resize(600, 450)
+    renderer.resize((600, 450))
+    bigger = pygame.Rect(0, 0, 600, 450)
+    renderer.render(pygame.Surface((600, 450)), bigger, r, camera, set())
+    assert pygame.transform.average_color(renderer.layer)[:3] != (0, 0, 0)
+
+
+def test_win_pulse_skips_cells_outside_the_play_rect(monkeypatch):
+    r = grown()
+    camera, renderer, screen = setup(r)
+    r.move(1000.0, PathSteer(route(r.grid, r.start, r.end)[1:]).choose)
+    assert r.win_pulse_active
+    camera.zoom_by(100, (r.end[0] + 0.5, r.end[1] + 0.5))
+    calls = []
+    real = pygame.draw.circle
+
+    def fake_circle(surface, color, pos, *a, **k):
+        calls.append(pos)
+        return real(surface, color, pos, *a, **k)
+
+    monkeypatch.setattr(pygame.draw, "circle", fake_circle)
+    game_render.draw_overlays(screen, PLAY, r, camera)
+    assert calls
+    for pos in calls:
+        assert PLAY.collidepoint(pos)
+
+
+def test_changed_cells_are_drawn_before_scroll_strips(monkeypatch):
+    r = big_round()
+    camera, renderer, screen = setup(r, fake_clock())
+    camera.zoom_by(3, (40, 30))
+    settle(renderer, screen, PLAY, r, camera)
+    calls = []
+    real = game_render.draw_cell
+    monkeypatch.setattr(game_render, "draw_cell",
+                        lambda *a, **k: (calls.append(a[2]), real(*a, **k)))
+    camera.cx += 1.0
+    renderer.render(screen, PLAY, r, camera, {(40, 30)})
+    assert calls[0] == (40, 30)

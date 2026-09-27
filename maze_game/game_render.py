@@ -91,7 +91,7 @@ class GameRenderer:
         self._source = None
 
     def resize(self, size: tuple[int, int]) -> None:
-        if self._view is not None:
+        if self._view is not None and self._source is None:
             self._source = self.layer
         self.layer = pygame.Surface(size)
         self.layer.fill(BLACK)
@@ -99,6 +99,8 @@ class GameRenderer:
     def render(self, screen: pygame.Surface, play_rect: pygame.Rect, board, camera: Camera,
                changed: set) -> None:
         view = (camera.cell_px, camera.origin())
+        for c in changed:
+            self._enqueue(c)
         if self._view is None:
             if self._clear:
                 self.layer.fill(BLACK)
@@ -111,8 +113,6 @@ class GameRenderer:
             self._scroll(camera, view[1][0] - self._view[1][0], view[1][1] - self._view[1][1])
         self._view = view
         self._source = None
-        for c in changed:
-            self._enqueue(c)
         self._drain(board, camera)
         screen.blit(self.layer, play_rect.topleft)
         old_clip = screen.get_clip()
@@ -229,7 +229,9 @@ def draw_overlays(screen: pygame.Surface, play_rect: pygame.Rect, board, camera:
         color = _mix(TRAIL_COLOR, WHITE, b)
         size = max(1, round(px * 0.2 * (1 + b)))
         for c in board.path.route:
-            pygame.draw.circle(screen, color, center(c), size)
+            pos = center(c)
+            if play_rect.collidepoint(pos):
+                pygame.draw.circle(screen, color, pos, size)
     if board.flash_active:
         t = (board.time - board.flash_at) / FLASH_SECONDS
         end = center(board.end)
