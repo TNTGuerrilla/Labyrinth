@@ -139,3 +139,13 @@ def test_has_the_attributes_draw_cell_reads():
     for name in ("grid", "region_of", "hues", "welds", "trail", "head_cells", "start", "end",
                  "dot"):
         assert hasattr(r, name)
+
+
+def test_head_cells_is_cached_and_tracks_the_heads_dict():
+    r = Round(20, 12, FAST, random.Random(9))
+    r.update(1 / 60)
+    assert r.head_cells == set(r.heads.values())
+    first = r.head_cells
+    assert r.head_cells is first
+    r.update(1 / 60)
+    assert r.head_cells == set(r.heads.values())

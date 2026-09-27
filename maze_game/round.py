@@ -15,7 +15,7 @@ from maze_saver.board import WELD_FLASH_SECONDS, StepAccumulator, choose_endpoin
 from maze_saver.maze import (Carve, Cell, Finish, GenEvent, Grid, Retreat, Start, Weld,
                              choose_generator, edge_key)
 
-from .assist import hint_cells, perfect_steps
+from .assist import toward_end
 from .config import GameSettings
 from .motion import Chooser, Mover
 from .trail import Trail
@@ -49,9 +49,11 @@ class Round:
         self.gen_speed = settings.gen_speed
         self.region_of: dict[Cell, int] = {}
         self.heads: dict[int, Cell] = {}
+        self._head_cells: set = set()
         self.welds: dict = {}
         self.time = 0.0
         self.perfect = 0
+        self._toward_end: dict[Cell, Cell] = {}
         self.phase = Phase.GROW
         self.fast_forward = not settings.animated
         self._active_leads = count
@@ -72,7 +74,7 @@ class Round:
 
     @property
     def head_cells(self) -> set:
-        return set(self.heads.values())
+        return self._head_cells
 
     @property
     def trail(self) -> dict:
@@ -146,23 +148,45 @@ class Round:
 
     def _finish_growth(self) -> None:
         self.heads.clear()
-        self.perfect = perfect_steps(self.grid, self.start, self.end)
+        self._head_cells.clear()
+        self._toward_end = toward_end(self.grid, self.end)
+        self.perfect = self._steps_to_end(self.start)
         self.phase = Phase.PLAY
+
+    def _steps_to_end(self, cell: Cell) -> int:
+        steps = 0
+        c = cell
+        while c != self.end:
+            c = self._toward_end[c]
+            steps += 1
+        return steps
+
+    def _set_head(self, region: int, cell: Cell) -> None:
+        old = self.heads.get(region)
+        if old is not None:
+            self._head_cells.discard(old)
+        self.heads[region] = cell
+        self._head_cells.add(cell)
+
+    def _pop_head(self, region: int) -> None:
+        old = self.heads.pop(region, None)
+        if old is not None:
+            self._head_cells.discard(old)
 
     def _apply(self, event: GenEvent, changed: set) -> None:
         if isinstance(event, Start):
             self.region_of[event.cell] = event.region
-            self.heads[event.region] = event.cell
+            self._set_head(event.region, event.cell)
             changed.add(event.cell)
         elif isinstance(event, Carve):
             self.region_of[event.b] = event.region
-            self.heads[event.region] = event.b
+            self._set_head(event.region, event.b)
             changed.update((event.a, event.b))
         elif isinstance(event, Retreat):
-            self.heads[event.region] = event.to
+            self._set_head(event.region, event.to)
             changed.update((event.frm, event.to))
         elif isinstance(event, Finish):
-            self.heads.pop(event.region, None)
+            self._pop_head(event.region)
             self._active_leads = max(0, self._active_leads - 1)
             changed.add(event.cell)
         elif isinstance(event, Weld):
@@ -217,7 +241,14 @@ class Round:
     def hint(self, length: int) -> None:
         if self.phase is not Phase.PLAY:
             return
-        self.hint_route = hint_cells(self.grid, self.mover.cell, self.end, length)
+        route: list = []
+        c = self.mover.cell
+        for _ in range(length):
+            if c == self.end:
+                break
+            c = self._toward_end[c]
+            route.append(c)
+        self.hint_route = route
         self.hints += 1
         self.hint_at = self.time
 

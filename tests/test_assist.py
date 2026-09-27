@@ -1,4 +1,4 @@
-from maze_game.assist import hint_cells, perfect_steps, route
+from maze_game.assist import hint_cells, perfect_steps, route, toward_end
 from tests.gameutil import fork_grid
 
 
@@ -18,3 +18,14 @@ def test_hint_from_off_the_path_leads_back():
 
 def test_hint_stops_at_the_end():
     assert hint_cells(fork_grid(), (0, 1), (2, 1), 8) == [(0, 0), (1, 0), (2, 0), (2, 1)]
+
+
+def test_toward_end_gives_the_parent_map_toward_the_end():
+    g = fork_grid()
+    assert toward_end(g, (1, 1)) == {
+        (1, 0): (1, 1),
+        (0, 0): (1, 0),
+        (2, 0): (1, 0),
+        (0, 1): (0, 0),
+        (2, 1): (2, 0),
+    }

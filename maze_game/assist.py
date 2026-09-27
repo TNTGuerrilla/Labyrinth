@@ -33,3 +33,19 @@ def perfect_steps(grid: Grid, start: Cell, end: Cell) -> int:
 def hint_cells(grid: Grid, cell: Cell, end: Cell, length: int) -> list[Cell]:
     """The next `length` cells on the way from `cell` to `end`."""
     return route(grid, cell, end)[1:1 + length]
+
+
+def toward_end(grid: Grid, end: Cell) -> dict[Cell, Cell]:
+    """BFS from end over open passages: toward_end[c] is the neighbor one step closer to
+    end. Lets Round build one parent map per maze instead of a fresh BFS per hint press."""
+    parents: dict[Cell, Cell] = {}
+    visited = {end}
+    queue = deque([end])
+    while queue:
+        cur = queue.popleft()
+        for n in grid.open_neighbors(cur):
+            if n not in visited:
+                visited.add(n)
+                parents[n] = cur
+                queue.append(n)
+    return parents
