@@ -267,6 +267,7 @@ class Game:
             self.dash = None
             self.press = (time.monotonic(), pos)
             self.dragging = False
+            self.keys.forget_position()
 
     def _mouse_motion(self, pos: tuple[int, int]) -> None:
         if self.press is not None and not self.dragging:
@@ -287,6 +288,7 @@ class Game:
         path = dash_path(r.grid, r.mover.next_center, (math.floor(x), math.floor(y)))
         if path:
             self.dash = PathSteer(path)
+            self.keys.forget_position()
 
     def _wheel(self, y: int) -> None:
         if self.dialog is None and self.round.phase is not Phase.GROW and y:

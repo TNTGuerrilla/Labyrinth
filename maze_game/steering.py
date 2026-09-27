@@ -49,6 +49,15 @@ class KeyboardSteer:
         self._stopped = False
         self._last_cell = None
 
+    def forget_position(self) -> None:
+        """Mouse or dash steering just moved the dot on its own. Any pause, stop or
+        last-cell tracking left over from keyboard steering is stale and must not
+        linger when the keyboard chooser is next consulted, even if the dot ends up
+        back at the same cell it left. Held keys are left alone."""
+        self._pause_cell = None
+        self._stopped = False
+        self._last_cell = None
+
     def tick(self, dt: float) -> None:
         self.now += dt
 
@@ -119,12 +128,13 @@ class KeyboardSteer:
             if direction(cell, nxt) != heading:
                 self.request = None
             return nxt
-        if self._pause_cell != cell:
-            self._pause_cell = cell
-            self._pause_until = self.now + pause
-            return None
-        if self.now < self._pause_until:
-            return None
+        if pause > 0:
+            if self._pause_cell != cell:
+                self._pause_cell = cell
+                self._pause_until = self.now + pause
+                return None
+            if self.now < self._pause_until:
+                return None
         self.request = None
         if self._stopped:
             return None

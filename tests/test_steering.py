@@ -202,6 +202,25 @@ def test_nothing_held_stops_in_a_corridor():
     assert guided(KeyboardSteer(), g, (1, 0), (0, 0)) is None
 
 
+def test_forget_position_clears_pause_and_stop_but_not_held_keys():
+    g = grid_of(3, 3, CROSS)
+    k = held_since_before(E)
+    assert guided(k, g, (1, 1), (0, 1)) is None  # starts the pause at the fork
+    k.forget_position()
+    assert k.held == [E]
+    # the pause, stop and last-cell tracking were reset, so this is a fresh fork
+    # visit rather than a continuation of the one before forget_position().
+    assert guided(k, g, (1, 1), (0, 1)) is None
+    k.tick(1.0)
+    assert guided(k, g, (1, 1), (0, 1)) == (2, 1)
+
+
+def test_zero_pause_does_not_cost_a_frame_at_a_fork():
+    g = grid_of(3, 3, CROSS)
+    k = held_since_before(E)
+    assert k.choose(g, (1, 1), (0, 1), True, (), FAR, 0, 0.0) == (2, 1)
+
+
 def test_is_reverse():
     assert is_reverse((0, 0), (1, 0), W)
     assert not is_reverse((0, 0), (1, 0), E)

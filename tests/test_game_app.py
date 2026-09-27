@@ -118,6 +118,21 @@ def test_dash_click_moves_one_straight_run(game):
     assert r.path.route[:2] == [r.start, n]
 
 
+def test_mouse_press_and_dash_forget_keyboard_steering_position(game, monkeypatch):
+    until_play(game)
+    r = game.round
+    n = next(step(r.start, d) for d in (N, E, S, W) if r.grid.open_dirs(r.start) & d)
+    x, y, w, h = game.camera.cell_rect(n)
+    pr = game.play_rect
+    pos = (pr.x + x + w // 2, pr.y + y + h // 2)
+    calls = []
+    monkeypatch.setattr(game.keys, "forget_position", lambda: calls.append(len(calls)))
+    game.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=pos))
+    assert len(calls) == 1  # press/drag start forgets the keyboard steering position
+    game.handle(pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=pos))
+    assert len(calls) == 2  # the dash that follows the click forgets it again
+
+
 def test_autosolve_wins_then_replay_resets(game):
     until_play(game)
     game.do("autosolve")
