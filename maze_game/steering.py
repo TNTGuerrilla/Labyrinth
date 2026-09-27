@@ -29,6 +29,7 @@ class KeyboardSteer:
         self.now = 0.0
         self._pause_cell: Optional[Cell] = None
         self._pause_until = 0.0
+        self._resting = False
 
     def press(self, d: int) -> None:
         if d in self.held:
@@ -60,26 +61,40 @@ class KeyboardSteer:
             if d is not None and grid.open_dirs(cell) & d:
                 return step(cell, d)
             return None
-        return self._guided(grid, cell, came_from, stops, end, lookahead, pause)
+        result = self._guided(grid, cell, came_from, stops, end, lookahead, pause)
+        self._resting = result is None
+        return result
 
     def _guided(self, grid: Grid, cell: Cell, came_from: Optional[Cell], stops: Iterable[Cell],
                 end: Cell, lookahead: int, pause: float) -> Optional[Cell]:
-        r = self.request
-        if r is not None and grid.open_dirs(cell) & r:
-            self.request = None
+        if self._pause_cell is not None and self._pause_cell != cell:
             self._pause_cell = None
-            return step(cell, r)
+        r = self.request
+        if r is not None:
+            if grid.open_dirs(cell) & r:
+                self.request = None
+                self._pause_cell = None
+                return step(cell, r)
+            if self._resting:
+                # The dot is standing still: an unusable press does nothing rather
+                # than launching it along its old, stale heading.
+                self.request = None
+                return None
         if came_from is None or cell in stops:
             self.request = None
             return None
         heading = direction(came_from, cell)
-        exits = [n for n in grid.open_neighbors(cell)
-                 if n != came_from and not dead_end_within(grid, cell, n, end, lookahead)]
+        raw = [n for n in grid.open_neighbors(cell) if n != came_from]
+        pruned = [n for n in raw if not dead_end_within(grid, cell, n, end, lookahead)]
+        # Pruning only classifies forks (so an obvious dead end is not a real choice);
+        # it must never remove the only way forward and stall a plain corridor.
+        exits = pruned or raw
         if not exits:
             self.request = None
             return None
         if len(exits) == 1:
             if not self.held:
+                self.request = None
                 return None
             nxt = exits[0]
             if direction(cell, nxt) != heading:

@@ -23,6 +23,7 @@ def grid_of(cols, rows, edges):
 CROSS = (((0, 1), (1, 1)), ((1, 1), (2, 1)), ((1, 1), (1, 0)), ((1, 1), (1, 2)))
 TEE = (((0, 1), (1, 1)), ((1, 1), (1, 0)), ((1, 1), (1, 2)))
 BEND = (((0, 0), (1, 0)), ((1, 0), (1, 1)))
+STRAIGHT = (((0, 1), (1, 1)), ((1, 1), (2, 1)))
 FAR = (9, 9)  # an end cell outside these little grids
 
 
@@ -116,6 +117,49 @@ def test_obvious_dead_ends_are_not_choices():
     g = grid_of(4, 2, (((0, 0), (1, 0)), ((1, 0), (2, 0)), ((2, 0), (3, 0)), ((1, 0), (1, 1))))
     k = held_since_before(E)
     assert k.choose(g, (1, 0), (0, 0), True, (), (3, 0), 4, 0.2) == (2, 0)
+
+
+def test_corridor_keeps_advancing_into_an_obvious_dead_end():
+    """Pruning classifies forks; it must not stall a plain corridor that itself
+    happens to dead-end within the look-ahead distance."""
+    edges = [((i, 0), (i + 1, 0)) for i in range(8)]
+    g = grid_of(9, 1, edges)
+    k = held_since_before(E)
+    assert guided(k, g, (1, 0), (0, 0), lookahead=12) == (2, 0)
+
+
+def test_press_into_a_wall_at_rest_does_nothing():
+    g = grid_of(3, 2, STRAIGHT)
+    k = held_since_before(E)
+    k.release(E)
+    assert guided(k, g, (1, 1), (0, 1)) is None  # comes to rest, nothing held
+    k.press(N)  # closed here
+    assert guided(k, g, (1, 1), (0, 1)) is None
+    assert k.request is None
+    k.press(W)  # open (back the way it came)
+    assert guided(k, g, (1, 1), (0, 1)) == (0, 1)
+
+
+def test_press_into_a_wall_at_a_stopped_fork_does_nothing():
+    g = grid_of(3, 3, TEE)
+    k = held_since_before(E)
+    guided(k, g, (1, 1), (0, 1))  # starts the pause
+    k.tick(1.0)
+    assert guided(k, g, (1, 1), (0, 1)) is None  # pause elapsed, E is closed, stops
+    k.press(E)  # still closed
+    assert guided(k, g, (1, 1), (0, 1)) is None
+    assert k.request is None
+    k.press(N)  # open
+    assert guided(k, g, (1, 1), (0, 1)) == (1, 0)
+
+
+def test_pause_resets_if_the_fork_is_left_by_other_means():
+    g = grid_of(3, 3, CROSS)
+    k = held_since_before(E)
+    assert guided(k, g, (1, 1), (0, 1)) is None  # starts the pause at the fork
+    guided(k, g, (2, 1), (1, 1))  # dot leaves the fork by some other means
+    k.tick(1.0)
+    assert guided(k, g, (1, 1), (0, 1)) is None  # pauses again, doesn't skip through
 
 
 def test_start_and_finish_stop_the_dot():
