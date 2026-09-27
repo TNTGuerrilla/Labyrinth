@@ -1,24 +1,58 @@
-# Maze Screensaver
+# Maze Game
 
-A Windows screensaver. On every monitor a pipe-style maze grows around a green start dot and a red end dot, a dot solves it while leaving a trail (dead ends fade, the true path stays bright), the solved maze holds for a moment, then the screen cuts to black and a new maze begins.
+Guide a dot from the green start to the red finish through procedurally grown pipe mazes. Each maze grows in front of you (or appears instantly), and if you get stuck, Hint lights up the next few cells and Auto-solve takes over from wherever you are. The same mazes also come as a Windows screensaver add-on.
 
-## Install
+## Play
 
-Build it (below), then right-click `dist\MazeScreensaver.scr` and choose **Install**. Pick "MazeScreensaver" in Screen Saver Settings. The Settings button there controls maze density, speeds, hold time and frame rate cap.
+Run `MazeGame.exe`. Hold a direction to glide; the dot follows corridor bends on its own and stops at forks and dead ends. Walking back over your trail dims it, so the bright line is always your route from the start.
+
+| Action | Default key |
+|---|---|
+| Move | W A S D or arrow keys |
+| Hint | Q |
+| Auto-solve (toggle) | E |
+| Flash the finish | F |
+| New maze | R |
+| Replay this maze | T |
+| Skip growth, or New maze on the win screen | Space |
+| Small, Medium, Large, XL maze | 1, 2, 3, 4 |
+| Custom size | 5 |
+| Multi-color on/off | C |
+| Zoom in, out, reset | +, -, Z (or the mouse wheel) |
+| Settings | Esc |
+| Fullscreen | F11 |
+
+Mouse: hold the left button to steer the dot toward the cursor (it never passes through walls). Click a cell in a straight open line from the dot to dash there.
+
+Every key can be changed in Settings, Controls tab.
+
+### Difficulty
+
+Small is 8-12 cells on the short side, Medium 13-24, Large 25-48 and XL 49-96; each new maze picks a size in its range. Custom (key 5) takes any size. Its Run benchmark button measures what your PC handles smoothly and estimates how long huge mazes take to build.
+
+The win screen compares your steps with the perfect route. Steps taken by Auto-solve are counted separately and mark the round Assisted.
+
+## Add the screensaver
+
+The mazes are also available as a Windows screensaver, installed separately from the game:
+
+1. Right-click `MazeScreensaver.scr` and choose **Install**.
+2. In Screen Saver Settings pick "MazeScreensaver". Its Settings button controls maze density, speeds, hold time and frame rate cap.
 
 ## Develop
 
     python -m venv .venv
     .venv\Scripts\python -m pip install -r requirements-dev.txt
     .venv\Scripts\python -m pytest
-    .venv\Scripts\python -m maze_saver --window       # scaled debug view of all monitors
-    .venv\Scripts\python -m maze_saver /s             # real screensaver
+    .venv\Scripts\python -m maze_game                  # the game
+    .venv\Scripts\python -m maze_saver --window       # screensaver: scaled debug view of all monitors
+    .venv\Scripts\python -m maze_saver /s             # screensaver: real mode
     .venv\Scripts\python -m maze_saver /s --multiwindow
-    .venv\Scripts\python -m maze_saver /c             # settings dialog
+    .venv\Scripts\python -m maze_saver /c             # screensaver settings dialog
     .venv\Scripts\python -m maze_saver --window --leads 8   # force every maze to 8 leads
 
 ## Build
 
     powershell -ExecutionPolicy Bypass -File .\build.ps1
 
-Output: `dist\MazeScreensaver.scr`. Unexpected errors are logged to `%APPDATA%\MazeScreensaver\error.log`. Each build gets a unique version so the unpack cache under `%LOCALAPPDATA%\MazeScreensaver` never runs stale files; old version folders there can be deleted.
+Output: `dist\MazeGame.exe` and `dist\MazeScreensaver.scr`. Unexpected errors are logged to `%APPDATA%\MazeGame\error.log` (game) and `%APPDATA%\MazeScreensaver\error.log` (screensaver). Each build gets a unique version so the unpack caches under `%LOCALAPPDATA%\MazeGame` and `%LOCALAPPDATA%\MazeScreensaver` never run stale files; old version folders there can be deleted.
