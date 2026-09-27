@@ -42,8 +42,16 @@ GROW_ACTIONS = frozenset({"confirm", "new", "small", "medium", "large", "xl", "c
 NAV_KEYS = {"up": "up", "down": "down", "left": "left", "right": "right", "return": "confirm",
             "enter": "confirm", "space": "confirm", "escape": "cancel", "tab": "tab",
             "backspace": "backspace"}
+FIXED_NAV_KEYS = {"return": "confirm", "enter": "confirm", "space": "confirm", "escape": "cancel",
+                  "tab": "tab", "backspace": "backspace"}
 
 Dialog = Union[CustomDialog, SettingsPanel]
+
+BENCH_WINDOW_EVENTS = frozenset({
+    pygame.WINDOWSIZECHANGED, pygame.WINDOWMINIMIZED, pygame.WINDOWRESTORED,
+    pygame.WINDOWMAXIMIZED, pygame.WINDOWSHOWN, pygame.WINDOWFOCUSLOST,
+    pygame.WINDOWFOCUSGAINED,
+})
 
 
 class BenchmarkCancelled(Exception):
@@ -51,17 +59,20 @@ class BenchmarkCancelled(Exception):
 
 
 def nav_for(key_name: str, keymap: Keymap) -> Optional[str]:
-    """Dialog navigation for a key: the movement bindings, arrows, Enter/Space, Esc,
-    Tab, Backspace and digits (main row or keypad)."""
+    """Dialog navigation for a key: Enter/Space, Esc, Tab, Backspace and digits (main row
+    or keypad) are fixed and always win, so rebinding a movement action to one of those
+    keys can never break dialog navigation. Otherwise the movement bindings and arrows."""
+    if key_name in FIXED_NAV_KEYS:
+        return FIXED_NAV_KEYS[key_name]
+    if len(key_name) == 1 and key_name.isdigit():
+        return "digit:" + key_name
+    if len(key_name) == 3 and key_name[0] == "[" and key_name[1].isdigit():
+        return "digit:" + key_name[1]
     action = keymap.action_for(key_name)
     if action in DIRS:
         return action
     if key_name in NAV_KEYS:
         return NAV_KEYS[key_name]
-    if len(key_name) == 1 and key_name.isdigit():
-        return "digit:" + key_name
-    if len(key_name) == 3 and key_name[0] == "[" and key_name[1].isdigit():
-        return "digit:" + key_name[1]
     return None
 
 
@@ -97,7 +108,10 @@ class Game:
         return pygame.Rect(0, TOOLBAR_H, w, max(1, h - TOOLBAR_H))
 
     def save(self) -> None:
-        config.save(self.settings, self.keymap, self.config_path)
+        try:
+            config.save(self.settings, self.keymap, self.config_path)
+        except OSError:
+            pass
 
     # --- rounds -----------------------------------------------------------------
 
@@ -120,7 +134,7 @@ class Game:
             return
         self.round.replay()
         self.camera.reset_zoom()
-        self.renderer.invalidate(clear=False)
+        self.renderer.invalidate()
         self._stop_assists()
 
     def _stop_assists(self) -> None:
@@ -191,7 +205,8 @@ class Game:
             self._resized()
         elif t == pygame.WINDOWMINIMIZED:
             self.minimized = True
-        elif t == pygame.WINDOWRESTORED:
+        elif t in (pygame.WINDOWRESTORED, pygame.WINDOWMAXIMIZED, pygame.WINDOWSHOWN,
+                  pygame.WINDOWFOCUSGAINED):
             self.minimized = False
         elif t == pygame.WINDOWFOCUSLOST:
             self.keys.clear()
@@ -305,10 +320,14 @@ class Game:
                 self.dragging = True
             choose, speed, assisted = self._driver()
             changed |= r.move(dt * speed, choose, assisted)
-            if self.auto is not None and self.auto.done:
+            if r.phase is not Phase.PLAY:
                 self.auto = None
-            if self.dash is not None and self.dash.done and not r.mover.moving:
                 self.dash = None
+            else:
+                if self.auto is not None and self.auto.done:
+                    self.auto = None
+                if self.dash is not None and self.dash.done and not r.mover.moving:
+                    self.dash = None
             r.tick_timer(dt)
         if r.phase is not before:
             self.renderer.invalidate(clear=False)
@@ -343,7 +362,9 @@ class Game:
         else:
             self.window.set_fullscreen(desktop=True)
         self.fullscreen = not self.fullscreen
-        self._resized()
+        # The window's WINDOWSIZECHANGED event covers the resulting resize; calling
+        # _resized() here too would double it (see the resize() preview bug in
+        # game_render.py).
 
     # --- dialogs ----------------------------------------------------------------
 
@@ -495,6 +516,11 @@ class Game:
                 raise BenchmarkCancelled
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 raise BenchmarkCancelled
+            if event.type in BENCH_WINDOW_EVENTS:
+                self.handle(event)
+                if event.type == pygame.WINDOWSIZECHANGED:
+                    # The result would be for a size that no longer applies.
+                    raise BenchmarkCancelled
 
 
 def run(settings: GameSettings, keymap: Keymap, config_path: Optional[Path] = None) -> None:

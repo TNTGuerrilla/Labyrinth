@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pygame
 import pytest
 
@@ -8,6 +10,7 @@ from maze_game.app import Game, nav_for
 from maze_game.config import GameSettings
 from maze_game.keymap import Keymap
 from maze_game.round import SINGLE_HUE, Phase
+from maze_game.trail import Trail
 from maze_game.ui.custom_dialog import CustomDialog
 from maze_game.ui.settings_panel import SettingsPanel
 
@@ -202,11 +205,102 @@ def test_minimized_pauses_movement(game):
     game.do("autosolve")
     frames(game, 3)
     r = game.round
-    game.minimized = True
+    game.handle(pygame.event.Event(pygame.WINDOWMINIMIZED))
+    assert r.phase is Phase.PLAY and game.auto is not None
     steps_before, auto_steps_before = r.steps, r.auto_steps
     frames(game, 30)
     assert r.steps == steps_before
     assert r.auto_steps == auto_steps_before
+    game.handle(pygame.event.Event(pygame.WINDOWMAXIMIZED))
+    frames(game, 30)
+    assert r.steps > steps_before or r.auto_steps > auto_steps_before
+
+
+class _FakeAuto:
+    """Mimics AutoSteer: `done` only flips once choose() is asked again after the last
+    cell, exactly like the real solver only reports Solved on the next call."""
+
+    def __init__(self, cells):
+        self._cells = list(cells)
+        self.done = False
+
+    def choose(self, cell, came_from=None):
+        if not self._cells:
+            self.done = True
+            return None
+        return self._cells.pop(0)
+
+
+def test_auto_solve_clears_when_the_round_is_won(game):
+    until_play(game)
+    r = game.round
+    adj = next(step(r.end, d) for d in (N, E, S, W) if r.grid.open_dirs(r.end) & d)
+    r.mover.place(adj)
+    r.path = Trail(adj)
+    game.settings = replace(game.settings, solve_speed=36)  # 0.6 cell per 1/60 s frame
+    game.auto = _FakeAuto([r.end])
+    game.frame(1 / 60)
+    assert r.phase is Phase.WON
+    assert game.auto is None
+    assert game.dash is None
+
+
+def test_replay_after_zoom_clears_the_stale_zoomed_margin(game):
+    until_play(game)
+    for _ in range(3):
+        game.do("zoom_in")
+    for _ in range(2000):
+        game.frame(1 / 60)
+        if not game.renderer.pending:
+            break
+    layer = game.renderer.layer
+    w, h = layer.get_size()
+    zoomed_pixels = [(x, y) for x in range(0, w, 20) for y in range(0, h, 20)
+                     if layer.get_at((x, y))[:3] != (0, 0, 0)]
+    assert zoomed_pixels
+    game.do("replay")
+    for _ in range(2000):
+        game.frame(1 / 60)
+        if not game.renderer.pending:
+            break
+    assert not game.camera.zoomed
+    ox, oy = game.camera.origin()
+    margin_pixels = [(x, y) for x, y in zoomed_pixels
+                     if x < ox or y < oy or x >= w - ox or y >= h - oy]
+    assert margin_pixels
+    for x, y in margin_pixels:
+        assert layer.get_at((x, y))[:3] == (0, 0, 0)
+
+
+def test_toggle_fullscreen_does_not_resize_directly(game, monkeypatch):
+    until_play(game)
+    calls = []
+    monkeypatch.setattr(game, "_resized", lambda: calls.append(1))
+    game._toggle_fullscreen()
+    assert calls == []
+    game.handle(pygame.event.Event(pygame.WINDOWSIZECHANGED))
+    assert calls == [1]
+
+
+def test_benchmark_cancelled_by_a_resize_event(game):
+    pygame.event.post(pygame.event.Event(pygame.WINDOWSIZECHANGED))
+    assert game.run_benchmark() is None
+    assert game.settings.bench_size is None
+
+
+def test_nav_for_fixed_keys_win_over_rebound_movement_keys():
+    k = Keymap()
+    assert k.set_key("up", 0, "space")
+    assert nav_for("space", k) == "confirm"
+    assert "space" in k.keys_for("up")
+    assert nav_for("up", k) == "up"
+
+
+def test_save_ignores_oserror(game, monkeypatch):
+    def boom(*a, **k):
+        raise OSError("disk full")
+    monkeypatch.setattr(config, "save", boom)
+    game.do("colors")
 
 
 def test_bench_scene_returns_frames_and_a_build_rate(game, monkeypatch):
