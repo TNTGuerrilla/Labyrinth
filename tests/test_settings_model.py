@@ -1,6 +1,6 @@
 from maze_game.config import GameSettings
-from maze_game.keymap import Keymap
-from maze_game.ui.settings_model import GAMEPLAY_ROWS, SettingsModel
+from maze_game.keymap import ACTIONS, SLOTS, Keymap
+from maze_game.ui.settings_model import SettingsModel
 
 
 def model(**kw):
@@ -18,18 +18,53 @@ def test_every_tab_ends_with_apply_and_cancel():
         assert [row.name for row in m.rows()[-2:]] == ["apply", "cancel"]
 
 
+def names(m):
+    return [row.name for row in m.rows() if row.kind != "header"]
+
+
+def headers(m):
+    return [row.label for row in m.rows() if row.kind == "header"]
+
+
 def test_tab_key_cycles_tabs():
     m = model()
     m.handle("tab")
-    assert m.tab == 1 and m.index == 0
-    assert [row.name for row in m.rows()[:4]] == ["difficulty", "custom_min", "custom_max",
-                                                  "benchmark"]
+    assert m.tab == 1 and m.selected.name == "difficulty"
+    assert names(m)[:4] == ["difficulty", "custom_min", "custom_max", "benchmark"]
+
+
+def test_every_tab_is_split_into_sections():
+    m = model()
+    assert headers(m) == ["Movement", "Display", "Maze growth", "Assists"]
+    assert names(m)[:3] == ["follow_bends", "glide_speed", "turn_pause"]
+    m.set_tab(1)
+    assert headers(m) == ["Maze size", "Performance"]
+    m.set_tab(2)
+    assert headers(m) == ["Movement", "Assists", "Round", "Maze size", "View", "Menu"]
+    assert m.rows()[0].kind == "header"
+    key_rows = [(row.name, row.slot) for row in m.rows() if row.kind == "key"]
+    assert sorted(key_rows) == sorted((a, s) for a in ACTIONS for s in range(SLOTS[a]))
+
+
+def test_headers_are_never_selected():
+    m = model()
+    assert m.selected.name == "follow_bends"  # the header above it is skipped
+    for _ in range(len(m.rows()) * 2):
+        m.handle("down")
+        assert m.selected.kind != "header"
+    for _ in range(len(m.rows()) * 2):
+        m.handle("up")
+        assert m.selected.kind != "header"
+    m.select(0)
+    assert m.selected.kind != "header"
 
 
 def test_navigation_wraps():
     m = model()
     m.handle("up")
     assert m.index == len(m.rows()) - 1
+    m.handle("down")
+    assert m.selected.name == "follow_bends"
 
 
 def test_bool_toggles_with_arrows_and_enter():
@@ -87,8 +122,8 @@ def test_bench_text():
 
 def test_value_text():
     m = model()
-    assert m.value_text(GAMEPLAY_ROWS[0]) == "On"
-    assert m.value_text(GAMEPLAY_ROWS[1]) == "Animated"
+    assert m.value_text(m.rows()[row_index(m, "follow_bends")]) == "On"
+    assert m.value_text(m.rows()[row_index(m, "animated")]) == "Animated"
     assert m.value_text(m.rows()[row_index(m, "glide_speed")]) == "5"
     m.set_tab(2)
     assert m.value_text(m.rows()[row_index(m, "hint")]) == "Q"

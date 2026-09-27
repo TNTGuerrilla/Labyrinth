@@ -6,14 +6,14 @@ from typing import Optional
 
 from ..config import GameSettings
 from ..difficulty import DIFFICULTIES, LABELS as DIFFICULTY_LABELS, MIN_CUSTOM, PRESETS
-from ..keymap import ACTIONS, LABELS as ACTION_LABELS, SLOTS, Keymap, key_label
+from ..keymap import LABELS as ACTION_LABELS, SLOTS, Keymap, key_label
 
 TABS = ("Gameplay", "Difficulty", "Controls")
 
 
 @dataclass(frozen=True)
 class Row:
-    kind: str  # "bool", "choice", "number", "key" or "button"
+    kind: str  # "header", "bool", "choice", "number", "key" or "button"
     label: str
     name: str  # settings field, action (key rows) or button id
     lo: float = 0
@@ -23,19 +23,36 @@ class Row:
     slot: int = 0  # key slot for "key" rows
 
 
+def header(title: str) -> Row:
+    """A section title: drawn above its rows, never selected."""
+    return Row("header", title, "")
+
+
 GAMEPLAY_ROWS = (
+    header("Movement"),
     Row("bool", "Follow bends", "follow_bends"),
-    Row("choice", "Maze generation", "animated",
-        choices=((True, "Animated"), (False, "Instant"))),
-    Row("bool", "Multi-color", "multicolor"),
-    Row("bool", "Show grid", "show_grid"),
     Row("number", "Glide speed (cells/s)", "glide_speed", 2, 40, 1),
     Row("number", "Turn pause (s)", "turn_pause", 0, 1, 0.05),
-    Row("number", "Auto-solve speed (steps/s)", "solve_speed", 2, 500, 2),
-    Row("number", "Solver look-ahead (cells)", "lookahead", 0, 12, 1),
+    header("Display"),
+    Row("bool", "Multi-color", "multicolor"),
+    Row("bool", "Show grid", "show_grid"),
+    header("Maze growth"),
+    Row("choice", "Maze generation", "animated",
+        choices=((True, "Animated"), (False, "Instant"))),
     Row("number", "Growth speed (steps/s per lead)", "gen_speed", 5, 1000, 5),
     Row("number", "Max leads", "max_leads", 2, 16, 1),
+    header("Assists"),
+    Row("number", "Auto-solve speed (steps/s)", "solve_speed", 2, 500, 2),
+    Row("number", "Solver look-ahead (cells)", "lookahead", 0, 12, 1),
     Row("number", "Hint length (cells)", "hint_length", 2, 40, 1),
+)
+CONTROL_GROUPS = (
+    ("Movement", ("up", "left", "down", "right")),
+    ("Assists", ("hint", "autosolve", "flash")),
+    ("Round", ("new", "replay", "confirm")),
+    ("Maze size", ("small", "medium", "large", "xl", "custom")),
+    ("View", ("colors", "zoom_in", "zoom_out", "zoom_reset", "fullscreen")),
+    ("Menu", ("settings",)),
 )
 FOOTER_ROWS = (Row("button", "Apply", "apply"), Row("button", "Cancel", "cancel"))
 
@@ -59,6 +76,7 @@ class SettingsModel:
         self.capturing = False
         self.pending_swap: Optional[str] = None
         self.message = ""
+        self.select(0)
 
     def rows(self) -> list[Row]:
         return list(self._tab_rows()) + list(FOOTER_ROWS)
@@ -68,14 +86,19 @@ class SettingsModel:
             return GAMEPLAY_ROWS
         if self.tab == 1:
             return (
+                header("Maze size"),
                 Row("choice", "Difficulty", "difficulty",
                     choices=tuple((d, difficulty_label(d)) for d in DIFFICULTIES)),
                 Row("number", "Custom min", "custom_min", MIN_CUSTOM, self.ceiling, 1),
                 Row("number", "Custom max", "custom_max", MIN_CUSTOM, self.ceiling, 1),
+                header("Performance"),
                 Row("button", "Run benchmark", "benchmark"),
             )
-        rows = [Row("key", ACTION_LABELS[a] + (" (alt)" if s else ""), a, slot=s)
-                for a in ACTIONS for s in range(SLOTS[a])]
+        rows = []
+        for title, actions in CONTROL_GROUPS:
+            rows.append(header(title))
+            rows.extend(Row("key", ACTION_LABELS[a] + (" (alt)" if s else ""), a, slot=s)
+                        for a in actions for s in range(SLOTS[a]))
         rows.append(Row("button", "Reset to defaults", "reset_keys"))
         return tuple(rows)
 
@@ -107,14 +130,18 @@ class SettingsModel:
             return self.bench_text()
         return ""
 
-    def select(self, index: int) -> None:
-        self.index = index % len(self.rows())
+    def select(self, index: int, direction: int = 1) -> None:
+        """Select a row, stepping past section headers in `direction`."""
+        rows = self.rows()
+        index %= len(rows)
+        while rows[index].kind == "header":
+            index = (index + direction) % len(rows)
+        self.index = index
         self.capturing = False
 
     def set_tab(self, tab: int) -> None:
         self.tab = tab % len(TABS)
-        self.index = 0
-        self.capturing = False
+        self.select(0)
         self.pending_swap = None
         self.message = ""
 
@@ -175,7 +202,7 @@ class SettingsModel:
                 self.message = ""
             return None
         if nav == "up":
-            self.select(self.index - 1)
+            self.select(self.index - 1, -1)
         elif nav == "down":
             self.select(self.index + 1)
         elif nav == "left":

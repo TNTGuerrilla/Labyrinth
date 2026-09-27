@@ -6,8 +6,8 @@ from typing import Optional
 import pygame
 
 from .settings_model import TABS, SettingsModel
-from .widgets import (HILITE, MUTED, WARN, Hits, button_rect, dim, draw_button, draw_panel,
-                      text)
+from .widgets import (BORDER, HILITE, MUTED, WARN, Hits, button_rect, dim, draw_button,
+                      draw_panel, text)
 
 ROW_H = 30
 VALUE_W = 220
@@ -51,6 +51,12 @@ class SettingsPanel:
         for i in range(first, min(body, first + visible)):
             row = rows[i]
             rect = pygame.Rect(box.x + 12, top + (i - first) * ROW_H, box.w - 24, ROW_H - 4)
+            if row.kind == "header":
+                label = text(surface, row.label.upper(), (rect.x + 4, rect.bottom - 2), 13,
+                             MUTED, anchor="bottomleft")
+                pygame.draw.line(surface, BORDER, (label.right + 8, label.centery),
+                                 (rect.right, label.centery))
+                continue
             if i == m.index:
                 pygame.draw.rect(surface, HILITE, rect, border_radius=4)
             text(surface, row.label, (rect.x + 10, rect.centery), 15, anchor="midleft")
