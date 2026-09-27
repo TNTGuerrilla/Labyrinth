@@ -202,6 +202,23 @@ def test_nothing_held_stops_in_a_corridor():
     assert guided(KeyboardSteer(), g, (1, 0), (0, 0)) is None
 
 
+def test_dead_end_stub_at_a_fork_is_skipped_when_carrying_straight_on():
+    """A fork where straight ahead is a visible dead end (a 1-cell stub within the
+    look-ahead distance) must not be driven into once the pause elapses; the two
+    real branches (long enough to not be classified as dead ends) are the only
+    choices, so the dot stops and waits for a fresh press."""
+    edges = [((0, 6), (1, 6)), ((1, 6), (2, 6))]  # W (came from), E: a 1-cell stub
+    edges += [((1, y), (1, y - 1)) for y in range(6, 0, -1)]  # N: a long real branch
+    edges += [((1, y), (1, y + 1)) for y in range(6, 12)]  # S: a long real branch
+    g = grid_of(3, 13, edges)
+    k = held_since_before(E)
+    assert guided(k, g, (1, 6), (0, 6), lookahead=4) is None  # starts the pause
+    k.tick(1.0)
+    assert guided(k, g, (1, 6), (0, 6), lookahead=4) is None  # E is a dead end, not a real choice
+    k.press(N)  # a fresh press of a real branch moves it
+    assert guided(k, g, (1, 6), (0, 6), lookahead=4) == (1, 5)
+
+
 def test_forget_position_clears_pause_and_stop_but_not_held_keys():
     g = grid_of(3, 3, CROSS)
     k = held_since_before(E)

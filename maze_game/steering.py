@@ -49,6 +49,15 @@ class KeyboardSteer:
         self._stopped = False
         self._last_cell = None
 
+    def reset_round(self) -> None:
+        """A new round, or a replay of one, is starting. Any turn request buffered
+        from before this point is stale (it belongs to the round that just ended, or
+        to a growth phase the player could not see through) and must not fire on the
+        first frame of play. The pause, stopped and last-cell tracking are stale for
+        the same reason. Held keys are left alone, matching forget_position()."""
+        self.request = None
+        self.forget_position()
+
     def forget_position(self) -> None:
         """Mouse or dash steering just moved the dot on its own. Any pause, stop or
         last-cell tracking left over from keyboard steering is stale and must not
@@ -138,9 +147,10 @@ class KeyboardSteer:
         self.request = None
         if self._stopped:
             return None
-        if self.held and grid.open_dirs(cell) & heading:
+        ahead = step(cell, heading)
+        if self.held and ahead in exits:
             self._pause_cell = None
-            return step(cell, heading)
+            return ahead
         self._stopped = True
         return None
 

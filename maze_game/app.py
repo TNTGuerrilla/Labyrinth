@@ -129,6 +129,7 @@ class Game:
         self.camera = Camera(cols, rows, pr.w, pr.h)
         self.renderer.invalidate()
         self._stop_assists()
+        self.keys.reset_round()
 
     def replay(self) -> None:
         if self.round.phase is Phase.GROW:
@@ -137,6 +138,7 @@ class Game:
         self.camera.reset_zoom()
         self.renderer.invalidate()
         self._stop_assists()
+        self.keys.reset_round()
 
     def _stop_assists(self) -> None:
         self.auto = None
@@ -154,6 +156,7 @@ class Game:
         self.dash = None
         self.press = None
         self.dragging = False
+        self.keys.forget_position()
         self.auto = AutoSteer(r.grid, r.end, self.rng, self.settings.lookahead)
         r.assisted = True
 
@@ -320,6 +323,10 @@ class Game:
         before = r.phase
         self.keys.tick(dt)
         changed = r.update(dt)
+        if before is Phase.GROW and r.phase is Phase.PLAY:
+            # A turn request buffered while the player could not yet see the maze
+            # (or held down through growth) must not fire on the first PLAY frame.
+            self.keys.reset_round()
         if self.dialog is None and r.phase is Phase.PLAY and not self.minimized:
             if (self.press is not None and not self.dragging
                     and time.monotonic() - self.press[0] > CLICK_SECONDS):

@@ -1,15 +1,17 @@
+import random
 from dataclasses import replace
 
 import pygame
 import pytest
 
-from maze_saver.maze import E, N, S, W, direction, step
+from maze_saver.maze import E, N, S, W, Grid, direction, step
 from maze_game import benchmark, config
 from maze_game.__main__ import _valid_key
 from maze_game.app import Game, nav_for
 from maze_game.config import GameSettings
 from maze_game.keymap import Keymap
 from maze_game.round import SINGLE_HUE, Phase
+from maze_game.steering import KeyboardSteer
 from maze_game.trail import Trail
 from maze_game.ui.custom_dialog import CustomDialog
 from maze_game.ui.settings_panel import SettingsPanel
@@ -107,6 +109,57 @@ def test_reverse_clears_the_turn_request(game):
     assert mover.to is not None
 
 
+def test_leftover_press_during_grow_is_dropped_before_play_begins(tmp_path):
+    """A direction tapped (pressed and released) while the maze is still growing must
+    not move the dot once PLAY begins, even though the tap is buffered as a request.
+    Two mazes built from the same seed are identical, so the first one is used only
+    to learn which direction will be open at the start, and the second reproduces
+    the real bug scenario: the tap happens during GROW, before that is known."""
+    pygame.init()
+    try:
+        settings = GameSettings(gen_speed=5)
+        keymap = Keymap()
+        probe = Game(settings, keymap, tmp_path / "probe.json")
+        probe.rng = random.Random(3)
+        probe.new_round()
+        press(probe, pygame.K_SPACE)
+        until_play(probe)
+        d = next(dd for dd in (N, E, S, W) if probe.round.grid.open_dirs(probe.round.start) & dd)
+
+        g = Game(settings, keymap, tmp_path / "config.json")
+        g.rng = random.Random(3)
+        g.new_round()
+        assert g.round.phase is Phase.GROW
+        press(g, KEY_FOR_DIR[d])
+        release(g, KEY_FOR_DIR[d])
+        press(g, pygame.K_SPACE)
+        until_play(g)
+        frames(g, 30)
+        assert g.round.steps == 0
+        assert g.round.timer_running is False
+    finally:
+        pygame.quit()
+
+
+def test_leftover_press_on_the_win_screen_is_dropped_by_replay(game):
+    until_play(game)
+    r = game.round
+    d = next(d for d in (N, E, S, W) if r.grid.open_dirs(r.start) & d)
+    game.do("autosolve")
+    for _ in range(20000):
+        if r.phase is Phase.WON:
+            break
+        game.frame(1 / 60)
+    frames(game, 70)
+    assert r.win_overlay_visible
+    press(game, KEY_FOR_DIR[d])
+    release(game, KEY_FOR_DIR[d])
+    game.do("replay")
+    frames(game, 30)
+    assert r.steps == 0
+    assert r.timer_running is False
+
+
 def test_dash_click_moves_one_straight_run(game):
     until_play(game)
     r = game.round
@@ -120,19 +173,30 @@ def test_dash_click_moves_one_straight_run(game):
     assert r.path.route[:2] == [r.start, n]
 
 
-def test_mouse_press_and_dash_forget_keyboard_steering_position(game, monkeypatch):
+def test_mouse_press_and_dash_forget_keyboard_steering_position(game):
     until_play(game)
     r = game.round
     n = next(step(r.start, d) for d in (N, E, S, W) if r.grid.open_dirs(r.start) & d)
     x, y, w, h = game.camera.cell_rect(n)
     pr = game.play_rect
     pos = (pr.x + x + w // 2, pr.y + y + h // 2)
-    calls = []
-    monkeypatch.setattr(game.keys, "forget_position", lambda: calls.append(len(calls)))
+
+    def leave_stale_state():
+        game.keys._stopped = True
+        game.keys._pause_cell = r.mover.cell
+        game.keys._last_cell = r.mover.cell
+
+    leave_stale_state()
     game.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=pos))
-    assert len(calls) == 1  # press/drag start forgets the keyboard steering position
+    assert game.keys._stopped is False  # press/drag start forgets the stale position
+    assert game.keys._pause_cell is None
+    assert game.keys._last_cell is None
+
+    leave_stale_state()
     game.handle(pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=pos))
-    assert len(calls) == 2  # the dash that follows the click forgets it again
+    assert game.keys._stopped is False  # the dash that follows the click forgets it again
+    assert game.keys._pause_cell is None
+    assert game.keys._last_cell is None
 
 
 def test_autosolve_wins_then_replay_resets(game):
@@ -148,6 +212,43 @@ def test_autosolve_wins_then_replay_resets(game):
     assert r.win_overlay_visible
     game.do("replay")
     assert r.phase is Phase.PLAY and r.auto_steps == 0 and game.auto is None
+
+
+def test_autosolve_forgets_keyboard_steering_position(game):
+    until_play(game)
+    r = game.round
+    game.keys._stopped = True
+    game.keys._pause_cell = r.mover.cell
+    game.keys._last_cell = r.mover.cell
+    game.do("autosolve")
+    assert game.keys._stopped is False
+    assert game.keys._pause_cell is None
+    assert game.keys._last_cell is None
+
+
+def test_turn_pause_setting_reaches_the_keyboard_chooser(game):
+    """Round.settings.turn_pause must reach the chooser _driver() builds for the
+    keyboard, using a fork grid injected into the round for a deterministic check."""
+    until_play(game)
+    r = game.round
+    cross = Grid(3, 3)
+    for a, b in (((0, 1), (1, 1)), ((1, 1), (2, 1)), ((1, 1), (1, 0)), ((1, 1), (1, 2))):
+        cross.carve(a, b)
+    r.grid = cross
+    r.start, r.end = (0, 1), (9, 9)
+
+    game.keys = KeyboardSteer()
+    game.keys.press(E)
+    game.keys.request = None
+    choose, _, _ = game._driver()
+    assert choose((1, 1), (0, 1)) is None  # default turn_pause: waits at the fork
+
+    game.settings = replace(game.settings, turn_pause=0.0)
+    game.keys = KeyboardSteer()
+    game.keys.press(E)
+    game.keys.request = None
+    choose, _, _ = game._driver()
+    assert choose((1, 1), (0, 1)) == (2, 1)  # turn_pause=0: no pause needed
 
 
 def test_movement_key_interrupts_autosolve(game):
