@@ -1,0 +1,129 @@
+"""Choosers: what decides where the dot goes each time it reaches a cell center."""
+from __future__ import annotations
+
+import math
+import random
+from collections import deque
+from typing import Iterable, Iterator, Optional
+
+from maze_saver.maze import Cell, Grid, direction, step
+from maze_saver.solver import SolveEvent, Solved, solve
+
+
+class KeyboardSteer:
+    """Pac-Man style: the most recently pressed held direction is the wanted one."""
+
+    def __init__(self):
+        self.held: list[int] = []
+
+    def press(self, d: int) -> None:
+        if d in self.held:
+            self.held.remove(d)
+        self.held.append(d)
+
+    def release(self, d: int) -> None:
+        if d in self.held:
+            self.held.remove(d)
+
+    def clear(self) -> None:
+        self.held.clear()
+
+    @property
+    def wanted(self) -> Optional[int]:
+        return self.held[-1] if self.held else None
+
+    def choose(self, grid: Grid, cell: Cell, came_from: Optional[Cell], follow_bends: bool,
+               stops: Iterable[Cell]) -> Optional[Cell]:
+        d = self.wanted
+        if d is None:
+            return None
+        if grid.open_dirs(cell) & d:
+            return step(cell, d)
+        if not follow_bends or came_from is None or cell in stops:
+            return None
+        exits = grid.open_neighbors(cell)
+        if len(exits) == 2 and came_from in exits:
+            return exits[0] if exits[1] == came_from else exits[1]
+        return None
+
+
+def is_reverse(frm: Cell, to: Optional[Cell], d: int) -> bool:
+    """True if pressing direction d means turning around on the segment frm -> to."""
+    return to is not None and direction(to, frm) == d
+
+
+def steer_toward(grid: Grid, cell: Cell, target: tuple[float, float]) -> Optional[Cell]:
+    """Open neighbor whose center is closest to `target` (cell units), if it is closer
+    than `cell`'s own center. Distance strictly shrinks, so this never oscillates."""
+    def dist(c: Cell) -> float:
+        return math.hypot(c[0] + 0.5 - target[0], c[1] + 0.5 - target[1])
+
+    best, best_dist = None, dist(cell)
+    for n in grid.open_neighbors(cell):
+        d = dist(n)
+        if d < best_dist - 1e-9:
+            best, best_dist = n, d
+    return best
+
+
+def dash_path(grid: Grid, frm: Cell, target: Cell) -> Optional[list[Cell]]:
+    """Cells after `frm` up to `target` along one straight run of open passages."""
+    if frm == target or not grid.in_bounds(target):
+        return None
+    if frm[0] != target[0] and frm[1] != target[1]:
+        return None
+    dx = (target[0] > frm[0]) - (target[0] < frm[0])
+    dy = (target[1] > frm[1]) - (target[1] < frm[1])
+    d = direction(frm, (frm[0] + dx, frm[1] + dy))
+    path = []
+    cur = frm
+    while cur != target:
+        if not grid.open_dirs(cur) & d:
+            return None
+        cur = step(cur, d)
+        path.append(cur)
+    return path
+
+
+class PathSteer:
+    """Follows a fixed list of cells (a dash, or the benchmark's perfect run)."""
+
+    def __init__(self, cells: Iterable[Cell]):
+        self._cells = deque(cells)
+
+    @property
+    def done(self) -> bool:
+        return not self._cells
+
+    def choose(self, cell: Cell, came_from: Optional[Cell] = None) -> Optional[Cell]:
+        if not self._cells:
+            return None
+        nxt = self._cells[0]
+        if abs(nxt[0] - cell[0]) + abs(nxt[1] - cell[1]) != 1:
+            self._cells.clear()
+            return None
+        self._cells.popleft()
+        return nxt
+
+
+class AutoSteer:
+    """Drives the screensaver's human-like solver from wherever the dot is."""
+
+    def __init__(self, grid: Grid, end: Cell, rng: random.Random, lookahead: int):
+        self.grid = grid
+        self.end = end
+        self.rng = rng
+        self.lookahead = lookahead
+        self.done = False
+        self._events: Optional[Iterator[SolveEvent]] = None
+
+    def choose(self, cell: Cell, came_from: Optional[Cell] = None) -> Optional[Cell]:
+        if self.done:
+            return None
+        if self._events is None:
+            self._events = solve(self.grid, cell, self.end, self.rng, lookahead=self.lookahead)
+        event = next(self._events, None)
+        if event is None or isinstance(event, Solved):
+            self.done = True
+            return None
+        return event.b
