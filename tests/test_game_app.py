@@ -93,6 +93,18 @@ def test_keyboard_moves_the_dot(game):
     assert r.steps >= 1 and not r.mover.moving
 
 
+def test_reverse_clears_the_turn_request(game):
+    until_play(game)
+    r = game.round
+    d = next(d for d in (N, E, S, W) if r.grid.open_dirs(r.start) & d)
+    press(game, KEY_FOR_DIR[d])
+    frames(game, 3)
+    opposite = {N: S, S: N, E: W, W: E}[d]
+    press(game, KEY_FOR_DIR[opposite])
+    assert game.keys.request is None
+    assert r.mover.to is not None
+
+
 def test_dash_click_moves_one_straight_run(game):
     until_play(game)
     r = game.round

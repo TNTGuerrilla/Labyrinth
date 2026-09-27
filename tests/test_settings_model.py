@@ -44,7 +44,7 @@ def test_numbers_step_and_clamp():
     m = model()
     m.select(row_index(m, "glide_speed"))
     m.handle("right")
-    assert m.draft.glide_speed == 15.0
+    assert m.draft.glide_speed == 6.0
     for _ in range(100):
         m.handle("right")
     assert m.draft.glide_speed == 40.0
@@ -89,9 +89,18 @@ def test_value_text():
     m = model()
     assert m.value_text(GAMEPLAY_ROWS[0]) == "On"
     assert m.value_text(GAMEPLAY_ROWS[1]) == "Animated"
-    assert m.value_text(GAMEPLAY_ROWS[3]) == "14"
+    assert m.value_text(m.rows()[row_index(m, "glide_speed")]) == "5"
     m.set_tab(2)
     assert m.value_text(m.rows()[row_index(m, "hint")]) == "Q"
+
+
+def test_turn_pause_steps_cleanly():
+    m = model()
+    m.select(row_index(m, "turn_pause"))
+    m.handle("right")
+    m.handle("right")
+    assert m.draft.turn_pause == 0.3
+    assert m.value_text(m.selected) == "0.3"
 
 
 def test_rebinding_a_free_key():

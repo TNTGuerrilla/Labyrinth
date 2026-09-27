@@ -6,10 +6,16 @@ from maze_game.keymap import Keymap
 
 def test_defaults():
     s = GameSettings()
-    assert (s.follow_bends, s.animated, s.multicolor, s.glide_speed, s.solve_speed, s.lookahead,
-            s.gen_speed, s.max_leads, s.hint_length, s.difficulty, s.custom_min, s.custom_max,
-            s.bench_size, s.bench_rate, s.bench_resolution) == (
-        True, True, True, 14.0, 20.0, 4, 60.0, 12, 8, "medium", 20, 40, None, None, None)
+    assert (s.follow_bends, s.animated, s.multicolor, s.show_grid, s.glide_speed, s.turn_pause,
+            s.solve_speed, s.lookahead, s.gen_speed, s.max_leads, s.hint_length, s.difficulty,
+            s.custom_min, s.custom_max, s.bench_size, s.bench_rate, s.bench_resolution) == (
+        True, True, True, True, 5.0, 0.2, 20.0, 4, 60.0, 12, 8, "medium", 20, 40, None, None,
+        None)
+
+
+def test_new_fields_validate():
+    s = from_dict({"turn_pause": 2, "show_grid": 1, "glide_speed": 3})
+    assert s == GameSettings(glide_speed=3.0)
 
 
 def test_default_path_uses_appdata(monkeypatch, tmp_path):

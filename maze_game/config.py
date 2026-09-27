@@ -18,7 +18,9 @@ class GameSettings:
     follow_bends: bool = True
     animated: bool = True
     multicolor: bool = True
-    glide_speed: float = 14.0
+    show_grid: bool = True
+    glide_speed: float = 5.0
+    turn_pause: float = 0.2
     solve_speed: float = 20.0
     lookahead: int = 4
     gen_speed: float = 60.0
@@ -34,7 +36,8 @@ class GameSettings:
 
 # name -> (low, high, is_int); both bounds inclusive.
 NUMERIC_RANGES = {
-    "glide_speed": (4, 40, False),
+    "glide_speed": (2, 40, False),
+    "turn_pause": (0, 1, False),
     "solve_speed": (2, 500, False),
     "lookahead": (0, 12, True),
     "gen_speed": (5, 1000, False),
@@ -43,7 +46,7 @@ NUMERIC_RANGES = {
     "custom_min": (MIN_CUSTOM, MAX_CUSTOM, True),
     "custom_max": (MIN_CUSTOM, MAX_CUSTOM, True),
 }
-BOOL_FIELDS = ("follow_bends", "animated", "multicolor")
+BOOL_FIELDS = ("follow_bends", "animated", "multicolor", "show_grid")
 
 
 def _is_number(value: Any) -> bool:

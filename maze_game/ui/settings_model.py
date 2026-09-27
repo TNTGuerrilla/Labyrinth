@@ -28,7 +28,9 @@ GAMEPLAY_ROWS = (
     Row("choice", "Maze generation", "animated",
         choices=((True, "Animated"), (False, "Instant"))),
     Row("bool", "Multi-color", "multicolor"),
-    Row("number", "Glide speed (cells/s)", "glide_speed", 4, 40, 1),
+    Row("bool", "Show grid", "show_grid"),
+    Row("number", "Glide speed (cells/s)", "glide_speed", 2, 40, 1),
+    Row("number", "Turn pause (s)", "turn_pause", 0, 1, 0.05),
     Row("number", "Auto-solve speed (steps/s)", "solve_speed", 2, 500, 2),
     Row("number", "Solver look-ahead (cells)", "lookahead", 0, 12, 1),
     Row("number", "Growth speed (steps/s per lead)", "gen_speed", 5, 1000, 5),
@@ -128,7 +130,7 @@ class SettingsModel:
             new = values[(values.index(value) + delta) % len(values)]
         else:
             new = min(row.hi, max(row.lo, value + delta * row.step))
-            new = int(new) if isinstance(value, int) else float(new)
+            new = int(new) if isinstance(value, int) else round(float(new), 4)
         self.draft = replace(self.draft, **{row.name: new})
 
     def activate(self) -> Optional[str]:

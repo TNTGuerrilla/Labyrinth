@@ -237,6 +237,7 @@ class Game:
             r = self.round
             if r.phase is Phase.PLAY and is_reverse(r.mover.frm, r.mover.to, d):
                 r.reverse()
+                self.keys.request = None
         elif action is not None:
             self.do(action)
 
@@ -307,12 +308,14 @@ class Game:
             target = self.camera.to_cells(mx - pr.x, my - pr.y)
             return (lambda c, came: steer_toward(r.grid, c, target)), s.glide_speed, False
         stops = (r.start, r.end)
-        return ((lambda c, came: self.keys.choose(r.grid, c, came, s.follow_bends, stops)),
+        return ((lambda c, came: self.keys.choose(r.grid, c, came, s.follow_bends, stops,
+                                                   r.end, s.lookahead, s.turn_pause)),
                 s.glide_speed, False)
 
     def frame(self, dt: float) -> None:
         r = self.round
         before = r.phase
+        self.keys.tick(dt)
         changed = r.update(dt)
         if self.dialog is None and r.phase is Phase.PLAY and not self.minimized:
             if (self.press is not None and not self.dragging

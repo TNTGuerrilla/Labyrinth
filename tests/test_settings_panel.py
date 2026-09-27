@@ -28,8 +28,9 @@ def test_clicking_a_tab_switches_tabs():
 def test_clicking_arrows_changes_values():
     p = panel()
     p.draw(pygame.Surface((1280, 720)))
-    p.click(p.hits.rect_for(("inc", 3)).center)
-    assert p.model.draft.glide_speed == 15.0
+    glide_index = next(i for i, row in enumerate(p.model.rows()) if row.name == "glide_speed")
+    p.click(p.hits.rect_for(("inc", glide_index)).center)
+    assert p.model.draft.glide_speed == 6.0
     p.click(p.hits.rect_for(("inc", 0)).center)
     assert p.model.draft.follow_bends is False
 
