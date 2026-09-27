@@ -121,3 +121,18 @@ def test_draw_cell_can_skip_the_dot():
     assert rgb(surface, (10, 10)) == START_COLOR
     draw_cell(surface, board, (0, 0), pygame.Rect(0, 0, 20, 20), {}, draw_dot=False)
     assert rgb(surface, (10, 10)) == (0, 0, 0)
+
+
+def test_underlay_runs_under_the_pipe():
+    RED = (255, 0, 0)
+
+    def fill_red(surface, rect):
+        surface.fill(RED, rect)
+
+    grid = Grid(2, 1)
+    grid.carve((0, 0), (1, 0))
+    board = fake_board(grid, region_of={(0, 0): 0, (1, 0): 0})
+    surface = pygame.Surface((40, 40))
+    draw_cell(surface, board, (0, 0), pygame.Rect(0, 0, 20, 20), {}, underlay=fill_red)
+    assert rgb(surface, (19, 10)) != RED  # east spoke: pipe drawn on top
+    assert rgb(surface, (0, 0)) == RED  # corner: untouched by the pipe

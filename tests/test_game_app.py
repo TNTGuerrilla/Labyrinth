@@ -182,6 +182,20 @@ def test_settings_apply_saves(game, tmp_path):
     assert config.load(tmp_path / "config.json")[0].follow_bends is False
 
 
+def test_show_grid_setting_reaches_the_renderer(tmp_path):
+    pygame.init()
+    g = Game(GameSettings(show_grid=False, animated=False, glide_speed=40, solve_speed=500),
+             Keymap(), tmp_path / "config.json")
+    try:
+        assert g.renderer.show_grid is False
+        g.do("settings")
+        g.dialog.model.draft = replace(g.dialog.model.draft, show_grid=True)
+        g._dialog_outcome("apply")
+        assert g.renderer.show_grid is True
+    finally:
+        pygame.quit()
+
+
 def test_custom_dialog_starts_a_custom_maze(game):
     press(game, pygame.K_5)
     assert isinstance(game.dialog, CustomDialog)

@@ -109,6 +109,29 @@ def test_low_detail_when_cells_are_tiny():
     assert pygame.transform.average_color(renderer.layer)[:3] != (0, 0, 0)
 
 
+def test_grid_lines_on_cell_corners():
+    r = grown()
+    camera, renderer, screen = setup(r)
+    settle(renderer, screen, PLAY, r, camera)
+    x, y, w, h = camera.cell_rect((0, 0))
+    assert w >= game_render.GRID_MIN_PX
+    assert tuple(screen.get_at((x, PLAY.y + y)))[:3] == game_render.GRID_COLOR
+
+    renderer.show_grid = False
+    renderer.invalidate()
+    settle(renderer, screen, PLAY, r, camera)
+    assert tuple(screen.get_at((x, PLAY.y + y)))[:3] == (0, 0, 0)
+
+
+def test_no_grid_on_tiny_cells():
+    r = grown(300, 200, replace(FAST, animated=False))
+    camera, renderer, screen = setup(r)
+    assert camera.cell_px < game_render.LOW_DETAIL_PX
+    settle(renderer, screen, PLAY, r, camera)
+    x, y, w, h = camera.cell_rect((0, 0))
+    assert tuple(screen.get_at((x, PLAY.y + y)))[:3] != game_render.GRID_COLOR
+
+
 def test_overlays_never_touch_the_layer():
     r = grown()
     camera, renderer, screen = setup(r)

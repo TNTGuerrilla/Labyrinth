@@ -57,10 +57,14 @@ def spoke(rect: pygame.Rect, d: int, width: int) -> pygame.Rect:
 
 
 def draw_cell(surface: pygame.Surface, board, c: Cell, rect: pygame.Rect, palettes: dict,
-              draw_dot: bool = True) -> None:
+              draw_dot: bool = True, underlay=None) -> None:
     """Redraw one cell from scratch into `rect`. `board` is anything with the Board
-    attributes grid, region_of, hues, welds, trail, head_cells, start, end and dot."""
+    attributes grid, region_of, hues, welds, trail, head_cells, start, end and dot.
+    `underlay`, if given, is called as underlay(surface, rect) right after the cell is
+    filled black and before the pipes, trail and markers are drawn on top of it."""
     surface.fill(BLACK, rect)
+    if underlay is not None:
+        underlay(surface, rect)
     region = board.region_of.get(c)
     if region is not None:
         _draw_pipe(surface, board, c, rect, cached_palette(palettes, board.hues[region]))

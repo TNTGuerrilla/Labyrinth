@@ -25,6 +25,8 @@ from .round import FLASH_SECONDS, HINT_SECONDS, WIN_PULSE_SECONDS
 REDRAW_BUDGET = 0.008  # seconds of cell drawing per frame
 CHECK_EVERY = 32  # cells drawn between clock checks
 LOW_DETAIL_PX = 4
+GRID_COLOR = (30, 32, 40)
+GRID_MIN_PX = 6
 MIN_MARKER_PX = 3
 HINT_COLOR = (120, 200, 255)
 WHITE = (255, 255, 255)
@@ -79,6 +81,7 @@ class GameRenderer:
         self._queue: deque = deque()
         self._queued: set = set()
         self._sweep: Optional[Iterator[Cell]] = None
+        self.show_grid = True
 
     @property
     def pending(self) -> bool:
@@ -149,9 +152,25 @@ class GameRenderer:
             return
         rect = pygame.Rect(x, y, w, h)
         if w >= LOW_DETAIL_PX:
-            draw_cell(self.layer, board, c, rect, self._palettes, draw_dot=False)
+            underlay = self._grid_underlay(c, board) if self.show_grid and w >= GRID_MIN_PX else None
+            draw_cell(self.layer, board, c, rect, self._palettes, draw_dot=False, underlay=underlay)
         else:
             draw_cell_small(self.layer, board, c, rect, self._palettes)
+
+    def _grid_underlay(self, c: Cell, board):
+        cols, rows = board.grid.cols, board.grid.rows
+        last_col = c[0] == cols - 1
+        last_row = c[1] == rows - 1
+
+        def underlay(surface: pygame.Surface, rect: pygame.Rect) -> None:
+            surface.fill(GRID_COLOR, (rect.left, rect.top, rect.w, 1))
+            surface.fill(GRID_COLOR, (rect.left, rect.top, 1, rect.h))
+            if last_col:
+                surface.fill(GRID_COLOR, (rect.right - 1, rect.top, 1, rect.h))
+            if last_row:
+                surface.fill(GRID_COLOR, (rect.left, rect.bottom - 1, rect.w, 1))
+
+        return underlay
 
     def _scroll(self, camera: Camera, dx: int, dy: int) -> None:
         w, h = self.layer.get_size()

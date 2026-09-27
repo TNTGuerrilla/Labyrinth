@@ -100,6 +100,7 @@ class Game:
         self.fullscreen = False
         self.running = True
         self.renderer = GameRenderer(self.play_rect.size)
+        self.renderer.show_grid = self.settings.show_grid
         self.new_round()
 
     @property
@@ -431,6 +432,7 @@ class Game:
             r = self.round
             r.multicolor = self.settings.multicolor
             r.gen_speed = self.settings.gen_speed
+            self.renderer.show_grid = self.settings.show_grid
             self.renderer.invalidate(clear=False)
             self._close_dialog()
         elif outcome == "benchmark":
@@ -486,6 +488,7 @@ class Game:
         scene.skip_growth()
         camera = Camera(cols, rows, pr.w, pr.h)
         renderer = GameRenderer(pr.size)
+        renderer.show_grid = self.settings.show_grid
         times: list[float] = []
         self._bench_events()
         last = time.perf_counter()
