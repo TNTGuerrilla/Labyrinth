@@ -125,10 +125,12 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
         poll()
 
     def close() -> None:
-        """Hide at once, but let a download or install that is under way finish."""
+        """Hide at once, but let a download or install that is under way finish. A check
+        gets a few seconds, so a stalled server cannot keep a hidden process alive."""
         root.withdraw()
         if updater is not None:
-            updater.wait()
+            installing = updater.snapshot.status == DOWNLOADING
+            updater.wait(None if installing else 5)
         root.destroy()
 
     def on_ok() -> None:
