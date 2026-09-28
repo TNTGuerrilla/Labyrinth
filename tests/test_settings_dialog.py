@@ -1,5 +1,9 @@
+from labyrinth_update.releases import Release
+from labyrinth_update.updater import AVAILABLE, DOWNLOADING, FAILED, READY, Snapshot
 from maze_saver.config import Settings
-from maze_saver.settings_dialog import FPS_LABELS, parse_fields
+from maze_saver.settings_dialog import FPS_LABELS, parse_fields, update_row
+
+REL = Release("1.2.0", "https://example.test/Labyrinth.scr", "ab" * 32)
 
 VALID = {"min_cells": "10", "max_cells": "30", "gen_speed": "80", "solve_speed": "25",
          "lookahead": "4", "hold_seconds": "2.5", "max_leads": "8"}
@@ -45,3 +49,21 @@ def test_max_leads_out_of_range():
 def test_lookahead_out_of_range():
     settings, error = parse_fields({**VALID, "lookahead": "13"}, FPS_LABELS["auto"])
     assert settings is None and "between 0 and 12" in error
+
+
+def test_check_updates_is_saved():
+    settings, _ = parse_fields(VALID, FPS_LABELS["auto"], check_updates=False)
+    assert settings.check_updates is False
+    assert parse_fields(VALID, FPS_LABELS["auto"])[0].check_updates is True
+
+
+def test_update_row():
+    assert update_row(Snapshot(), "1.0.1") == ("Version 1.0.1", False, False)
+    assert update_row(Snapshot(AVAILABLE, REL), "1.0.1") == ("Version 1.2.0 is available.",
+                                                             True, True)
+    assert update_row(Snapshot(DOWNLOADING, REL, 0.42), "1.0.1") == (
+        "Downloading version 1.2.0: 42%", False, False)
+    message, can_update, can_dismiss = update_row(Snapshot(READY, REL), "1.0.1")
+    assert message.startswith("Updated to version 1.2.0") and not can_update and not can_dismiss
+    assert update_row(Snapshot(FAILED, REL, message="Update needs administrator permission."),
+                      "1.0.1") == ("Update needs administrator permission.", True, True)

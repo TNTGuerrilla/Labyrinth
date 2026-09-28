@@ -4,6 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+from labyrinth_update.updater import AVAILABLE, DOWNLOADING, FAILED, READY, Snapshot
+
 from .config import NUMERIC_RANGES, FpsCap, Settings, from_dict, load, save
 from .icon import ICON_PATH
 
@@ -21,7 +23,8 @@ INCREMENTS = {"min_cells": 1, "max_cells": 1, "gen_speed": 5, "solve_speed": 1, 
 FPS_LABELS: dict[FpsCap, str] = {"auto": "Match fastest monitor", 60: "60", 120: "120"}
 
 
-def parse_fields(texts: dict[str, str], fps_label: str) -> tuple[Optional[Settings], Optional[str]]:
+def parse_fields(texts: dict[str, str], fps_label: str,
+                 check_updates: bool = True) -> tuple[Optional[Settings], Optional[str]]:
     """Validate dialog text. Returns (settings, None) or (None, error message)."""
     raw: dict = {}
     for name, label in FIELDS:
@@ -36,6 +39,7 @@ def parse_fields(texts: dict[str, str], fps_label: str) -> tuple[Optional[Settin
             return None, f"{label} must be between {low} and {high}."
         raw[name] = int(value) if is_int else value
     raw["fps_cap"] = {v: k for k, v in FPS_LABELS.items()}.get(fps_label, "auto")
+    raw["check_updates"] = check_updates
     return from_dict(raw), None
 
 
@@ -43,7 +47,22 @@ def _fmt(value: float) -> str:
     return str(int(value)) if float(value).is_integer() else str(value)
 
 
-def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None) -> None:
+def update_row(snapshot: Snapshot, current: str) -> tuple[str, bool, bool]:
+    """(message, show Update, show Dismiss) for the dialog's update row."""
+    version = snapshot.release.version if snapshot.release is not None else ""
+    if snapshot.status == AVAILABLE:
+        return f"Version {version} is available.", True, True
+    if snapshot.status == DOWNLOADING:
+        return f"Downloading version {version}: {int(snapshot.progress * 100)}%", False, False
+    if snapshot.status == READY:
+        return (f"Updated to version {version}. It runs the next time the screensaver starts.",
+                False, False)
+    if snapshot.status == FAILED:
+        return snapshot.message, True, True
+    return f"Version {current}", False, False
+
+
+def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, updater=None) -> None:
     import tkinter as tk
     from tkinter import messagebox, ttk
 
@@ -73,31 +92,74 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None) ->
     ttk.Combobox(frame, textvariable=fps_var, values=list(FPS_LABELS.values()), state="readonly",
                  width=22).grid(row=fps_row, column=1, sticky="e", pady=4)
 
+    check_var = tk.BooleanVar(value=current.check_updates)
+    ttk.Checkbutton(frame, text="Check for updates weekly", variable=check_var).grid(
+        row=fps_row + 1, column=0, columnspan=2, sticky="w", pady=(8, 4))
+
+    if updater is not None:
+        from labyrinth_update.install import install_screensaver, staging_dir
+
+        box = ttk.Frame(frame)
+        box.grid(row=fps_row + 2, column=0, columnspan=2, sticky="we", pady=(4, 0))
+        box.columnconfigure(0, weight=1)
+        status = ttk.Label(box, text="", wraplength=300)
+        status.grid(row=0, column=0, sticky="w")
+        target = updater.target
+        update_button = ttk.Button(box, text="Update", command=lambda: updater.install(
+            lambda release, progress: install_screensaver(release, target, staging_dir(),
+                                                          progress)))
+        dismiss_button = ttk.Button(box, text="Dismiss", command=updater.dismiss)
+
+        def poll() -> None:
+            message, can_update, can_dismiss = update_row(updater.snapshot, updater.current)
+            status.configure(text=message)
+            for widget, show, column in ((update_button, can_update, 1),
+                                         (dismiss_button, can_dismiss, 2)):
+                if show:
+                    widget.grid(row=0, column=column, padx=(8, 0))
+                else:
+                    widget.grid_remove()
+            root.after(250, poll)
+
+        updater.check(force=True)
+        poll()
+
+    def close() -> None:
+        """Hide at once, but let a download or install that is under way finish."""
+        root.withdraw()
+        if updater is not None:
+            updater.wait()
+        root.destroy()
+
     def on_ok() -> None:
-        settings, error = parse_fields({n: v.get() for n, v in variables.items()}, fps_var.get())
+        settings, error = parse_fields({n: v.get() for n, v in variables.items()},
+                                       fps_var.get(), check_var.get())
         if error:
             messagebox.showerror("Labyrinth Screensaver", error, parent=root)
             return
         try:
             save(settings, path)
         except OSError as exc:
-            messagebox.showerror("Labyrinth Screensaver", f"Could not save settings: {exc}", parent=root)
+            messagebox.showerror("Labyrinth Screensaver", f"Could not save settings: {exc}",
+                                 parent=root)
             return
-        root.destroy()
+        close()
 
     def on_reset() -> None:
         defaults = Settings()
         for n, v in variables.items():
             v.set(_fmt(getattr(defaults, n)))
         fps_var.set(FPS_LABELS[defaults.fps_cap])
+        check_var.set(defaults.check_updates)
 
     buttons = ttk.Frame(frame)
-    buttons.grid(row=fps_row + 1, column=0, columnspan=2, sticky="e", pady=(12, 0))
+    buttons.grid(row=fps_row + 3, column=0, columnspan=2, sticky="e", pady=(12, 0))
     ttk.Button(buttons, text="Reset to defaults", command=on_reset).grid(row=0, column=0, padx=(0, 8))
-    ttk.Button(buttons, text="Cancel", command=root.destroy).grid(row=0, column=1, padx=(0, 8))
+    ttk.Button(buttons, text="Cancel", command=close).grid(row=0, column=1, padx=(0, 8))
     ttk.Button(buttons, text="OK", command=on_ok).grid(row=0, column=2)
     root.bind("<Return>", lambda _e: on_ok())
-    root.bind("<Escape>", lambda _e: root.destroy())
+    root.bind("<Escape>", lambda _e: close())
+    root.protocol("WM_DELETE_WINDOW", close)
 
     root.update_idletasks()
     if owner_hwnd:
