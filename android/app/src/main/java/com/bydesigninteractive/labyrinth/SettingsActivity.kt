@@ -54,6 +54,8 @@ class SettingsActivity : Activity() {
     private lateinit var checkToggle: TextView
     private var offered: Release? = null
     private var downloading = false
+    private var installing = false
+    private var justHandledInstallStatus = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -99,18 +101,29 @@ class SettingsActivity : Activity() {
         })
         refresh()
         first?.requestFocus()
+        if (intent?.action == Updates.ACTION_INSTALL_STATUS) handleInstallStatus(intent)
     }
 
     override fun onResume() {
         super.onResume()
         // Refreshed here so the status is current after running the ADB command.
         showSetupHelp()
-        if (!downloading) Updates.check(this, force = true) { if (!isDestroyed && !downloading) showUpdate(it) }
+        if (justHandledInstallStatus) {
+            // A failure message from the installer is on screen; do not overwrite it right away.
+            justHandledInstallStatus = false
+        } else if (!downloading) {
+            Updates.check(this, force = true) { if (!isDestroyed && !downloading) showUpdate(it) }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.action != Updates.ACTION_INSTALL_STATUS) return
+        handleInstallStatus(intent)
+    }
+
+    /** Handles the installer's report, whether it arrived via [onNewIntent] or a fresh [onCreate]. */
+    private fun handleInstallStatus(intent: Intent) {
         when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 val confirm = if (Build.VERSION.SDK_INT >= 33) {
@@ -121,8 +134,12 @@ class SettingsActivity : Activity() {
                 confirm?.let { startActivity(it) }
             }
             PackageInstaller.STATUS_SUCCESS -> {} // Android replaces this app now.
-            else -> showUpdate(offered, "The update was not installed.")
+            else -> {
+                installing = false
+                showUpdate(offered, "The update was not installed.")
+            }
         }
+        justHandledInstallStatus = true
     }
 
     /** The update row: what is on offer, or the running version, and the check switch. */
@@ -133,7 +150,9 @@ class SettingsActivity : Activity() {
         updateStatus.text = message
             ?: release?.let { "Labyrinth ${it.version} is available." }
             ?: "Version ${Updates.currentVersion(this)}"
-        val actions = if (release != null && !downloading) View.VISIBLE else View.GONE
+        val visible = release != null && !downloading && !installing
+        if (!visible && (updateButton.isFocused || dismissButton.isFocused)) checkToggle.requestFocus()
+        val actions = if (visible) View.VISIBLE else View.GONE
         updateButton.visibility = actions
         dismissButton.visibility = actions
     }
@@ -145,8 +164,8 @@ class SettingsActivity : Activity() {
             return
         }
         downloading = true
-        showUpdate(release, "Downloading Labyrinth ${release.version}...")
         checkToggle.requestFocus()
+        showUpdate(release, "Downloading Labyrinth ${release.version}...")
         thread(name = "update-download", isDaemon = true) {
             val downloaded = try {
                 Result.success(Updates.download(this, release) { percent ->
@@ -155,12 +174,14 @@ class SettingsActivity : Activity() {
             } catch (e: IOException) {
                 Result.failure(e)
             }
+            var nowInstalling = false
             val message = downloaded.fold(
                 onSuccess = { apk ->
                     try {
                         Updates.install(this, apk)
+                        nowInstalling = true
                         "Installing Labyrinth ${release.version}..."
-                    } catch (_: IOException) {
+                    } catch (_: Exception) {
                         "The update could not be installed."
                     }
                 },
@@ -169,6 +190,7 @@ class SettingsActivity : Activity() {
             runOnUiThread {
                 if (isDestroyed) return@runOnUiThread
                 downloading = false
+                installing = nowInstalling
                 showUpdate(release, message)
             }
         }
@@ -189,8 +211,8 @@ class SettingsActivity : Activity() {
     private fun dismissUpdate() {
         val release = offered ?: return
         UpdateStore.save(this, UpdateStore.load(this).copy(dismissed = release.version))
-        showUpdate(null)
         checkToggle.requestFocus()
+        showUpdate(null)
     }
 
     private fun toggleChecks() {

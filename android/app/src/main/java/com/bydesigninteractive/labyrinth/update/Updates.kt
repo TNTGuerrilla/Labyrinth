@@ -74,11 +74,13 @@ object Updates {
 
     /** Wraps opening the connection and reading its response code: unreachable, not interrupted. */
     private fun connect(url: String, accept: String): HttpURLConnection {
+        var connection: HttpURLConnection? = null
         try {
-            val connection = open(url, accept)
+            connection = open(url, accept)
             connection.responseCode
             return connection
         } catch (_: IOException) {
+            connection?.disconnect()
             throw UpdateFailure("Could not reach the update server.")
         }
     }
