@@ -53,7 +53,15 @@ anything.
 - **Labyrinth TV:** a note appears on the screensaver, and the Labyrinth app shows **Update**.
   The first time, Android asks you to allow Labyrinth to install apps.
 
-To turn checks off, use **Check for updates** in each program's settings.
+After an update, each program says once what changed: Labyrinth shows a **What's new** panel,
+the screensaver shows a quiet section beside the maze for a minute or so, and the TV app shows
+the notes at the top of its settings screen (or the TV screensaver shows them beside the maze).
+
+Each program's settings also have an **Info** section with its version, the project's GitHub
+page and license, **Check now** (which works even with weekly checks turned off) and
+**What's new**.
+
+To turn checks off, use **Check for updates** in the **Info** section of Labyrinth's settings.
 
 Versions released before this feature (Labyrinth 1.1.0, Labyrinth Screensaver 1.0.1 and
 Labyrinth TV 1.0.0) cannot update themselves. Download the next version once by hand; after
@@ -250,6 +258,11 @@ keytool -genkeypair -v -keystore labyrinth-release.jks -alias labyrinth -keyalg 
 The signed APK is `android/app/build/outputs/apk/release/app-release.apk`. Without `keystore.properties`, the release build comes out unsigned (`app-release-unsigned.apk`), which Android will not install. Android only installs an update signed with the same key as the installed app, so an app built with a different key has to be uninstalled first.
 
 ## Develop
+
+Release notes come from the GitHub release text. Everything above a line that is exactly `---`
+is shown in the programs; put the SHA-256 line and install steps below it.
+`tools/fake_release_server.py --notes "TAG=TEXT"` serves notes for local tests (`\n` is a line
+break).
 
     .venv\Scripts\python -m pytest
     .venv\Scripts\python -m maze_game                  # the game
