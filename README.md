@@ -61,7 +61,9 @@ Each program's settings also have an **Info** section with its version, the proj
 page and license, **Check now** (which works even with weekly checks turned off) and
 **What's new**.
 
-To turn checks off, use **Check for updates** in the **Info** section of Labyrinth's settings.
+To turn checks off, use the check toggle in each program's settings: Labyrinth's Settings, Info
+tab (**Check for updates weekly**); the screensaver's Screen Saver Settings dialog, Info section
+(**Check for updates weekly**); the TV app's settings screen (**Check for updates: On/Off**).
 
 Versions released before this feature (Labyrinth 1.1.0, Labyrinth Screensaver 1.0.1 and
 Labyrinth TV 1.0.0) cannot update themselves. Download the next version once by hand; after

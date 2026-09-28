@@ -28,6 +28,8 @@ def split_rects(label: str, right: int,
     main = button_rect(label, (close.x if close is not None else right, 6), size=UPDATE_SIZE,
                        anchor="topright")
     return main, close
+
+
 ITEMS = (
     ("new", "New maze"), ("replay", "Replay"), ("hint", "Hint"), ("autosolve", "Auto-solve"),
     ("flash", "Flash finish"), None,
