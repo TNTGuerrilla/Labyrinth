@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from labyrinth_update.releases import Release
 from labyrinth_update.state import CHECK_INTERVAL, UpdateState, is_due, load, save, visible
@@ -38,6 +39,31 @@ def test_visible():
     assert visible(UpdateState(found=REL, dismissed="1.1.9"), "1.1.0") == REL
     assert visible(UpdateState(found=REL), "1.2.0") is None  # already running it
     assert visible(UpdateState(), "1.1.0") is None
+
+
+def test_save_writes_a_temp_file_then_replaces_the_target(tmp_path, monkeypatch):
+    import os
+
+    from labyrinth_update import state as state_module
+
+    path = tmp_path / "update.json"
+    calls = []
+    real_replace = os.replace
+
+    def fake_replace(src, dst):
+        calls.append((Path(src), Path(dst)))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(state_module.os, "replace", fake_replace)
+    state = UpdateState(1000.0, REL, "1.1.5")
+    save(path, state)
+    assert len(calls) == 1
+    tmp, dst = calls[0]
+    assert dst == path
+    assert tmp.parent == path.parent and tmp != path
+    assert not tmp.exists()  # replaced onto the target, nothing left behind
+    assert list(tmp_path.iterdir()) == [path]
+    assert load(path) == state
 
 
 def test_found_with_a_bad_sha256_is_dropped(tmp_path):

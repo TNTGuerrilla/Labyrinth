@@ -3,6 +3,7 @@ version the user dismissed. Stored as update.json next to each product's setting
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
@@ -82,7 +83,9 @@ def save(path: Path, state: UpdateState) -> None:
             "whats_new_runs": state.whats_new_runs}
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    tmp = target.with_name(target.name + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    os.replace(tmp, target)
 
 
 def is_due(state: UpdateState, now: float) -> bool:
