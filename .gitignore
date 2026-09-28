@@ -9,3 +9,6 @@ dist/
 *.dist/
 *.onefile-build/
 *.scr
+
+# Local planning notes, kept out of the repo
+docs/superpowers/
