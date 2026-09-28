@@ -1,0 +1,38 @@
+Labyrinth
+Copyright 2026 ByDesign Interactive
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party software
+--------------------
+
+The Windows builds (Labyrinth.exe and Labyrinth.scr) bundle the following
+software, each under its own license. The Google TV build (LabyrinthTV.apk)
+uses only the Android platform and the Kotlin standard library.
+
+Python 3.10
+  Copyright Python Software Foundation.
+  Python Software Foundation License Version 2. https://www.python.org
+
+pygame-ce 2.5.8
+  GNU Lesser General Public License, version 2.1.
+  Source: https://github.com/pygame-community/pygame-ce
+  Labyrinth uses pygame-ce unmodified. You can rebuild Labyrinth with a
+  different or modified pygame-ce from this project's source; see the
+  README's Build section.
+
+SDL 2 and its satellite libraries, bundled with pygame-ce
+  zlib License. https://www.libsdl.org
+
+Other libraries bundled with pygame-ce (such as FreeType, libpng and libjpeg)
+  Each under its own permissive license, included in the pygame-ce
+  distribution. Portions of this software are copyright The FreeType Project
+  (https://freetype.org). All rights reserved.
+
+Tcl/Tk (the screensaver's settings dialog)
+  BSD-style Tcl/Tk license. https://www.tcl-lang.org
+
+Nuitka runtime library (compiled into the Windows executables)
+  GNU Affero General Public License, version 3, with the Nuitka Runtime
+  Library Exception, which allows compiled programs such as Labyrinth to use
+  any license. https://nuitka.net
