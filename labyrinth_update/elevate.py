@@ -40,7 +40,13 @@ def run_elevated(program: Path, args: Sequence[str]) -> int:
     """Run program through the UAC prompt and wait for it to finish. Returns its exit code.
     Raises UpdateError if the user says no or it cannot start. program is run as a program
     whatever its extension (a .scr included): the "exefile" class makes ShellExecuteEx
-    ignore the file association, which other programs can claim for .scr."""
+    ignore the file association, which other programs can claim for .scr.
+
+    Known limitation, shared with most self-unpacking Windows programs: the elevated program
+    is a Nuitka onefile build that unpacks into the user's %LOCALAPPDATA% cache, and HKCU
+    can override the "exefile" class, so software already running as this user could get its
+    own code run elevated when the user accepts the prompt. Microsoft does not treat UAC
+    within one account as a security boundary. The README explains this under Updates."""
     if sys.platform != "win32":
         raise UpdateError("Administrator updates are only needed on Windows.")
     import ctypes

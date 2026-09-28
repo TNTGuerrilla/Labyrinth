@@ -59,6 +59,14 @@ Versions released before this feature (Labyrinth 1.1.0, Labyrinth Screensaver 1.
 Labyrinth TV 1.0.0) cannot update themselves. Download the next version once by hand; after
 that, updates happen in the app.
 
+### A note on administrator updates
+
+This is general background about Windows, not something unique to Labyrinth.
+
+When the screensaver is in `C:\Windows\System32`, Windows asks for administrator permission before it updates, and the update step then runs with administrator rights. Like most Windows programs that unpack themselves to run, including many installers, part of it runs from a folder in your user profile. If harmful software were already running under your Windows account, it could tamper with that folder and gain administrator rights when you approve the prompt. Microsoft does not treat this as a security boundary, since software running as you has other ways to do the same. The usual advice applies: keep your PC free of malware, and only approve permission prompts you started yourself.
+
+To avoid administrator prompts entirely, keep `Labyrinth.scr` in a folder you own (for example `%LOCALAPPDATA%\Programs\Labyrinth`) and install it from there. It then updates without asking.
+
 ## Play
 
 Guide a dot from the green start to the red finish. Each maze grows in front of you (or appears instantly), and if you get stuck, Hint lights up the next few cells and Auto-solve takes over from wherever you are.
