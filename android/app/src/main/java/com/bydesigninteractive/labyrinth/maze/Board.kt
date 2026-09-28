@@ -112,6 +112,12 @@ class Board(
         private set
     var solved = false
         private set
+    /** Hold phases entered: the dream closes What's new on one. */
+    var mazesSolved = 0
+        private set
+    /** Times the board went black for its next maze: the dream restores the full screen on one. */
+    var mazesCleared = 0
+        private set
 
     private var genEvents: Iterator<GenEvent>? = null
     private var solveEvents: Iterator<SolveEvent>? = null
@@ -168,6 +174,7 @@ class Board(
                         Phase.DOTS -> enterGenerate()
                         else -> {
                             reset()
+                            mazesCleared++
                             enterBlack(0.0)
                         }
                     }
@@ -292,6 +299,7 @@ class Board(
             val event = if (events.hasNext()) events.next() else null
             if (event == null || event is Solved) {
                 solved = true
+                mazesSolved++
                 phase = Phase.HOLD
                 timer = settings.holdSeconds
                 glideFrom = null

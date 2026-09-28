@@ -15,6 +15,8 @@ import android.graphics.Canvas
 import android.graphics.Rect
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
+import android.os.Handler
+import android.os.Looper
 import android.os.Process
 import com.bydesigninteractive.labyrinth.maze.Board
 import com.bydesigninteractive.labyrinth.maze.FIRST_DELAY_MAX
@@ -37,12 +39,24 @@ private const val UPLOAD_ROWS = 64
 /** Past this many changed cells in one frame, one bounding-box upload is cheaper. */
 private const val MAX_CELL_UPLOADS = 64
 
+/** Board events the dream acts on, delivered on the main thread (at most twice per maze). */
+interface MazeListener {
+    fun onMazeSolved()
+    fun onMazeCleared()
+}
+
 class MazeView(context: Context, settings: Settings) : GLSurfaceView(context) {
+    private val mazeRenderer = MazeRenderer(settings)
+
+    var listener: MazeListener?
+        get() = mazeRenderer.listener
+        set(value) { mazeRenderer.listener = value }
+
     init {
         setEGLContextClientVersion(2)
         setEGLConfigChooser(8, 8, 8, 0, 0, 0)
         preserveEGLContextOnPause = true
-        setRenderer(MazeRenderer(settings))
+        setRenderer(mazeRenderer)
         renderMode = RENDERMODE_CONTINUOUSLY
     }
 }
@@ -86,6 +100,11 @@ private class MazeRenderer(private val settings: Settings) : GLSurfaceView.Rende
     private var pixelBuffer: IntBuffer = IntBuffer.wrap(pixels)
     private var lastFrameNanos = 0L
 
+    @Volatile var listener: MazeListener? = null
+    private val main = Handler(Looper.getMainLooper())
+    private var seenSolved = 0
+    private var seenCleared = 0
+
     private val quad: FloatBuffer = ByteBuffer.allocateDirect(8 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
         .apply { put(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f)).position(0) }
 
@@ -119,7 +138,12 @@ private class MazeRenderer(private val settings: Settings) : GLSurfaceView.Rende
             height = h
             buffer?.recycle()
             buffer = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { bufferCanvas = Canvas(it) }
-            board = Board(w, h, settings, rng, rng.nextDouble(0.0, FIRST_DELAY_MAX))
+            // A resize replaces the board. The dream only resizes while the old board is black
+            // for its next maze, so the new one starts at once rather than after a random delay.
+            val delay = if (board == null) rng.nextDouble(0.0, FIRST_DELAY_MAX) else 0.0
+            board = Board(w, h, settings, rng, delay)
+            seenSolved = 0
+            seenCleared = 0
         }
         if (textureWidth != w || textureHeight != h) {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
@@ -136,6 +160,17 @@ private class MazeRenderer(private val settings: Settings) : GLSurfaceView.Rende
         val dt = if (lastFrameNanos == 0L) 0.0 else ((now - lastFrameNanos) / 1e9).coerceIn(0.0, MAX_FRAME_SECONDS)
         lastFrameNanos = now
         val changes = b.update(dt)
+        val l = listener
+        if (l != null) {
+            if (b.mazesSolved != seenSolved) {
+                seenSolved = b.mazesSolved
+                main.post { l.onMazeSolved() }
+            }
+            if (b.mazesCleared != seenCleared) {
+                seenCleared = b.mazesCleared
+                main.post { l.onMazeCleared() }
+            }
+        }
         val drawn = renderer.apply(bufferCanvas!!, b, changes)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
         when {

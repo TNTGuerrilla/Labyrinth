@@ -177,4 +177,15 @@ class BoardTest {
         b.update(WELD_FLASH_SECONDS + 0.01)
         assertTrue(b.welds.isEmpty())
     }
+
+    @Test
+    fun countsSolvedAndClearedMazes() {
+        val board = Board(400, 300, FAST, Random(1))
+        assertEquals(0, board.mazesSolved)
+        runUntil(board, Phase.HOLD)
+        assertEquals(1, board.mazesSolved)
+        assertEquals(0, board.mazesCleared)
+        runUntil(board, Phase.BLACK)
+        assertEquals(1, board.mazesCleared)
+    }
 }
