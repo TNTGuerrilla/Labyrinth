@@ -7,6 +7,7 @@ Procedurally grown pipe mazes in three forms: a playable game for Windows and Li
 ## Contents
 
 - [Download](#download)
+- [Updates](#updates)
 - [Play](#play)
   - [Difficulty](#difficulty)
   - [Install on Linux](#install-on-linux)
@@ -36,6 +37,27 @@ Each product has its own releases on the [Releases page](https://github.com/TNTG
 | Labyrinth TV | `LabyrinthTV.apk` | Google TV and Android TV, Android 8 or newer |
 
 The Windows files are single programs with nothing to install. Windows SmartScreen may warn about them because they are not code-signed; choose **More info**, then **Run anyway**.
+
+## Updates
+
+Each program checks GitHub for a newer version once a week (and right away the first time it
+runs). Only the list of Labyrinth releases is requested; nothing about you or your computer is
+sent. Every download is checked against the SHA-256 GitHub publishes for it before it replaces
+anything.
+
+- **Labyrinth:** an **Update to X.Y.Z** button appears at the right end of the toolbar. Click it
+  to download the new version and restart into it, or click **x** to hide that version.
+- **Labyrinth Screensaver:** a dim note appears in a corner of your main monitor while it runs.
+  Open **Screen Saver Settings**, choose **Settings**, and click **Update**. If the screensaver is
+  in `C:\Windows\System32`, Windows asks for administrator permission first.
+- **Labyrinth TV:** a note appears on the screensaver, and the Labyrinth app shows **Update**.
+  The first time, Android asks you to allow Labyrinth to install apps.
+
+To turn checks off, use **Check for updates** in each program's settings.
+
+Versions released before this feature (Labyrinth 1.1.0, Labyrinth Screensaver 1.0.1 and
+Labyrinth TV 1.0.0) cannot update themselves. Download the next version once by hand; after
+that, updates happen in the app.
 
 ## Play
 
@@ -145,7 +167,7 @@ The screensaver starts after the TV's normal screensaver timeout; any remote but
 
 ### Updating and cleanup
 
-To update, turn USB debugging back on if needed, reconnect with `& $adb connect <tv-ip>:5555`, and run `& $adb install -r LabyrinthTV.apk` with the new file. The screensaver selection and settings are kept.
+Versions with in-app updates update themselves from the Labyrinth app (see [Updates](#updates)). Versions released before in-app updates (Labyrinth TV 1.0.0) update with adb: turn USB debugging back on if needed, reconnect with `& $adb connect <tv-ip>:5555`, and run `& $adb install -r LabyrinthTV.apk` with the new file. The screensaver selection and settings are kept.
 
 Once it is set up, USB debugging can be turned off; the screensaver keeps working without it. While it is on, only computers you have approved can connect.
 
