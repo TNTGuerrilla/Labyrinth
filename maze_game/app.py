@@ -27,6 +27,7 @@ from .ui.custom_dialog import CustomDialog
 from .ui.settings_model import SettingsModel
 from .ui.settings_panel import SettingsPanel
 from .ui.toolbar import TOOLBAR_H, Toolbar, ToolbarState
+from .ui.whats_new_dialog import WhatsNewDialog
 from .ui.widgets import draw_progress
 from .ui.win_screen import WinScreen
 
@@ -48,7 +49,7 @@ NAV_KEYS = {"up": "up", "down": "down", "left": "left", "right": "right", "retur
 FIXED_NAV_KEYS = {"return": "confirm", "enter": "confirm", "space": "confirm", "escape": "cancel",
                   "tab": "tab", "backspace": "backspace"}
 
-Dialog = Union[CustomDialog, SettingsPanel]
+Dialog = Union[CustomDialog, SettingsPanel, WhatsNewDialog]
 
 BENCH_WINDOW_EVENTS = frozenset({
     pygame.WINDOWSIZECHANGED, pygame.WINDOWMINIMIZED, pygame.WINDOWRESTORED,
@@ -109,6 +110,11 @@ class Game:
         self.renderer = GameRenderer(self.play_rect.size)
         self.renderer.show_grid = self.settings.show_grid
         self.new_round()
+        self._dialog_below: Optional[Dialog] = None  # the dialog a What's new panel covers
+        shown = updater.start_whats_new() if updater is not None else None
+        if shown is not None:
+            self._open_dialog(WhatsNewDialog(f"Labyrinth updated to {shown.version}",
+                                             shown.lines(), first_run=True))
 
     @property
     def play_rect(self) -> pygame.Rect:
@@ -349,7 +355,12 @@ class Game:
             self.keys.forget_position()
 
     def _wheel(self, y: int) -> None:
-        if self.dialog is None and self.round.phase is not Phase.GROW and y:
+        if self.dialog is not None:
+            wheel = getattr(self.dialog, "wheel", None)
+            if wheel is not None and y:
+                wheel(y)
+            return
+        if self.round.phase is not Phase.GROW and y:
             self.camera.zoom_by(y, self.round.mover.position())
 
     # --- per frame --------------------------------------------------------------
@@ -454,8 +465,12 @@ class Game:
         pygame.key.set_repeat(*KEY_REPEAT)
 
     def _close_dialog(self) -> None:
-        self.dialog = None
-        pygame.key.set_repeat()
+        closed = self.dialog
+        self.dialog, self._dialog_below = self._dialog_below, None
+        if isinstance(closed, WhatsNewDialog) and closed.first_run and self.updater is not None:
+            self.updater.mark_whats_new_seen()  # closing it is what counts as seen
+        if self.dialog is None:
+            pygame.key.set_repeat()
 
     def _open_custom(self) -> None:
         s = self.settings

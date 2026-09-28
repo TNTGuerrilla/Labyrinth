@@ -607,3 +607,55 @@ def test_opening_settings_checks_for_updates(tmp_path):
         assert fetch_count[0] == 0
     finally:
         pygame.quit()
+
+
+import json  # noqa: E402
+
+from labyrinth_update.notes import NoteEntry  # noqa: E402
+from labyrinth_update.state import UpdateState, save as save_state  # noqa: E402
+from maze_game.ui.whats_new_dialog import WhatsNewDialog  # noqa: E402
+
+
+def game_after_update(tmp_path, notes="- Faster mazes"):
+    save_state(tmp_path / "update.json",
+               UpdateState(last_run_version="0.9.0", notes=(NoteEntry("1.0.0", notes),)))
+    u = Updater(GAME_WINDOWS, "1.0.0", tmp_path / "update.json", True, fetch=lambda: [],
+                target=tmp_path / "Labyrinth.exe")
+    return Game(GameSettings(animated=False), Keymap(), tmp_path / "config.json", updater=u)
+
+
+def test_first_run_after_an_update_shows_whats_new_once(tmp_path):
+    pygame.init()
+    try:
+        g = game_after_update(tmp_path)
+        assert isinstance(g.dialog, WhatsNewDialog)
+        assert g.dialog.title == "Labyrinth updated to 1.0.0"
+        g.frame(1 / 60)
+        press(g, pygame.K_RETURN)
+        assert g.dialog is None
+        data = json.loads((tmp_path / "update.json").read_text(encoding="utf-8"))
+        assert data["last_run_version"] == "1.0.0"
+        assert game_after_update_again(tmp_path).dialog is None
+    finally:
+        pygame.quit()
+
+
+def game_after_update_again(tmp_path):
+    u = Updater(GAME_WINDOWS, "1.0.0", tmp_path / "update.json", True, fetch=lambda: [],
+                target=tmp_path / "Labyrinth.exe")
+    return Game(GameSettings(animated=False), Keymap(), tmp_path / "config.json", updater=u)
+
+
+def test_whats_new_scrolls_with_arrows_and_the_wheel(tmp_path):
+    pygame.init()
+    try:
+        g = game_after_update(tmp_path, "\n".join(f"- line {i}" for i in range(80)))
+        g.frame(1 / 60)
+        press(g, pygame.K_DOWN)
+        assert g.dialog.scroll == 1
+        g.handle(pygame.event.Event(pygame.MOUSEWHEEL, x=0, y=-1))
+        assert g.dialog.scroll == 4
+        press(g, pygame.K_ESCAPE)
+        assert g.dialog is None
+    finally:
+        pygame.quit()
