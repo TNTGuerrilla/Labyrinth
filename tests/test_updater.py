@@ -96,6 +96,16 @@ def test_failed_check_is_quiet_and_retries_next_time(tmp_path):
     assert fetch.calls == 1
 
 
+def test_a_bug_in_a_check_is_quiet_and_retries_next_time(tmp_path, monkeypatch):
+    uncaught = []
+    monkeypatch.setattr(threading, "excepthook", uncaught.append)
+    u = make(tmp_path, Fetch(RuntimeError("bug")))
+    snap = checked(u)
+    assert uncaught == []
+    assert snap.status == IDLE and u._state.last_check is None
+    assert not (tmp_path / "update.json").exists()
+
+
 def test_cached_result_is_offered_without_the_network(tmp_path):
     checked(make(tmp_path, Fetch(listing("1.2.0"))))
     u = make(tmp_path, Fetch(AssertionError("no network")), now=1000.0 + DAY)

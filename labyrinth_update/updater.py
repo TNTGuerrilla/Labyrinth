@@ -90,6 +90,8 @@ class Updater:
             found = newest(self._fetch(), self.product, self.current)
         except UpdateError:
             return  # offline or rate limited: stay quiet and try again next launch
+        except Exception:
+            return  # a bug reading the list: a failed check, never a dead thread's traceback
         with self._lock:
             self._state = replace(self._state, last_check=self._clock(), found=found)
             self._save()

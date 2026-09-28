@@ -1,3 +1,5 @@
+import sys
+
 from labyrinth_update.version import current_binary, parse_version, running_version
 
 
@@ -36,3 +38,19 @@ def test_current_binary(tmp_path):
 
 def test_source_runs_have_no_binary():
     assert current_binary() is None
+
+
+def test_current_binary_started_by_name_from_path(tmp_path, monkeypatch):
+    """`labyrinth` typed in a shell: argv[0] is the bare name, found through PATH."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    name = "labyrinth.exe" if sys.platform == "win32" else "labyrinth"
+    binary = bin_dir / name
+    binary.write_bytes(b"x")
+    binary.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.chdir(elsewhere)
+    assert current_binary("labyrinth", built=True) == binary.resolve()
+    assert current_binary("missing", built=True) is None

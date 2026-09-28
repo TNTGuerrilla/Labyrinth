@@ -1,3 +1,5 @@
+import json
+
 from labyrinth_update.releases import Release
 from labyrinth_update.state import CHECK_INTERVAL, UpdateState, is_due, load, save, visible
 
@@ -36,3 +38,12 @@ def test_visible():
     assert visible(UpdateState(found=REL, dismissed="1.1.9"), "1.1.0") == REL
     assert visible(UpdateState(found=REL), "1.2.0") is None  # already running it
     assert visible(UpdateState(), "1.1.0") is None
+
+
+def test_found_with_a_bad_sha256_is_dropped(tmp_path):
+    path = tmp_path / "update.json"
+    for bad in ("ab" * 31, "AB" * 32, "zz" * 32, "ab" * 33, ""):
+        path.write_text(json.dumps({"last_check": 5.0, "dismissed": None, "found": {
+            "version": "1.2.0", "url": "https://example.test/x", "sha256": bad}}),
+            encoding="utf-8")
+        assert load(path) == UpdateState(last_check=5.0), bad

@@ -37,6 +37,11 @@ def game_product() -> Product:
     return GAME_WINDOWS if sys.platform == "win32" else GAME_LINUX
 
 
+def is_sha256(text: object) -> bool:
+    """True for a SHA-256 written as 64 lowercase hex characters."""
+    return isinstance(text, str) and _SHA256.fullmatch(text) is not None
+
+
 @dataclass(frozen=True)
 class Release:
     version: str
@@ -49,7 +54,7 @@ def _sha256(asset: dict) -> Optional[str]:
     if not isinstance(digest, str) or not digest.startswith("sha256:"):
         return None
     value = digest[len("sha256:"):].lower()
-    return value if _SHA256.fullmatch(value) else None
+    return value if is_sha256(value) else None
 
 
 def _asset(release: dict, name: str) -> Optional[dict]:

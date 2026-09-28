@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from .releases import Release
+from .releases import Release, is_sha256
 from .version import parse_version
 
 CHECK_INTERVAL = 7 * 24 * 3600  # seconds
@@ -24,7 +24,7 @@ def _release(raw: Any) -> Optional[Release]:
     if not isinstance(raw, dict):
         return None
     version, url, sha = raw.get("version"), raw.get("url"), raw.get("sha256")
-    if parse_version(version) is None or not isinstance(url, str) or not isinstance(sha, str):
+    if parse_version(version) is None or not isinstance(url, str) or not is_sha256(sha):
         return None
     return Release(version, url, sha)
 

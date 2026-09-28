@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import sys
 from pathlib import Path
 from typing import Optional
@@ -11,7 +12,8 @@ from typing import Optional
 _VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)")
 _HERE = Path(__file__).resolve().parent
 # Taken at import, before anything can change the working directory.
-_ARGV0 = os.path.abspath(sys.argv[0]) if sys.argv and sys.argv[0] else None
+_RAW_ARGV0 = sys.argv[0] if sys.argv and sys.argv[0] else None
+_ARGV0 = os.path.abspath(_RAW_ARGV0) if _RAW_ARGV0 else None
 
 
 def parse_version(text: object) -> Optional[tuple[int, int, int]]:
@@ -49,11 +51,20 @@ def running_version(key: str, path: Optional[Path] = None) -> Optional[str]:
 def current_binary(argv0: Optional[str] = None, built: Optional[bool] = None) -> Optional[Path]:
     """The program file the user started (the onefile .exe, .scr or Linux binary). resolve()
     expands Windows short 8.3 names, which Windows may use when it starts a screensaver.
-    None when running from source or when the file cannot be found."""
+    A bare name (`labyrinth` typed in a Linux shell) is looked up on PATH. None when running
+    from source or when the file cannot be found."""
     if not (is_built() if built is None else built):
         return None
-    raw = _ARGV0 if argv0 is None else argv0
-    if not raw:
+    raw, start = (_RAW_ARGV0, _ARGV0) if argv0 is None else (argv0, argv0)
+    if not raw or not start:
         return None
-    path = Path(raw).resolve()
+    path = Path(start).resolve()
+    if path.is_file():
+        return path
+    if "/" in raw or os.sep in raw:
+        return None
+    found = shutil.which(raw)
+    if found is None:
+        return None
+    path = Path(found).resolve()
     return path if path.is_file() else None
