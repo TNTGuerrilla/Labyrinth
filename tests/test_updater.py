@@ -302,3 +302,33 @@ def test_nothing_newer_keeps_the_stored_notes(tmp_path):
     u = make(tmp_path, Fetch(listing("1.1.0")))
     checked(u)
     assert u._state.notes == (NoteEntry("1.1.0", "Now"),)
+
+
+from labyrinth_update.whats_new import SHOW_RUNS  # noqa: E402
+
+
+def test_first_run_records_the_running_version(tmp_path):
+    u = make(tmp_path, Fetch(listing()))
+    assert u.start_whats_new() is None
+    data = json.loads((tmp_path / "update.json").read_text(encoding="utf-8"))
+    assert data["last_run_version"] == "1.1.0"
+
+
+def test_whats_new_shows_until_seen(tmp_path):
+    save(tmp_path / "update.json",
+         UpdateState(last_run_version="1.0.0", notes=(NoteEntry("1.1.0", "Eleven"),)))
+    u = make(tmp_path, Fetch(listing()))
+    assert u.start_whats_new().entries == (NoteEntry("1.1.0", "Eleven"),)
+    u.mark_whats_new_seen()
+    again = make(tmp_path, Fetch(listing()))
+    assert again.start_whats_new() is None
+    assert again.running_whats_new().entries == (NoteEntry("1.1.0", "Eleven"),)
+
+
+def test_screensaver_run_counter_is_saved(tmp_path):
+    save(tmp_path / "update.json", UpdateState(last_run_version="1.0.0"))
+    for _ in range(SHOW_RUNS):
+        u = make(tmp_path, Fetch(listing()))
+        assert u.start_whats_new() is not None
+        u.count_whats_new_run()
+    assert make(tmp_path, Fetch(listing())).start_whats_new() is None
