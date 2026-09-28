@@ -6,6 +6,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+from .layout import Rect
+
 SHOW_SECONDS = 60
 FADE_SECONDS = 1.5
 CLOSES_IN = "Closes in "
@@ -75,3 +77,26 @@ class SectionClock:
 
     def faded(self, now: float) -> bool:
         return self.closed_at is not None and now - self.closed_at >= FADE_SECONDS
+
+
+STRIP_NUM, STRIP_DEN = 3, 10  # the section's strip: 30% of the monitor's long side
+
+
+@dataclass(frozen=True)
+class Split:
+    board: Rect  # where the primary maze is laid out while the section shows
+    section: Rect  # the section's box, border included
+
+
+def split_monitor(w: int, h: int) -> Split:
+    """Landscape: a strip on the right, 30% of the width; portrait: a strip at the bottom,
+    30% of the height. The board keeps the rest, so the section never covers the maze (a
+    maze fills at most 80% of its area, which leaves a gap on the section's side too)."""
+    margin_x, margin_y = w // 40, h // 20
+    if w >= h:
+        strip = w * STRIP_NUM // STRIP_DEN
+        return Split(Rect(0, 0, w - strip, h),
+                     Rect(w - strip, margin_y, strip - margin_x, h - 2 * margin_y))
+    strip = h * STRIP_NUM // STRIP_DEN
+    return Split(Rect(0, 0, w, h - strip),
+                 Rect(margin_x, h - strip, w - 2 * margin_x, strip - margin_y))

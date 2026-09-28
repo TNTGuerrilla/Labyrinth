@@ -6,7 +6,7 @@ so the renderer only redraws those.
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from typing import Iterator, Optional
 
@@ -125,8 +125,16 @@ class Board:
         self.rng = rng
         self.forced_leads = forced_leads
         self.time = 0.0
+        # Where mazes are laid out, (x, y, w, h) inside this board's surface; None is all of
+        # it. Read when a maze starts (DOTS), so the maze on screen never moves.
+        self.area: Optional[tuple[int, int, int, int]] = None
+        self.mazes_solved = 0  # hold phases entered; the screensaver closes What's new on one
         self._reset()
         self._enter_black(initial_delay)
+
+    def set_area(self, area: Optional[tuple[int, int, int, int]]) -> None:
+        """Lay out mazes in `area` from the next maze on (None: the whole surface)."""
+        self.area = area
 
     def _reset(self) -> None:
         self.geometry: Optional[Geometry] = None
@@ -192,7 +200,9 @@ class Board:
 
     def _enter_dots(self, changes: Changes) -> None:
         s = self.settings
-        self.geometry = compute_geometry(self.width, self.height, s.min_cells, s.max_cells, self.rng)
+        x, y, w, h = self.area or (0, 0, self.width, self.height)
+        g = compute_geometry(w, h, s.min_cells, s.max_cells, self.rng)
+        self.geometry = replace(g, x=g.x + x, y=g.y + y)
         self.grid = Grid(self.geometry.cols, self.geometry.rows)
         self.start, self.end = choose_endpoints(self.geometry.cols, self.geometry.rows, self.rng)
         count, self._gen_events = choose_generator(self.grid, self.rng, self.settings.max_leads,
@@ -265,6 +275,7 @@ class Board:
                 self.phase = Phase.HOLD
                 self._timer = self.settings.hold_seconds
                 self.glide_from = None
+                self.mazes_solved += 1
                 return
             key = edge_key(event.a, event.b)
             self.glide_old = self.trail.get(key)

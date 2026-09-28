@@ -41,3 +41,28 @@ def test_the_first_solve_after_the_minute_closes_it():
     assert clock.closed_at == 165.0
     assert clock.alpha(165.0) == 255 and clock.alpha(165.75) == 128
     assert not clock.faded(166.4) and clock.faded(166.5) and clock.alpha(166.5) == 0
+
+import pytest  # noqa: E402
+
+from maze_saver.layout import Rect  # noqa: E402
+from maze_saver.whats_new import split_monitor  # noqa: E402
+
+
+def overlaps(a, b):
+    return a.x < b.right and b.x < a.right and a.y < b.bottom and b.y < a.bottom
+
+
+@pytest.mark.parametrize("size", [(1920, 1080), (3440, 1440), (1080, 1920), (800, 600),
+                                  (1000, 1000), (1200, 1920)])
+def test_section_and_board_never_overlap(size):
+    w, h = size
+    split = split_monitor(w, h)
+    screen = Rect(0, 0, w, h)
+    assert screen.contains(split.board) and screen.contains(split.section)
+    assert not overlaps(split.board, split.section)
+    if w >= h:  # landscape: a strip on the right
+        assert split.board.h == h and split.board.w == w - w * 3 // 10
+        assert split.section.x >= split.board.right
+    else:  # portrait: a strip at the bottom
+        assert split.board.w == w and split.board.h == h - h * 3 // 10
+        assert split.section.y >= split.board.bottom

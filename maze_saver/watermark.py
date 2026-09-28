@@ -29,41 +29,53 @@ class Watermark:
         self.size = size
         self.started = started
         self.corner: Optional[int] = None  # the corner last drawn
+        self.area: Optional[Rect] = None  # the area last drawn in
+        self._scaled: dict[int, pygame.Surface] = {}
         font = pygame.font.SysFont(FONT_NAME, max(12, min(w, h) // 54))
-        image = font.render(message, True, COLOR)
-        limit = w * 9 // 10
-        if image.get_width() > limit:
-            scale = limit / image.get_width()
-            image = pygame.transform.smoothscale(
-                image, (limit, max(1, round(image.get_height() * scale))))
-        self.image = image
+        self.image = font.render(message, True, COLOR)
 
-    def rect_for(self, corner: int) -> pygame.Rect:
-        w, h = self.size
+    def _image(self, width: int) -> pygame.Surface:
+        """The message, shrunk to 90% of `width` when it is wider (cached per width)."""
+        limit = width * 9 // 10
+        image = self._scaled.get(limit)
+        if image is None:
+            image = self.image
+            if image.get_width() > limit:
+                scale = limit / image.get_width()
+                image = pygame.transform.smoothscale(
+                    image, (limit, max(1, round(image.get_height() * scale))))
+            self._scaled[limit] = image
+        return image
+
+    def rect_for(self, corner: int, area: Optional[Rect] = None) -> pygame.Rect:
+        ax, ay = (0, 0) if area is None else (area.x, area.y)
+        w, h = self.size if area is None else (area.w, area.h)
         name = CORNERS[corner]
-        rect = self.image.get_rect()
-        y = h - h // 20 if name.startswith("bottom") else h // 20
+        rect = self._image(w).get_rect()
+        y = ay + (h - h // 20 if name.startswith("bottom") else h // 20)
         if name.endswith("right"):
-            rect.midright = (w - w // 40, y)
+            rect.midright = (ax + w - w // 40, y)
         else:
-            rect.midleft = (w // 40, y)
+            rect.midleft = (ax + w // 40, y)
         return rect
 
     def current_corner(self, now: float) -> int:
         return int(max(0.0, now - self.started) // CORNER_SECONDS) % len(CORNERS)
 
-    def update(self, surface: pygame.Surface, now: float, cleared: bool) -> list[pygame.Rect]:
-        """Draw when the corner changes or the board was cleared. Returns changed rects."""
+    def update(self, surface: pygame.Surface, now: float, cleared: bool,
+               area: Optional[Rect] = None) -> list[pygame.Rect]:
+        """Draw when the corner or the area changes, or the board was cleared. `area` is the
+        board's part of the monitor while What's new shows beside it. Returns changed rects."""
         corner = self.current_corner(now)
-        if corner == self.corner and not cleared:
+        if corner == self.corner and area == self.area and not cleared:
             return []
         rects = []
-        if self.corner is not None and corner != self.corner:
-            old = self.rect_for(self.corner)
+        if self.corner is not None and (corner != self.corner or area != self.area):
+            old = self.rect_for(self.corner, self.area)
             surface.fill(BLACK, old)
             rects.append(old)
-        new = self.rect_for(corner)
-        surface.blit(self.image, new)
+        new = self.rect_for(corner, area)
+        surface.blit(self._image(area.w if area is not None else self.size[0]), new)
         rects.append(new)
-        self.corner = corner
+        self.corner, self.area = corner, area
         return rects

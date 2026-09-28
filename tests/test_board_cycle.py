@@ -161,3 +161,42 @@ def test_glide_ends_when_solved():
     b = Board(400, 300, FAST, random.Random(10))
     run_until(b, Phase.HOLD)
     assert b.glide_from is None and b.glide_progress == 1.0 and b.dot == b.end
+
+
+def centre_x(g):
+    return g.x + g.width / 2
+
+
+def test_area_applies_from_the_next_maze():
+    board = Board(1000, 600, FAST, random.Random(3))
+    board.set_area((0, 0, 700, 600))
+    run_until(board, Phase.DOTS)
+    g = board.geometry
+    assert g.x + g.width <= 700 and abs(centre_x(g) - 350) <= g.cell
+    board.set_area(None)
+    assert board.geometry == g  # the maze on screen keeps its place
+    run_until(board, Phase.BLACK)
+    run_until(board, Phase.DOTS)
+    assert abs(centre_x(board.geometry) - 500) <= board.geometry.cell
+
+
+def test_area_offsets_the_maze():
+    board = Board(600, 1000, FAST, random.Random(4))
+    board.set_area((0, 0, 600, 700))
+    run_until(board, Phase.DOTS)
+    assert board.geometry.y + board.geometry.height <= 700
+    board = Board(1000, 600, FAST, random.Random(4))
+    board.set_area((200, 100, 600, 400))
+    run_until(board, Phase.DOTS)
+    g = board.geometry
+    assert 200 <= g.x and g.x + g.width <= 800 and 100 <= g.y and g.y + g.height <= 500
+
+
+def test_mazes_solved_counts_hold_entries():
+    board = Board(400, 300, FAST, random.Random(1))
+    assert board.mazes_solved == 0
+    run_until(board, Phase.HOLD)
+    assert board.mazes_solved == 1
+    run_until(board, Phase.BLACK)
+    run_until(board, Phase.HOLD)
+    assert board.mazes_solved == 2
