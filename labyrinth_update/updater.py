@@ -42,8 +42,9 @@ class Updater:
         self.target = target
         self._fetch = fetch
         self._clock = clock
-        self._lock = threading.Lock()
-        self._thread: Optional[threading.Thread] = None
+        self._lock = threading.RLock()
+        self._check_thread: Optional[threading.Thread] = None
+        self._install_thread: Optional[threading.Thread] = None
         self._state = state_file.load(state_path)
         self._snapshot = self._offer()
 
@@ -60,12 +61,11 @@ class Updater:
         release = state_file.visible(self._state, self.current) if self.enabled else None
         return Snapshot(AVAILABLE, release) if release is not None else Snapshot()
 
-    def _busy(self) -> bool:
-        return self._thread is not None and self._thread.is_alive()
+    def _check_busy(self) -> bool:
+        return self._check_thread is not None and self._check_thread.is_alive()
 
-    def _start(self, work: Callable[[], None]) -> None:
-        self._thread = threading.Thread(target=work, daemon=True)
-        self._thread.start()
+    def _install_busy(self) -> bool:
+        return self._install_thread is not None and self._install_thread.is_alive()
 
     def _save(self) -> None:
         try:
@@ -75,68 +75,96 @@ class Updater:
 
     def check(self, force: bool = False) -> None:
         """Ask GitHub in the background when enabled and a week has passed, or when forced
-        (a settings screen was opened)."""
-        if not self.enabled or self._busy():
-            return
-        if not force and not state_file.is_due(self._state, self._clock()):
-            return
-        self._start(self._check)
+        (a settings screen was opened). A running install is left alone; a click on Update
+        must not be dropped just because a check is also in flight."""
+        with self._lock:
+            if not self.enabled or self._check_busy() or self._install_busy():
+                return
+            if not force and not state_file.is_due(self._state, self._clock()):
+                return
+            self._check_thread = threading.Thread(target=self._check, daemon=True)
+            self._check_thread.start()
 
     def _check(self) -> None:
         try:
             found = newest(self._fetch(), self.product, self.current)
         except UpdateError:
             return  # offline or rate limited: stay quiet and try again next launch
-        self._state = replace(self._state, last_check=self._clock(), found=found)
-        self._save()
-        if self.snapshot.status in (IDLE, AVAILABLE):
-            self._set(self._offer())
+        with self._lock:
+            self._state = replace(self._state, last_check=self._clock(), found=found)
+            self._save()
+            if not self.enabled:
+                return  # turned off while the check was in flight: never re-show
+            current = self._snapshot
+            if current.status in (IDLE, AVAILABLE):
+                self._snapshot = self._offer()
+            elif current.status == FAILED:
+                # An install may have failed on an older release while this check was
+                # already running: show the newly found one instead of the stale failure.
+                visible = state_file.visible(self._state, self.current)
+                if visible is not None and (current.release is None
+                                             or visible.version != current.release.version):
+                    self._snapshot = Snapshot(AVAILABLE, visible)
+            # DOWNLOADING and READY are never overwritten by a finishing check.
 
     def set_enabled(self, enabled: bool) -> None:
-        self.enabled = enabled
-        if self.snapshot.status in (IDLE, AVAILABLE):
-            self._set(self._offer())
+        with self._lock:
+            self.enabled = enabled
+            if self._snapshot.status in (IDLE, AVAILABLE):
+                self._snapshot = self._offer()
         if enabled:
             self.check()
 
     def dismiss(self) -> None:
         """Hide the offered version until a newer one appears."""
-        snap = self.snapshot
-        if snap.release is None or snap.status not in (AVAILABLE, FAILED):
-            return
-        self._state = replace(self._state, dismissed=snap.release.version)
-        self._save()
-        self._set(Snapshot())
+        with self._lock:
+            snap = self._snapshot
+            if snap.release is None or snap.status not in (AVAILABLE, FAILED):
+                return
+            self._state = replace(self._state, dismissed=snap.release.version)
+            self._save()
+            self._snapshot = Snapshot()
 
     def install(self, installer: Installer) -> None:
-        """Run installer(release, progress) in the background for the offered release."""
-        snap = self.snapshot
-        if snap.release is None or snap.status not in (AVAILABLE, FAILED) or self._busy():
-            return
-        release = snap.release
-        self._set(Snapshot(DOWNLOADING, release))
-
-        def progress(fraction: float) -> None:
-            self._set(Snapshot(DOWNLOADING, release, fraction))
-
-        def work() -> None:
-            try:
-                installer(release, progress)
-            except UpdateError as exc:
-                self._set(Snapshot(FAILED, release, message=str(exc)))
+        """Run installer(release, progress) in the background for the offered release. A
+        check that is also running does not block this; only another install does."""
+        with self._lock:
+            if self._install_busy():
                 return
-            except OSError as exc:
-                self._set(Snapshot(FAILED, release,
-                                   message=f"The update could not be installed: {exc}"))
+            snap = self._snapshot
+            if snap.release is None or snap.status not in (AVAILABLE, FAILED):
                 return
-            self._set(Snapshot(READY, release))
+            release = snap.release
+            self._snapshot = Snapshot(DOWNLOADING, release)
 
-        self._start(work)
+            def progress(fraction: float) -> None:
+                self._set(Snapshot(DOWNLOADING, release, fraction))
+
+            def work() -> None:
+                try:
+                    installer(release, progress)
+                except UpdateError as exc:
+                    self._set(Snapshot(FAILED, release, message=str(exc)))
+                    return
+                except OSError as exc:
+                    self._set(Snapshot(FAILED, release,
+                                       message=f"The update could not be installed: {exc}"))
+                    return
+                except Exception:
+                    self._set(Snapshot(FAILED, release,
+                                       message="The update could not be installed."))
+                    return
+                self._set(Snapshot(READY, release))
+
+            self._install_thread = threading.Thread(target=work, daemon=True)
+            self._install_thread.start()
 
     def wait(self, timeout: Optional[float] = None) -> None:
         """Wait for background work to finish."""
-        if self._thread is not None:
-            self._thread.join(timeout)
+        if self._check_thread is not None:
+            self._check_thread.join(timeout)
+        if self._install_thread is not None:
+            self._install_thread.join(timeout)
 
 
 def _debug_dump(target: Optional[Path], current: Optional[str]) -> None:

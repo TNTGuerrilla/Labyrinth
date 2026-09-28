@@ -1,4 +1,5 @@
 import json
+import threading
 
 from labyrinth_update import updater as updater_module
 from labyrinth_update.net import UpdateError
@@ -23,6 +24,27 @@ class Fetch:
 
     def __call__(self):
         self.calls += 1
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+class BlockingFetch:
+    """A fetch that hangs until the test releases it, so a check can be held in flight
+    deterministically. `started` fires once the check thread has called in; the test then
+    does whatever it needs to overlap with the check before setting `release_event`."""
+
+    def __init__(self, result):
+        self.result = result
+        self.calls = 0
+        self.started = threading.Event()
+        self.release_event = threading.Event()
+
+    def __call__(self):
+        self.calls += 1
+        self.started.set()
+        if not self.release_event.wait(5):
+            raise AssertionError("BlockingFetch was never released")
         if isinstance(self.result, Exception):
             raise self.result
         return self.result
@@ -157,3 +179,95 @@ def test_for_program_in_a_build(tmp_path, monkeypatch):
     assert u.target == exe and u.state_path == tmp_path / "settings" / "update.json"
     assert not (tmp_path / "Labyrinth.exe.old").exists()
     assert json.loads(dump.read_text(encoding="utf-8"))["binary"] == str(exe)
+
+
+def test_install_proceeds_during_an_in_flight_check(tmp_path):
+    u = make(tmp_path, Fetch(listing("1.2.0")))
+    checked(u)
+    assert u.snapshot.status == AVAILABLE
+
+    blocking = BlockingFetch(listing("1.2.0"))
+    u._fetch = blocking
+    u.check(force=True)
+    assert blocking.started.wait(5)
+
+    u.install(lambda release, progress: None)
+    u._install_thread.join(5)
+    assert not u._install_thread.is_alive()
+    assert u.snapshot.status == READY
+
+    blocking.release_event.set()
+    u._check_thread.join(5)
+    assert not u._check_thread.is_alive()
+    assert u.snapshot.status == READY and u.snapshot.release.version == "1.2.0"
+
+
+def test_dismiss_during_an_in_flight_check_keeps_the_dismissal(tmp_path):
+    u = make(tmp_path, Fetch(listing("1.2.0")))
+    checked(u)
+
+    blocking = BlockingFetch(listing("1.2.0"))
+    u._fetch = blocking
+    u.check(force=True)
+    assert blocking.started.wait(5)
+
+    u.dismiss()
+    assert u.snapshot.status == IDLE
+
+    blocking.release_event.set()
+    u._check_thread.join(5)
+    assert not u._check_thread.is_alive()
+    assert u.snapshot.status == IDLE
+    saved = json.loads((tmp_path / "update.json").read_text(encoding="utf-8"))
+    assert saved["dismissed"] == "1.2.0"
+
+
+def test_disabling_during_an_in_flight_check_keeps_it_hidden(tmp_path):
+    u = make(tmp_path, Fetch(listing("1.2.0")))
+    checked(u)
+
+    blocking = BlockingFetch(listing("1.2.0"))
+    u._fetch = blocking
+    u.check(force=True)
+    assert blocking.started.wait(5)
+
+    u.set_enabled(False)
+    assert u.snapshot.status == IDLE
+
+    blocking.release_event.set()
+    u._check_thread.join(5)
+    assert not u._check_thread.is_alive()
+    assert u.snapshot.status == IDLE
+
+
+def test_unexpected_installer_exception_ends_in_failed_and_can_be_retried(tmp_path):
+    u = make(tmp_path, Fetch(listing("1.2.0")))
+    checked(u)
+
+    def broken(release, progress):
+        raise RuntimeError("boom")
+
+    u.install(broken)
+    u.wait(5)
+    assert u.snapshot.status == FAILED
+    assert u.snapshot.message == "The update could not be installed."
+
+    u.install(lambda release, progress: None)
+    u.wait(5)
+    assert u.snapshot.status == READY
+
+
+def test_a_newer_release_replaces_a_failed_one(tmp_path):
+    u = make(tmp_path, Fetch(listing("1.2.0")))
+    checked(u)
+
+    def broken(release, progress):
+        raise UpdateError("nope")
+
+    u.install(broken)
+    u.wait(5)
+    assert u.snapshot.status == FAILED
+
+    u._fetch = Fetch(listing("1.2.0", "1.3.0"))
+    snap = checked(u, force=True)
+    assert snap.status == AVAILABLE and snap.release.version == "1.3.0"
