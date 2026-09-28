@@ -1,26 +1,41 @@
-# Maze Game
+# Labyrinth
 
 Procedurally grown pipe mazes in three forms: a playable game for Windows, a Windows screensaver, and a Google TV screensaver. Each maze is carved live by one or more snake-like leads (up to 12 by default), each in its own color, that race across the screen and weld their regions together into a single perfect maze with exactly one route between any two cells. In the screensavers, a solver then traces that route the way a person would with a finger: it looks a few cells ahead, sometimes takes a wrong turn, backs out of dead ends, and leaves a bright trail behind its gliding dot. The game and the Windows screensaver are Python and pygame; the TV version is a Kotlin port that runs as a native Android screensaver.
 
 ## Contents
 
+- [Download](#download)
 - [Play](#play)
   - [Difficulty](#difficulty)
-- [Add the screensaver](#add-the-screensaver)
+- [Windows screensaver](#windows-screensaver)
 - [Google TV screensaver](#google-tv-screensaver)
   - [1. Turn on debugging on the TV](#1-turn-on-debugging-on-the-tv)
   - [2. Connect and install](#2-connect-and-install)
   - [3. Make it the screensaver](#3-make-it-the-screensaver)
   - [Updating and cleanup](#updating-and-cleanup)
-  - [Tests](#tests)
+- [Build from source](#build-from-source)
+  - [Windows game and screensaver](#windows-game-and-screensaver)
+  - [Google TV app](#google-tv-app)
 - [Develop](#develop)
-- [Build](#build)
+- [License](#license)
+
+## Download
+
+Each product has its own releases on the [Releases page](https://github.com/TNTGuerrilla/Labyrinth/releases):
+
+| Product | File | Runs on |
+|---|---|---|
+| Labyrinth (the game) | `Labyrinth.exe` | Windows 10 or 11, 64-bit |
+| Labyrinth Screensaver | `Labyrinth.scr` | Windows 10 or 11, 64-bit |
+| Labyrinth TV | `LabyrinthTV.apk` | Google TV and Android TV, Android 8 or newer |
+
+The Windows files are single programs with nothing to install. Windows SmartScreen may warn about them because they are not code-signed; choose **More info**, then **Run anyway**.
 
 ## Play
 
 Guide a dot from the green start to the red finish. Each maze grows in front of you (or appears instantly), and if you get stuck, Hint lights up the next few cells and Auto-solve takes over from wherever you are.
 
-Run `MazeGame.exe`. Hold a direction to glide; the dot follows corridor bends on its own and stops at forks and dead ends. Walking back over your trail dims it, so the bright line is always your route from the start.
+Run `Labyrinth.exe`. Hold a direction to glide; the dot follows corridor bends on its own and stops at forks and dead ends. Walking back over your trail dims it, so the bright line is always your route from the start.
 
 | Action | Default key |
 |---|---|
@@ -48,18 +63,20 @@ Small is 8-12 cells on the short side, Medium 13-24, Large 25-48 and XL 49-96; e
 
 The win screen compares your steps with the perfect route. Steps taken by Auto-solve are counted separately and mark the round Assisted.
 
-## Add the screensaver
+## Windows screensaver
 
-The mazes are also available as a Windows screensaver, installed separately from the game:
+The screensaver is a separate download from the game:
 
-1. Right-click `MazeScreensaver.scr` and choose **Install**.
-2. In Screen Saver Settings pick "MazeScreensaver". Its Settings button controls maze density, speeds, hold time and frame rate cap.
+1. Right-click `Labyrinth.scr` and choose **Install**.
+2. In Screen Saver Settings, pick **Labyrinth**. Its Settings button controls maze density, speeds, hold time and the frame rate cap.
+
+If **Install** is missing from the right-click menu, another program has claimed `.scr` files (AutoCAD does this). Copy `Labyrinth.scr` into `C:\Windows\System32` instead, then pick it in Screen Saver Settings.
 
 ## Google TV screensaver
 
-`android/` is a Kotlin port of the screensaver for Google TV and Android TV (Android 8 or newer). It runs as a real Android screensaver (a `DreamService`) and adds a Maze Screensaver app to the TV's app list, with the same settings as the Windows version, a Preview button, and a status line showing whether it is the active screensaver. It is tested on a TCL 65QM6K Pro running Android 14.
+Labyrinth TV runs as a real Android screensaver and adds a **Labyrinth** app to the TV's app list, with the same settings as the Windows version, a Preview button, and a status line showing whether it is the active screensaver. It is tested on a TCL 65QM6K Pro running Android 14.
 
-Google TV has no store listing for it and hides the screensaver picker, so setup is a one-time sideload from a PC. You need [Android Studio](https://developer.android.com/studio) (for the SDK and `adb`) and the TV on the same network as the PC.
+Google TV has no store listing for it and hides the screensaver picker, so setup is a one-time sideload from a PC. You need `adb`, from Google's [SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) (also included with Android Studio), and the TV on the same network as the PC.
 
 ### 1. Turn on debugging on the TV
 
@@ -69,7 +86,7 @@ Google TV has no store listing for it and hides the screensaver picker, so setup
 
 ### 2. Connect and install
 
-The commands below are for PowerShell. `adb` ships with Android Studio's SDK, so first point a variable at it:
+The commands below are for PowerShell. Point a variable at `adb` (this is where Android Studio puts it; use your Platform-Tools folder otherwise) and connect:
 
 ```powershell
 $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
@@ -78,28 +95,27 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 
 The TV shows **Allow USB debugging?** Choose **Always allow from this computer**, then **OK**. `& $adb devices` should now list the TV as `device`, not `unauthorized`.
 
-Build and install from the `android` folder:
+Install the downloaded APK:
 
 ```powershell
-cd android
-.\gradlew.bat installDebug
+& $adb install LabyrinthTV.apk
 ```
 
-Or open `android/` in Android Studio, pick the TV as the target device, and press Run. If Gradle complains about the Java version, set `JAVA_HOME` to the JDK bundled with Android Studio (`C:\Program Files\Android\Android Studio\jbr`).
+To install a build of your own instead, see [Google TV app](#google-tv-app).
 
 ### 3. Make it the screensaver
 
 Select it once:
 
 ```powershell
-& $adb shell settings put secure screensaver_components io.github.tntguerrilla.mazesaver/.MazeDreamService
+& $adb shell settings put secure screensaver_components com.bydesigninteractive.labyrinth/.LabyrinthDreamService
 & $adb shell settings get secure screensaver_components
 ```
 
-The second command should print `io.github.tntguerrilla.mazesaver/.MazeDreamService`. Then, on the TV:
+The second command should print `com.bydesigninteractive.labyrinth/.LabyrinthDreamService`. Then, on the TV:
 
-- **TCL TVs:** allow **Auto Launch** for Maze Screensaver (under **Settings, Apps, Special app access**, or TCL's app permission settings). Without it, TCL's firmware stops the screensaver from starting in the background.
-- Open **Maze Screensaver** from the app list. The bottom of the screen should say it is the current screensaver, and **Preview screensaver** shows it right away.
+- **TCL TVs:** allow **Auto Launch** for Labyrinth (under **Settings, Apps, Special app access**, or TCL's app permission settings). Without it, TCL's firmware stops the screensaver from starting in the background.
+- Open **Labyrinth** from the app list. The bottom of the screen should say it is the current screensaver, and **Preview screensaver** shows it right away.
 
 The screensaver starts after the TV's normal screensaver timeout; any remote button ends it. If it never starts on its own, idle screensavers may be switched off on that TV. Check with `& $adb shell settings get secure screensaver_activate_on_sleep`, and if it prints `0`, turn them on:
 
@@ -109,20 +125,62 @@ The screensaver starts after the TV's normal screensaver timeout; any remote but
 
 ### Updating and cleanup
 
-To install a new version, turn USB debugging back on if needed, reconnect with `& $adb connect <tv-ip>:5555`, and run `.\gradlew.bat installDebug` again. The screensaver selection and settings are kept.
+To update, turn USB debugging back on if needed, reconnect with `& $adb connect <tv-ip>:5555`, and run `& $adb install -r LabyrinthTV.apk` with the new file. The screensaver selection and settings are kept.
 
 Once it is set up, USB debugging can be turned off; the screensaver keeps working without it. While it is on, only computers you have approved can connect.
 
-To go back to Google's Ambient mode, run `& $adb shell settings delete secure screensaver_components`, then uninstall Maze Screensaver from the TV if you no longer want it.
+To go back to Google's Ambient mode, run `& $adb shell settings delete secure screensaver_components`, then uninstall Labyrinth from the TV if you no longer want it.
 
-### Tests
+## Build from source
 
-Unit tests for the Kotlin port (maze generation, solver, board cycle, settings) run on the PC: `.\gradlew.bat testDebugUnitTest` in `android/`.
+Product versions live in `versions.json`; both builds read them from there.
+
+### Windows game and screensaver
+
+You need Windows 10 or 11 (64-bit), [Python 3.10](https://www.python.org/downloads/) (the builds use 3.10.11), and a C compiler for Nuitka. If Visual Studio Build Tools are installed, Nuitka uses them; otherwise it downloads a MinGW compiler on the first build.
+
+```powershell
+git clone https://github.com/TNTGuerrilla/Labyrinth.git
+cd Labyrinth
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements-dev.txt
+.venv\Scripts\python -m pytest
+powershell -ExecutionPolicy Bypass -File .\build.ps1
+```
+
+The build takes several minutes and writes `dist\Labyrinth.exe` and `dist\Labyrinth.scr`. Each build gets a unique file version (the product version plus a build number), so the unpack caches under `%LOCALAPPDATA%\Labyrinth` and `%LOCALAPPDATA%\LabyrinthScreensaver` never run stale files; old version folders there can be deleted.
+
+Settings are stored in `%APPDATA%\Labyrinth` (game) and `%APPDATA%\Labyrinth Screensaver` (screensaver), and unexpected errors are logged to `error.log` next to them. Settings from the builds released before the Labyrinth name (in `%APPDATA%\MazeGame` and `%APPDATA%\MazeScreensaver`) are copied over automatically on first run.
+
+### Google TV app
+
+You need [Android Studio](https://developer.android.com/studio) (it brings the Android SDK and a JDK), or JDK 17 with the Android SDK platform 35. If Gradle complains about the Java version, set `JAVA_HOME` to the JDK bundled with Android Studio (`C:\Program Files\Android\Android Studio\jbr`).
+
+For a build to try out, with the TV connected over `adb` as above:
+
+```powershell
+cd android
+.\gradlew.bat installDebug
+```
+
+Or open `android/` in Android Studio, pick the TV as the target device, and press Run.
+
+For a release build, create a signing key once, keep it and its passwords somewhere safe, and never commit them:
+
+```powershell
+keytool -genkeypair -v -keystore labyrinth-release.jks -alias labyrinth -keyalg RSA -keysize 4096 -validity 36500
+```
+
+`keytool` comes with the JDK (Android Studio's is in `jbr\bin`). Copy `android/keystore.properties.example` to `android/keystore.properties`, fill in the key's path and passwords, then build:
+
+```powershell
+.\gradlew.bat assembleRelease
+```
+
+The signed APK is `android/app/build/outputs/apk/release/app-release.apk`. Without `keystore.properties`, the release build comes out unsigned (`app-release-unsigned.apk`), which Android will not install. Android only installs an update signed with the same key as the installed app, so an app built with a different key has to be uninstalled first.
 
 ## Develop
 
-    python -m venv .venv
-    .venv\Scripts\python -m pip install -r requirements-dev.txt
     .venv\Scripts\python -m pytest
     .venv\Scripts\python -m maze_game                  # the game
     .venv\Scripts\python -m maze_saver --window       # screensaver: scaled debug view of all monitors
@@ -131,8 +189,8 @@ Unit tests for the Kotlin port (maze generation, solver, board cycle, settings) 
     .venv\Scripts\python -m maze_saver /c             # screensaver settings dialog
     .venv\Scripts\python -m maze_saver --window --leads 8   # force every maze to 8 leads
 
-## Build
+Unit tests for the TV app's Kotlin port (maze generation, solver, board cycle, settings) run on the PC: `.\gradlew.bat testDebugUnitTest` in `android/`.
 
-    powershell -ExecutionPolicy Bypass -File .\build.ps1
+## License
 
-Output: `dist\MazeGame.exe` and `dist\MazeScreensaver.scr`. Unexpected errors are logged to `%APPDATA%\MazeGame\error.log` (game) and `%APPDATA%\MazeScreensaver\error.log` (screensaver). Each build gets a unique version so the unpack caches under `%LOCALAPPDATA%\MazeGame` and `%LOCALAPPDATA%\MazeScreensaver` never run stale files; old version folders there can be deleted.
+Copyright 2026 ByDesign Interactive. Licensed under the [Apache License, Version 2.0](LICENSE). The Windows builds bundle third-party libraries under their own licenses, including pygame-ce under the LGPL 2.1; see [NOTICE](NOTICE).
