@@ -59,3 +59,25 @@ def test_listing_links_use_the_request_host(fake_server):
     status, kind, body = get(fake_server, "/files/labyrinth-v9.9.9/Labyrinth.exe",
                              "10.0.2.2:8765")
     assert status == 200 and kind == "application/octet-stream" and body == b"new build"
+
+
+from labyrinth_update.notes import NoteEntry, collect_notes  # noqa: E402
+from tools.fake_release_server import parse_notes_arg  # noqa: E402
+
+
+def test_notes_become_release_bodies(tmp_path):
+    exe = tmp_path / "Labyrinth.exe"
+    exe.write_bytes(b"new build")
+    listing = release_list([("labyrinth-v9.9.9", exe)], "http://127.0.0.1:8765",
+                           {"labyrinth-v9.9.9": "Nine\n---\nsha", "labyrinth-v9.9.8": "Eight"})
+    assert listing[0]["body"] == "Nine\n---\nsha"
+    assert collect_notes(listing, GAME_WINDOWS, "1.0.0", "9.9.9") == [
+        NoteEntry("9.9.9", "Nine"), NoteEntry("9.9.8", "Eight")]
+    assert newest(listing, GAME_WINDOWS, "1.0.0").version == "9.9.9"
+    assert newest(listing, GAME_WINDOWS, "9.9.9") is None  # a notes-only release is never offered
+
+
+def test_parse_notes_arg():
+    assert parse_notes_arg("labyrinth-v9.9.9=## New\\n- Faster") == (
+        "labyrinth-v9.9.9", "## New\n- Faster")
+    assert parse_notes_arg("t=a=b") == ("t", "a=b")
