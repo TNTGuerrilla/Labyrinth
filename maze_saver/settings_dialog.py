@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from .config import NUMERIC_RANGES, FpsCap, Settings, from_dict, load, save
+from .icon import ICON_PATH
 
 FIELDS = [
     ("min_cells", "Minimum rows/columns"),
@@ -49,6 +50,10 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None) ->
     current = load(path)
     root = tk.Tk()
     root.title("Labyrinth Screensaver Settings")
+    try:
+        root.iconphoto(True, tk.PhotoImage(master=root, file=str(ICON_PATH)))
+    except tk.TclError:
+        pass
     root.resizable(False, False)
     frame = ttk.Frame(root, padding=16)
     frame.grid()

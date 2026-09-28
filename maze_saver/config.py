@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -80,7 +81,10 @@ def from_dict(raw: Any) -> Settings:
 
 
 def app_data() -> Path:
-    return Path(os.environ.get("APPDATA") or str(Path.home()))
+    """The per-user settings folder: %APPDATA% on Windows, $XDG_CONFIG_HOME (~/.config) elsewhere."""
+    if sys.platform == "win32":
+        return Path(os.environ.get("APPDATA") or str(Path.home()))
+    return Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
 
 
 def default_path() -> Path:

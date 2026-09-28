@@ -10,6 +10,7 @@ from typing import Optional, Union
 
 import pygame
 
+from maze_saver.icon import load_icon
 from maze_saver.maze import E, N, S, W
 
 from . import benchmark, config, difficulty
@@ -84,6 +85,9 @@ class Game:
         self.config_path = config_path
         self.rng = random.Random()
         self.window = pygame.Window(TITLE, START_SIZE, resizable=True)
+        icon = load_icon()
+        if icon is not None:
+            self.window.set_icon(icon)
         self.window.minimum_size = MIN_SIZE
         self.window.maximize()
         pygame.event.pump()

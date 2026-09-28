@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Labyrinth
+GenericName=Maze Game
+Comment=Guide a dot through procedurally grown pipe mazes
+Exec=labyrinth
+Icon=com.bydesigninteractive.labyrinth
+Terminal=false
+Categories=Game;LogicGame;
+Keywords=maze;puzzle;labyrinth;
+StartupWMClass=com.bydesigninteractive.labyrinth

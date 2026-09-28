@@ -17,6 +17,8 @@ function Build-Onefile([string]$entry, [string]$name, [string]$product, [string]
     & $python -m nuitka `
         --onefile `
         --windows-console-mode=disable `
+        "--windows-icon-from-ico=$(Join-Path $root 'packaging\labyrinth.ico')" `
+        "--include-data-files=$(Join-Path $root 'maze_saver\assets\icon.png')=maze_saver/assets/icon.png" `
         "--onefile-tempdir-spec={CACHE_DIR}/$name/{FILE_VERSION}" `
         --company-name="ByDesign Interactive" `
         --copyright="Copyright $($now.Year) ByDesign Interactive. Licensed under Apache 2.0." `

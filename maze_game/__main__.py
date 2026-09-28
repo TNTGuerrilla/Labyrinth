@@ -2,9 +2,14 @@
 from __future__ import annotations
 
 import os
+import sys
 import traceback
 
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+# On Linux the window class must match the installed .desktop file, so desktops show its icon.
+APP_ID = "com.bydesigninteractive.labyrinth"
+os.environ.setdefault("SDL_VIDEO_X11_WMCLASS", APP_ID)
+os.environ.setdefault("SDL_VIDEO_WAYLAND_WMCLASS", APP_ID)
 
 from . import config  # noqa: E402
 
@@ -33,10 +38,10 @@ def main() -> None:
     try:
         import pygame
 
-        from maze_saver import monitors
-
         from . import app
-        monitors.enable_dpi_awareness()
+        if sys.platform == "win32":
+            from maze_saver import monitors
+            monitors.enable_dpi_awareness()
         pygame.init()
         try:
             settings, keymap = config.load(valid_key=_valid_key)

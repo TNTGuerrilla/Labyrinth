@@ -12,6 +12,7 @@ import pygame
 from . import monitors
 from .board import FIRST_DELAY_MAX, Board
 from .config import Settings
+from .icon import load_icon, set_display_icon
 from .input_watch import ExitWatcher
 from .layout import Layout, Monitor, Rect, plan_layout, scale_to_fit
 from .render import BLACK, BoardRenderer
@@ -79,6 +80,7 @@ def _open_single(layout: Layout, settings: Settings, rng: random.Random, first_c
                  forced_leads: Optional[int] = None) -> Stage:
     win = layout.window
     os.environ["SDL_VIDEO_WINDOW_POS"] = f"{win.x},{win.y}"
+    set_display_icon()
     surface = pygame.display.set_mode((win.w, win.h), pygame.NOFRAME)
     pygame.display.set_caption(TITLE)
     hwnd = pygame.display.get_wm_info()["window"]
@@ -93,8 +95,11 @@ def _open_single(layout: Layout, settings: Settings, rng: random.Random, first_c
 def _open_multi(layout: Layout, settings: Settings, rng: random.Random, first_cycle: bool,
                 forced_leads: Optional[int] = None) -> Stage:
     slots = []
+    icon = load_icon()
     for r in layout.boards:
         window = pygame.Window(TITLE, (r.w, r.h), (r.x, r.y), borderless=True, always_on_top=True)
+        if icon is not None:
+            window.set_icon(icon)
         monitors.set_topmost(window.handle, r.x, r.y, r.w, r.h)
         surface = window.get_surface()
         surface.fill(BLACK)
@@ -202,6 +207,7 @@ def run_debug_window(settings: Settings, leads: Optional[int] = None) -> None:
     pygame.display.init()
     try:
         size, rects = scale_to_fit(monitors.get_monitors(), *DEBUG_WINDOW_MAX)
+        set_display_icon()
         surface = pygame.display.set_mode(size)
         pygame.display.set_caption(f"{TITLE} (debug)")
         surface.fill(DEBUG_GAP_COLOR)

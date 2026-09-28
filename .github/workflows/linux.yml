@@ -1,0 +1,59 @@
+# Tests on Linux and builds the Linux release of Labyrinth (the game) with build.sh.
+# Pushing a labyrinth-v* tag attaches the tarball to that tag's GitHub release, if it exists;
+# otherwise download it from the run's artifacts.
+name: Linux build
+
+on:
+  push:
+    branches: [master]
+    tags: ["labyrinth-v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Built on Ubuntu 22.04 (glibc 2.35) so the program also runs on distros older than the runner.
+    container: ubuntu:22.04
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            python3 python3-dev python3-venv gcc patchelf ccache git ca-certificates
+      - uses: actions/checkout@v4
+      - name: Install Python packages
+        run: |
+          python3 -m venv /opt/venv
+          /opt/venv/bin/pip install -q -r requirements-dev.txt zstandard
+      - name: Test
+        run: /opt/venv/bin/python -m pytest -q
+      - name: Build
+        run: PYTHON=/opt/venv/bin/python ./build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: labyrinth-linux-x86_64
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  attach:
+    if: startsWith(github.ref, 'refs/tags/labyrinth-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: labyrinth-linux-x86_64
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" ./*.tar.gz --clobber
+          else
+            echo "No release for $TAG yet; the tarball is in this run's artifacts."
+          fi

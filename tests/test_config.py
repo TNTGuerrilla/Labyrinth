@@ -1,4 +1,7 @@
-from maze_saver.config import Settings, default_path, from_dict, load, save
+import sys
+from pathlib import Path
+
+from maze_saver.config import Settings, app_data, default_path, from_dict, load, save
 
 
 def test_defaults():
@@ -87,13 +90,15 @@ def test_save_creates_parent_dirs(tmp_path):
     assert p.exists()
 
 
-def test_default_path_uses_appdata(monkeypatch, tmp_path):
+def test_default_path_uses_the_settings_folder(monkeypatch, tmp_path):
     monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     assert default_path() == tmp_path / "Labyrinth Screensaver" / "config.json"
 
 
 def test_settings_carry_over_from_the_pre_rename_folder(monkeypatch, tmp_path):
     monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     save(Settings(max_leads=5), tmp_path / "MazeScreensaver" / "config.json")
     assert load().max_leads == 5
     assert (tmp_path / "Labyrinth Screensaver" / "config.json").exists()
@@ -101,6 +106,26 @@ def test_settings_carry_over_from_the_pre_rename_folder(monkeypatch, tmp_path):
 
 def test_new_settings_win_over_the_pre_rename_folder(monkeypatch, tmp_path):
     monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     save(Settings(max_leads=5), tmp_path / "MazeScreensaver" / "config.json")
     save(Settings(max_leads=7))
     assert load().max_leads == 7
+
+
+def test_windows_settings_live_in_appdata(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    assert app_data() == tmp_path
+
+
+def test_linux_settings_follow_xdg_config_home(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    assert app_data() == tmp_path
+
+
+def test_linux_settings_default_to_dot_config(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert app_data() == tmp_path / ".config"

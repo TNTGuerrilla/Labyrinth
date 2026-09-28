@@ -1,12 +1,15 @@
 # Labyrinth
 
-Procedurally grown pipe mazes in three forms: a playable game for Windows, a Windows screensaver, and a Google TV screensaver. Each maze is carved live by one or more snake-like leads (up to 12 by default), each in its own color, that race across the screen and weld their regions together into a single perfect maze with exactly one route between any two cells. In the screensavers, a solver then traces that route the way a person would with a finger: it looks a few cells ahead, sometimes takes a wrong turn, backs out of dead ends, and leaves a bright trail behind its gliding dot. The game and the Windows screensaver are Python and pygame; the TV version is a Kotlin port that runs as a native Android screensaver.
+<img src="maze_saver/assets/icon.png" alt="Labyrinth icon" width="96" align="right">
+
+Procedurally grown pipe mazes in three forms: a playable game for Windows and Linux, a Windows screensaver, and a Google TV screensaver. Each maze is carved live by one or more snake-like leads (up to 12 by default), each in its own color, that race across the screen and weld their regions together into a single perfect maze with exactly one route between any two cells. In the screensavers, a solver then traces that route the way a person would with a finger: it looks a few cells ahead, sometimes takes a wrong turn, backs out of dead ends, and leaves a bright trail behind its gliding dot. The game and the Windows screensaver are Python and pygame; the TV version is a Kotlin port that runs as a native Android screensaver.
 
 ## Contents
 
 - [Download](#download)
 - [Play](#play)
   - [Difficulty](#difficulty)
+  - [Install on Linux](#install-on-linux)
 - [Windows screensaver](#windows-screensaver)
 - [Google TV screensaver](#google-tv-screensaver)
   - [1. Turn on debugging on the TV](#1-turn-on-debugging-on-the-tv)
@@ -15,6 +18,8 @@ Procedurally grown pipe mazes in three forms: a playable game for Windows, a Win
   - [Updating and cleanup](#updating-and-cleanup)
 - [Build from source](#build-from-source)
   - [Windows game and screensaver](#windows-game-and-screensaver)
+  - [Linux game](#linux-game)
+  - [Icons](#icons)
   - [Google TV app](#google-tv-app)
 - [Develop](#develop)
 - [License](#license)
@@ -26,6 +31,7 @@ Each product has its own releases on the [Releases page](https://github.com/TNTG
 | Product | File | Runs on |
 |---|---|---|
 | Labyrinth (the game) | `Labyrinth.exe` | Windows 10 or 11, 64-bit |
+| Labyrinth (the game) | `Labyrinth-<version>-linux-x86_64.tar.gz` | 64-bit Linux with glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 and later) |
 | Labyrinth Screensaver | `Labyrinth.scr` | Windows 10 or 11, 64-bit |
 | Labyrinth TV | `LabyrinthTV.apk` | Google TV and Android TV, Android 8 or newer |
 
@@ -35,7 +41,7 @@ The Windows files are single programs with nothing to install. Windows SmartScre
 
 Guide a dot from the green start to the red finish. Each maze grows in front of you (or appears instantly), and if you get stuck, Hint lights up the next few cells and Auto-solve takes over from wherever you are.
 
-Run `Labyrinth.exe`. Hold a direction to glide; the dot follows corridor bends on its own and stops at forks and dead ends. Walking back over your trail dims it, so the bright line is always your route from the start.
+Run `Labyrinth.exe` (on Linux, see [Install on Linux](#install-on-linux)). Hold a direction to glide; the dot follows corridor bends on its own and stops at forks and dead ends. Walking back over your trail dims it, so the bright line is always your route from the start.
 
 | Action | Default key |
 |---|---|
@@ -62,6 +68,20 @@ Every key can be changed in Settings, Controls tab.
 Small is 8-12 cells on the short side, Medium 13-24, Large 25-48 and XL 49-96; each new maze picks a size in its range. Custom (key 5) takes any size. Its Run benchmark button measures what your PC handles smoothly and estimates how long huge mazes take to build.
 
 The win screen compares your steps with the perfect route. Steps taken by Auto-solve are counted separately and mark the round Assisted.
+
+### Install on Linux
+
+Unpack the download and run its installer, which puts the game in `~/.local/bin/labyrinth` and adds it to your app menu with its icon:
+
+```bash
+tar -xzf Labyrinth-*-linux-x86_64.tar.gz
+cd Labyrinth-*-linux-x86_64
+./install.sh
+```
+
+Nothing needs root. To run it without installing, start `./Labyrinth` from the unpacked folder instead. `./install.sh --uninstall` removes it again. Settings are stored in `~/.config/Labyrinth` (or `$XDG_CONFIG_HOME/Labyrinth`), with any `error.log` next to them.
+
+The screensaver is Windows only. Linux desktops have no common screensaver system for it to plug into.
 
 ## Windows screensaver
 
@@ -152,6 +172,26 @@ The build takes several minutes and writes `dist\Labyrinth.exe` and `dist\Labyri
 
 Settings are stored in `%APPDATA%\Labyrinth` (game) and `%APPDATA%\Labyrinth Screensaver` (screensaver), and unexpected errors are logged to `error.log` next to them. Settings from the builds released before the Labyrinth name (in `%APPDATA%\MazeGame` and `%APPDATA%\MazeScreensaver`) are copied over automatically on first run.
 
+### Linux game
+
+On Ubuntu or Debian, install Python with its headers, a C compiler and `patchelf`, then build. WSL works too.
+
+```bash
+sudo apt install python3 python3-dev python3-venv gcc patchelf
+git clone https://github.com/TNTGuerrilla/Labyrinth.git
+cd Labyrinth
+python3 -m venv .venv-linux
+.venv-linux/bin/pip install -r requirements-dev.txt zstandard
+.venv-linux/bin/python -m pytest
+PYTHON=.venv-linux/bin/python ./build.sh
+```
+
+The build writes `dist/Labyrinth-<version>-linux-x86_64.tar.gz`. The program only runs on distros whose glibc is at least as new as the build machine's, so release builds are made on Ubuntu 22.04. The [Linux build](.github/workflows/linux.yml) workflow does this on GitHub for every push. For a `labyrinth-v*` tag, it attaches the tarball to that tag's release if the release already exists. Otherwise, download the tarball from the run's artifacts.
+
+### Icons
+
+Every product uses the Labyrinth TV launcher icon. `python tools/make_icons.py` (it needs Pillow) turns it into `maze_saver/assets/icon.png`, the window and Linux app icon, and `packaging/labyrinth.ico`, which the Windows build embeds in both programs. Run it again after changing the TV icon.
+
 ### Google TV app
 
 You need [Android Studio](https://developer.android.com/studio) (it brings the Android SDK and a JDK), or JDK 17 with the Android SDK platform 35. If Gradle complains about the Java version, set `JAVA_HOME` to the JDK bundled with Android Studio (`C:\Program Files\Android\Android Studio\jbr`).
@@ -193,4 +233,4 @@ Unit tests for the TV app's Kotlin port (maze generation, solver, board cycle, s
 
 ## License
 
-Copyright 2026 ByDesign Interactive. Licensed under the [Apache License, Version 2.0](LICENSE). The Windows builds bundle third-party libraries under their own licenses, including pygame-ce under the LGPL 2.1; see [NOTICE](NOTICE).
+Copyright 2026 ByDesign Interactive. Licensed under the [Apache License, Version 2.0](LICENSE). The Windows builds bundle third-party libraries under their own licenses, including pygame-ce under the LGPL 2.1; the Linux build bundles the same libraries. See [NOTICE](NOTICE).

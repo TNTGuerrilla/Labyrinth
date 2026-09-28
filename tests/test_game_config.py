@@ -18,8 +18,9 @@ def test_new_fields_validate():
     assert s == GameSettings(glide_speed=3.0)
 
 
-def test_default_path_uses_appdata(monkeypatch, tmp_path):
+def test_default_path_uses_the_settings_folder(monkeypatch, tmp_path):
     monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     assert default_path() == tmp_path / "Labyrinth" / "config.json"
 
 
@@ -74,6 +75,7 @@ def test_valid_key_callback_is_used(tmp_path):
 
 def test_settings_carry_over_from_the_pre_rename_folder(monkeypatch, tmp_path):
     monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     save(GameSettings(glide_speed=3.0), Keymap(), tmp_path / "MazeGame" / "config.json")
     assert load()[0].glide_speed == 3.0
     assert (tmp_path / "Labyrinth" / "config.json").exists()
