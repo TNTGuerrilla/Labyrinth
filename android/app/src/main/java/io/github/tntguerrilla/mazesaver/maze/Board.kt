@@ -60,6 +60,9 @@ class StepAccumulator(var rate: Double) {
         acc -= steps
         return minOf(steps, MAX_STEPS_PER_FRAME)
     }
+
+    /** How far along the next step is, from 0 up to (not including) 1. */
+    val fraction: Double get() = acc
 }
 
 enum class Phase { BLACK, DOTS, GENERATE, SOLVE, HOLD }
@@ -101,6 +104,12 @@ class Board(
     val trail = HashMap<Edge, Boolean>()
     var dot: Cell? = null
         private set
+    /** While the dot glides into [dot]: the cell it left. */
+    var glideFrom: Cell? = null
+        private set
+    /** The trail state the gliding edge had before this move, or null if it had none. */
+    var glideOld: Boolean? = null
+        private set
     var solved = false
         private set
 
@@ -127,6 +136,8 @@ class Board(
         welds.clear()
         trail.clear()
         dot = null
+        glideFrom = null
+        glideOld = null
         solved = false
         genEvents = null
         solveEvents = null
@@ -135,6 +146,12 @@ class Board(
     }
 
     val headCells: Set<Cell> get() = heads.values.toHashSet()
+
+    /**
+     * How far the dot has glided from [glideFrom] to [dot]: 0 to 1, and 1 when at rest.
+     * One solver step lasts exactly one glide, so the dot moves at a steady speed.
+     */
+    val glideProgress: Double get() = if (glideFrom == null) 1.0 else steps?.fraction ?: 1.0
 
     fun update(dt: Double): Changes {
         time += dt
@@ -264,12 +281,20 @@ class Board(
 
     private fun runSolver(dt: Double, changes: Changes) {
         val events = solveEvents!!
-        repeat(steps!!.take(dt)) {
+        val count = steps!!.take(dt)
+        glideFrom?.let {
+            // The gliding dot and its partial trail move every frame, and a step that
+            // starts a new glide must also finish drawing the old one.
+            changes.cells.add(it)
+            changes.cells.add(dot!!)
+        }
+        repeat(count) {
             val event = if (events.hasNext()) events.next() else null
             if (event == null || event is Solved) {
                 solved = true
                 phase = Phase.HOLD
                 timer = settings.holdSeconds
+                glideFrom = null
                 return
             }
             val (a, b) = when (event) {
@@ -277,7 +302,10 @@ class Board(
                 is Backtrack -> event.a to event.b
                 is Solved -> error("unreachable")
             }
-            trail[edgeKey(a, b)] = event is Advance
+            val key = edgeKey(a, b)
+            glideOld = trail[key]
+            trail[key] = event is Advance
+            glideFrom = a
             dot = b
             changes.cells.add(a)
             changes.cells.add(b)

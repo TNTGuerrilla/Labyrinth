@@ -93,6 +93,11 @@ class StepAccumulator:
         self._acc -= steps
         return min(steps, MAX_STEPS_PER_FRAME)
 
+    @property
+    def fraction(self) -> float:
+        """How far along the next step is, from 0 up to (not including) 1."""
+        return self._acc
+
 
 class Phase(Enum):
     BLACK = auto()
@@ -134,6 +139,10 @@ class Board:
         self.welds: dict[Edge, float] = {}
         self.trail: dict[Edge, bool] = {}
         self.dot: Optional[Cell] = None
+        # While the dot glides into self.dot: the cell it left, and the trail state the
+        # edge between them had before this move (None if it had none).
+        self.glide_from: Optional[Cell] = None
+        self.glide_old: Optional[bool] = None
         self.solved = False
         self._gen_events: Optional[Iterator[GenEvent]] = None
         self._solve_events: Optional[Iterator[SolveEvent]] = None
@@ -143,6 +152,14 @@ class Board:
     @property
     def head_cells(self) -> set:
         return set(self.heads.values())
+
+    @property
+    def glide_progress(self) -> float:
+        """How far the dot has glided from glide_from to dot: 0 to 1, 1 when at rest.
+        One solver step lasts exactly one glide, so the dot moves at a steady speed."""
+        if self.glide_from is None or self._steps is None:
+            return 1.0
+        return self._steps.fraction
 
     def update(self, dt: float) -> Changes:
         self.time += dt
@@ -236,13 +253,22 @@ class Board:
         changes.cells.add(self.start)
 
     def _run_solver(self, dt: float, changes: Changes) -> None:
-        for _ in range(self._steps.take(dt)):
+        steps = self._steps.take(dt)
+        if self.glide_from is not None:
+            # The gliding dot and its partial trail move every frame, and a step that
+            # starts a new glide must also finish drawing the old one.
+            changes.cells.update((self.glide_from, self.dot))
+        for _ in range(steps):
             event = next(self._solve_events, None)
             if event is None or isinstance(event, Solved):
                 self.solved = True
                 self.phase = Phase.HOLD
                 self._timer = self.settings.hold_seconds
+                self.glide_from = None
                 return
-            self.trail[edge_key(event.a, event.b)] = isinstance(event, Advance)
+            key = edge_key(event.a, event.b)
+            self.glide_old = self.trail.get(key)
+            self.trail[key] = isinstance(event, Advance)
+            self.glide_from = event.a
             self.dot = event.b
             changes.cells.update((event.a, event.b))

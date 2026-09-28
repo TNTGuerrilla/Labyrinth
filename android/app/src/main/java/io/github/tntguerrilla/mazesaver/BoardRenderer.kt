@@ -46,23 +46,22 @@ class BoardRenderer {
     private val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val scratch = Rect()
 
-    /** Draws the changes and returns the area touched, or null if nothing was drawn. */
-    fun apply(canvas: Canvas, board: Board, changes: Changes): Rect? {
-        var dirty: Rect? = null
+    /**
+     * Draws the changes and returns the rectangle of each redrawn cell. A clear blacks out
+     * the whole canvas first; that area is not in the list, since changes.clear reports it.
+     */
+    fun apply(canvas: Canvas, board: Board, changes: Changes): List<Rect> {
         if (changes.clear) {
             canvas.drawColor(Color.BLACK)
-            dirty = Rect(0, 0, canvas.width, canvas.height)
             palettes.clear()
         }
-        val geo = board.geometry ?: return dirty
-        for (c in changes.cells) {
+        val geo = board.geometry ?: return emptyList()
+        return changes.cells.map { c ->
             val left = geo.cellLeft(c)
             val top = geo.cellTop(c)
             drawCell(canvas, board, c, left, top, geo.cell)
-            val cellRect = Rect(left, top, left + geo.cell, top + geo.cell)
-            if (dirty == null) dirty = cellRect else dirty.union(cellRect)
+            Rect(left, top, left + geo.cell, top + geo.cell)
         }
-        return dirty
     }
 
     private fun drawCell(canvas: Canvas, board: Board, c: Cell, left: Int, top: Int, size: Int) {
@@ -98,6 +97,27 @@ class BoardRenderer {
         canvas.drawRect(spoke(left, top, size, d, width), rectPaint)
     }
 
+    /**
+     * Fills the piece of a spoke between fractions [near] and [far] of the way from the
+     * cell's center (0) to its side (1).
+     */
+    private fun fillSpokePart(
+        canvas: Canvas, left: Int, top: Int, size: Int, d: Int, width: Int, near: Double, far: Double, color: Int,
+    ) {
+        val full = Rect(spoke(left, top, size, d, width))
+        val length = if (d == N || d == S) full.height() else full.width()
+        val a = (length * near).roundToInt()
+        val b = (length * far).roundToInt()
+        when (d) {
+            N -> full.set(full.left, full.bottom - b, full.right, full.bottom - a)
+            S -> full.set(full.left, full.top + a, full.right, full.top + b)
+            W -> full.set(full.right - b, full.top, full.right - a, full.bottom)
+            else -> full.set(full.left + a, full.top, full.left + b, full.bottom)
+        }
+        rectPaint.color = color
+        canvas.drawRect(full, rectPaint)
+    }
+
     /** A filled circle at the cell center, lined up with spokes `alignWidth` pixels wide. */
     private fun centerCircle(canvas: Canvas, left: Int, top: Int, size: Int, radius: Float, color: Int, alignWidth: Int) {
         val shift = if (alignWidth % 2 == 1) 0.5f else 0f
@@ -126,15 +146,43 @@ class BoardRenderer {
         }
     }
 
+    private fun trailColor(state: Boolean): Int = if (state) TRAIL_COLOR else TRAIL_DIM_COLOR
+
     private fun drawTrail(canvas: Canvas, board: Board, c: Cell, left: Int, top: Int, size: Int) {
         val trailW = maxOf(1, (size * TRAIL_WIDTH).roundToInt())
+        val glideFrom = board.glideFrom
+        val moving = glideFrom?.let { edgeKey(it, board.dot!!) }
+        val p = board.glideProgress
         var any = false
         var anyBright = false
         for (d in DIRECTIONS) {
-            val state = board.trail[edgeKey(c, c.step(d))] ?: continue
-            fillSpoke(canvas, left, top, size, d, trailW, if (state) TRAIL_COLOR else TRAIL_DIM_COLOR)
-            any = true
-            anyBright = anyBright || state
+            val key = edgeKey(c, c.step(d))
+            val state = board.trail[key] ?: continue
+            if (key != moving) {
+                fillSpoke(canvas, left, top, size, d, trailW, trailColor(state))
+                any = true
+                anyBright = anyBright || state
+                continue
+            }
+            // The edge the dot is gliding along: its new state only reaches as far as the
+            // dot, and the old state (if any) still shows ahead of it. Along the edge, t runs
+            // from glideFrom's center (0) to the dot cell's center (1); each cell holds half.
+            val old = board.glideOld
+            if (c == glideFrom) {
+                val reach = minOf(1.0, 2 * p) // new state from the center out to the dot
+                fillSpokePart(canvas, left, top, size, d, trailW, 0.0, reach, trailColor(state))
+                if (old != null && reach < 1) fillSpokePart(canvas, left, top, size, d, trailW, reach, 1.0, trailColor(old))
+                any = true
+                anyBright = anyBright || state
+            } else {
+                val reach = maxOf(0.0, 2 * p - 1) // new state from the side in toward the center
+                if (reach > 0) fillSpokePart(canvas, left, top, size, d, trailW, 1 - reach, 1.0, trailColor(state))
+                if (old != null && reach < 1) fillSpokePart(canvas, left, top, size, d, trailW, 0.0, 1 - reach, trailColor(old))
+                if (old != null) {
+                    any = true
+                    anyBright = anyBright || old
+                }
+            }
         }
         if (any) {
             val color = if (anyBright) TRAIL_COLOR else TRAIL_DIM_COLOR
@@ -144,9 +192,10 @@ class BoardRenderer {
 
     private fun drawMarkers(canvas: Canvas, board: Board, c: Cell, left: Int, top: Int, size: Int) {
         val radius = maxOf(2, (size * MARKER_RADIUS).roundToInt())
+        val glideFrom = board.glideFrom
         if (c == board.end) centerCircle(canvas, left, top, size, radius.toFloat(), END_COLOR, 1)
         if (c == board.start) {
-            if (board.dot == null || board.dot == board.start) {
+            if (board.dot == null || (board.dot == board.start && glideFrom == null)) {
                 centerCircle(canvas, left, top, size, radius.toFloat(), START_COLOR, 1)
             } else {
                 val ring = maxOf(1, radius / 3).toFloat()
@@ -156,9 +205,24 @@ class BoardRenderer {
                 canvas.drawCircle(left + size / 2 + 0.5f, top + size / 2 + 0.5f, radius - ring / 2, circlePaint)
             }
         }
-        if (c == board.dot && c != board.start) {
-            val dotRadius = if (c == board.end) maxOf(1, (radius * DOT_AT_END_SCALE).roundToInt()) else radius
-            centerCircle(canvas, left, top, size, dotRadius.toFloat(), START_COLOR, 1)
-        }
+        val dot = board.dot ?: return
+        // The gliding dot can straddle both cells, so each draws its part (the canvas is
+        // clipped to the cell); at rest, the start marker stands in for the dot.
+        val gliding = glideFrom != null && (c == glideFrom || c == dot)
+        if (!gliding && (c != dot || c == board.start)) return
+        val p = board.glideProgress
+        var dotRadius = radius.toDouble()
+        if (dot == board.end) dotRadius = maxOf(1.0, radius * (1 - (1 - DOT_AT_END_SCALE) * p))
+        // How many cells c's center lies ahead of the dot, back along the glide.
+        val back = if (glideFrom == null) 0.0 else if (c == dot) 1 - p else -p
+        val dx = if (glideFrom == null) 0 else dot.x - glideFrom.x
+        val dy = if (glideFrom == null) 0 else dot.y - glideFrom.y
+        circlePaint.style = Paint.Style.FILL
+        circlePaint.color = START_COLOR
+        canvas.drawCircle(
+            (left + size / 2 + 0.5 - dx * size * back).toFloat(),
+            (top + size / 2 + 0.5 - dy * size * back).toFloat(),
+            dotRadius.toFloat(), circlePaint,
+        )
     }
 }

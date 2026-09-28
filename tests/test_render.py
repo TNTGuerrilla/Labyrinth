@@ -136,3 +136,48 @@ def test_underlay_runs_under_the_pipe():
     draw_cell(surface, board, (0, 0), pygame.Rect(0, 0, 20, 20), {}, underlay=fill_red)
     assert rgb(surface, (19, 10)) != RED  # east spoke: pipe drawn on top
     assert rgb(surface, (0, 0)) == RED  # corner: untouched by the pipe
+
+
+def glide_board(state, old, progress, size=40):
+    """Two cells side by side, the dot gliding from (0, 0) to (1, 0)."""
+    grid = Grid(2, 1)
+    grid.carve((0, 0), (1, 0))
+    board = fake_board(grid, trail={((0, 0), (1, 0)): state}, start=(0, 0), end=None,
+                       dot=(1, 0), glide_from=(0, 0), glide_old=old, glide_progress=progress)
+    surface = pygame.Surface((2 * size, size))
+    for c in grid.cells():
+        draw_cell(surface, board, c, pygame.Rect(c[0] * size, 0, size, size), {})
+    return surface
+
+
+def test_gliding_dot_straddles_both_cells():
+    surface = glide_board(True, None, 0.5)
+    # Centers are x=20 and x=60, so halfway the dot sits on the shared side at x=40.
+    assert rgb(surface, (38, 20)) == START_COLOR
+    assert rgb(surface, (41, 20)) == START_COLOR
+
+
+def test_advancing_trail_stops_at_the_dot():
+    surface = glide_board(True, None, 0.5)
+    assert rgb(surface, (26, 20)) == TRAIL_COLOR  # behind the dot
+    assert rgb(surface, (58, 20)) == (0, 0, 0)  # ahead of the dot: not reached yet
+
+
+def test_backtrack_dims_only_behind_the_dot():
+    surface = glide_board(False, True, 0.9)
+    # The dot is at x=56 (radius 11): dim behind it, still bright in front.
+    assert rgb(surface, (24, 20)) == TRAIL_DIM_COLOR  # inside the hollow start ring
+    assert rgb(surface, (42, 20)) == TRAIL_DIM_COLOR
+    surface = glide_board(False, True, 0.1)
+    assert rgb(surface, (37, 20)) == TRAIL_COLOR
+    assert rgb(surface, (50, 20)) == TRAIL_COLOR
+
+
+def test_start_shows_a_ring_while_the_dot_glides_back_into_it():
+    grid = Grid(2, 1)
+    grid.carve((0, 0), (1, 0))
+    board = fake_board(grid, trail={((0, 0), (1, 0)): False}, start=(0, 0), dot=(0, 0),
+                       glide_from=(1, 0), glide_old=True, glide_progress=0.1)
+    surface = pygame.Surface((80, 40))
+    draw_cell(surface, board, (0, 0), pygame.Rect(0, 0, 40, 40), {})
+    assert rgb(surface, (20, 20)) != START_COLOR  # hollow ring, dot still far away

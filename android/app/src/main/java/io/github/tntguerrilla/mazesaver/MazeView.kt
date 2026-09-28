@@ -1,8 +1,10 @@
 // The maze surface shared by the screensaver and the preview screen.
 //
 // The maze image lives in a GPU texture. Each frame, on GLSurfaceView's render thread, the
-// Board steps, BoardRenderer draws only the changed cells into a CPU bitmap, and just that
-// changed rectangle is uploaded into the texture before the GPU draws it to the screen.
+// Board steps, BoardRenderer draws only the changed cells into a CPU bitmap, and just those
+// cells are uploaded into the texture before the GPU draws it to the screen. Cells are
+// uploaded one by one rather than as their bounding box, because leads growing in opposite
+// corners would make that box cover most of the maze every frame.
 // This avoids Surface.lockCanvas, whose software path copies the whole previous frame on
 // every call (several milliseconds per frame, even for a few changed cells).
 package io.github.tntguerrilla.mazesaver
@@ -17,6 +19,7 @@ import android.os.Process
 import io.github.tntguerrilla.mazesaver.maze.Board
 import io.github.tntguerrilla.mazesaver.maze.FIRST_DELAY_MAX
 import io.github.tntguerrilla.mazesaver.maze.Settings
+import java.nio.Buffer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -30,6 +33,9 @@ private const val MAX_FRAME_SECONDS = 0.25
 
 /** Rows per texture upload, which bounds the scratch pixel array. */
 private const val UPLOAD_ROWS = 64
+
+/** Past this many changed cells in one frame, one bounding-box upload is cheaper. */
+private const val MAX_CELL_UPLOADS = 64
 
 class MazeView(context: Context, settings: Settings) : GLSurfaceView(context) {
     init {
@@ -72,10 +78,12 @@ private class MazeRenderer(private val settings: Settings) : GLSurfaceView.Rende
 
     private var program = 0
     private var texture = 0
+    private var framebuffer = 0
     private var textureWidth = 0
     private var textureHeight = 0
     private var needsFullUpload = true
     private var pixels = IntArray(0)
+    private var pixelBuffer: IntBuffer = IntBuffer.wrap(pixels)
     private var lastFrameNanos = 0L
 
     private val quad: FloatBuffer = ByteBuffer.allocateDirect(8 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
@@ -90,6 +98,8 @@ private class MazeRenderer(private val settings: Settings) : GLSurfaceView.Rende
         val ids = IntArray(1)
         GLES20.glGenTextures(1, ids, 0)
         texture = ids[0]
+        GLES20.glGenFramebuffers(1, ids, 0)
+        framebuffer = ids[0]
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
         for ((name, value) in listOf(
             GLES20.GL_TEXTURE_MIN_FILTER to GLES20.GL_NEAREST,
@@ -125,15 +135,31 @@ private class MazeRenderer(private val settings: Settings) : GLSurfaceView.Rende
         val now = System.nanoTime()
         val dt = if (lastFrameNanos == 0L) 0.0 else ((now - lastFrameNanos) / 1e9).coerceIn(0.0, MAX_FRAME_SECONDS)
         lastFrameNanos = now
-        val drawn = renderer.apply(bufferCanvas!!, b, b.update(dt))
+        val changes = b.update(dt)
+        val drawn = renderer.apply(bufferCanvas!!, b, changes)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
-        if (needsFullUpload) {
-            upload(Rect(0, 0, width, height))
-            needsFullUpload = false
-        } else if (drawn != null) {
-            upload(drawn)
+        when {
+            needsFullUpload -> {
+                upload(Rect(0, 0, width, height))
+                needsFullUpload = false
+            }
+            changes.clear -> clearTexture()
+        }
+        if (drawn.size > MAX_CELL_UPLOADS) {
+            upload(Rect(drawn[0]).apply { drawn.forEach { union(it) } })
+        } else {
+            drawn.forEach { upload(it) }
         }
         drawQuad()
+    }
+
+    /** Blacks out the texture on the GPU, matching the cleared bitmap without an upload. */
+    private fun clearTexture() {
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer)
+        GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, texture, 0)
+        GLES20.glClearColor(0f, 0f, 0f, 1f)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
     }
 
     /** Copies one rectangle of the bitmap into the texture, a band of rows at a time. */
@@ -141,13 +167,16 @@ private class MazeRenderer(private val settings: Settings) : GLSurfaceView.Rende
         val bmp = buffer ?: return
         if (!area.intersect(0, 0, width, height)) return
         val w = area.width()
-        if (pixels.size < w * UPLOAD_ROWS) pixels = IntArray(w * UPLOAD_ROWS)
+        if (pixels.size < w * UPLOAD_ROWS) {
+            pixels = IntArray(w * UPLOAD_ROWS)
+            pixelBuffer = IntBuffer.wrap(pixels)
+        }
         var top = area.top
         while (top < area.bottom) {
             val rows = minOf(UPLOAD_ROWS, area.bottom - top)
             bmp.getPixels(pixels, 0, w, area.left, top, w, rows)
             GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, area.left, top, w, rows, GLES20.GL_RGBA,
-                GLES20.GL_UNSIGNED_BYTE, IntBuffer.wrap(pixels, 0, w * rows))
+                GLES20.GL_UNSIGNED_BYTE, (pixelBuffer as Buffer).clear().limit(w * rows))
             top += rows
         }
     }

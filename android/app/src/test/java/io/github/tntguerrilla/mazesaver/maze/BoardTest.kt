@@ -142,6 +142,30 @@ class BoardTest {
     }
 
     @Test
+    fun dotGlidesBetweenSteps() {
+        val slow = Settings(minCells = 4, maxCells = 6, genSpeed = 1000.0, solveSpeed = 10.0, holdSeconds = 0.5)
+        val b = Board(400, 300, slow, Random(9))
+        runUntil(b, Phase.SOLVE)
+        assertNull(b.glideFrom)
+        assertEquals(1.0, b.glideProgress, 0.0)
+        while (b.glideFrom == null) b.update(DT)
+        val first = b.glideProgress
+        val ch = b.update(DT) // no new step at 10 steps per second, but the glide moves on
+        assertTrue(b.glideProgress > first)
+        assertTrue(ch.cells.containsAll(listOf(b.glideFrom, b.dot)))
+        assertTrue(b.grid!!.isOpen(b.glideFrom!!, b.dot!!))
+    }
+
+    @Test
+    fun glideEndsWhenSolved() {
+        val b = Board(400, 300, FAST, Random(10))
+        runUntil(b, Phase.HOLD)
+        assertNull(b.glideFrom)
+        assertEquals(1.0, b.glideProgress, 0.0)
+        assertEquals(b.end, b.dot)
+    }
+
+    @Test
     fun weldsFlashThenExpire() {
         val b = Board(400, 300, FAST, Random(3), forcedLeads = 3)
         var sawWeld = false

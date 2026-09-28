@@ -141,3 +141,23 @@ def test_welds_flash_then_expire():
     assert b.welds == {}
     for edge in flashing:
         assert set(edge) <= ch.cells
+
+
+def test_dot_glides_between_steps():
+    slow = Settings(min_cells=4, max_cells=6, gen_speed=1000, solve_speed=10, hold_seconds=0.5)
+    b = Board(400, 300, slow, random.Random(9))
+    run_until(b, Phase.SOLVE)
+    assert b.glide_from is None and b.glide_progress == 1.0
+    while b.glide_from is None:
+        b.update(DT)
+    first = b.glide_progress
+    ch = b.update(DT)  # no new step at 10 steps per second, but the glide moves on
+    assert b.glide_progress > first
+    assert {b.glide_from, b.dot} <= ch.cells
+    assert b.grid.is_open(b.glide_from, b.dot)
+
+
+def test_glide_ends_when_solved():
+    b = Board(400, 300, FAST, random.Random(10))
+    run_until(b, Phase.HOLD)
+    assert b.glide_from is None and b.glide_progress == 1.0 and b.dot == b.end
