@@ -7,7 +7,7 @@
 // it usually takes the correct turn, but sometimes (MISTAKE_CHANCE) takes a wrong one
 // anyway and wanders for a while before giving up and backing out, bounded by a random
 // detour budget (DETOUR_MIN..DETOUR_MAX steps).
-package io.github.tntguerrilla.mazesaver.maze
+package com.bydesigninteractive.labyrinth.maze
 
 import kotlin.random.Random
 

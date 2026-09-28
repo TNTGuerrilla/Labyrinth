@@ -1,11 +1,11 @@
 // Reads and writes Settings in SharedPreferences. Anything missing or invalid falls back
 // to its default, like the desktop config file.
-package io.github.tntguerrilla.mazesaver
+package com.bydesigninteractive.labyrinth
 
 import android.content.Context
-import io.github.tntguerrilla.mazesaver.maze.Field
-import io.github.tntguerrilla.mazesaver.maze.Settings
-import io.github.tntguerrilla.mazesaver.maze.settingsFrom
+import com.bydesigninteractive.labyrinth.maze.Field
+import com.bydesigninteractive.labyrinth.maze.Settings
+import com.bydesigninteractive.labyrinth.maze.settingsFrom
 
 object SettingsStore {
     private const val PREFS = "maze_settings"

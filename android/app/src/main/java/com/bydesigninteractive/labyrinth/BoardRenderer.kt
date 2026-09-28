@@ -2,21 +2,21 @@
 //
 // Each cell is redrawn from scratch: half-pipes ("spokes") run from the cell's center to
 // the middle of each open side, so neighboring cells join seamlessly.
-package io.github.tntguerrilla.mazesaver
+package com.bydesigninteractive.labyrinth
 
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
-import io.github.tntguerrilla.mazesaver.maze.Board
-import io.github.tntguerrilla.mazesaver.maze.Cell
-import io.github.tntguerrilla.mazesaver.maze.Changes
-import io.github.tntguerrilla.mazesaver.maze.DIRECTIONS
-import io.github.tntguerrilla.mazesaver.maze.E
-import io.github.tntguerrilla.mazesaver.maze.N
-import io.github.tntguerrilla.mazesaver.maze.S
-import io.github.tntguerrilla.mazesaver.maze.W
-import io.github.tntguerrilla.mazesaver.maze.edgeKey
+import com.bydesigninteractive.labyrinth.maze.Board
+import com.bydesigninteractive.labyrinth.maze.Cell
+import com.bydesigninteractive.labyrinth.maze.Changes
+import com.bydesigninteractive.labyrinth.maze.DIRECTIONS
+import com.bydesigninteractive.labyrinth.maze.E
+import com.bydesigninteractive.labyrinth.maze.N
+import com.bydesigninteractive.labyrinth.maze.S
+import com.bydesigninteractive.labyrinth.maze.W
+import com.bydesigninteractive.labyrinth.maze.edgeKey
 import kotlin.math.roundToInt
 
 private val START_COLOR = Color.rgb(60, 220, 90)

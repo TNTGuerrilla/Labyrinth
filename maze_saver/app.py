@@ -16,8 +16,8 @@ from .input_watch import ExitWatcher
 from .layout import Layout, Monitor, Rect, plan_layout, scale_to_fit
 from .render import BLACK, BoardRenderer
 
-TITLE = "Maze Screensaver"
-MUTEX_NAME = "Local\\MazeScreensaver"
+TITLE = "Labyrinth Screensaver"
+MUTEX_NAME = "Local\\LabyrinthScreensaver"
 MULTIWINDOW_FPS_MAX = 60
 PREVIEW_FPS = 30
 DEBUG_FPS = 60

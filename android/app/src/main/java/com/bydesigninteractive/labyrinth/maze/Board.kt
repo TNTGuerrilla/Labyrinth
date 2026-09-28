@@ -1,7 +1,7 @@
 // One screen's maze: sizing, endpoint placement, and the phase state machine. Ported from
 // maze_saver/board.py. Pure logic: Board.update() reports which cells changed so the
 // renderer only redraws those.
-package io.github.tntguerrilla.mazesaver.maze
+package com.bydesigninteractive.labyrinth.maze
 
 import kotlin.random.Random
 

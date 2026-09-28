@@ -20,7 +20,7 @@ def test_new_fields_validate():
 
 def test_default_path_uses_appdata(monkeypatch, tmp_path):
     monkeypatch.setenv("APPDATA", str(tmp_path))
-    assert default_path() == tmp_path / "MazeGame" / "config.json"
+    assert default_path() == tmp_path / "Labyrinth" / "config.json"
 
 
 def test_missing_file_gives_defaults(tmp_path):
@@ -70,3 +70,10 @@ def test_valid_key_callback_is_used(tmp_path):
     save(GameSettings(), k, p)
     assert load(p)[1] == k
     assert load(p, valid_key=lambda name: name != "h")[1] == Keymap()
+
+
+def test_settings_carry_over_from_the_pre_rename_folder(monkeypatch, tmp_path):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    save(GameSettings(glide_speed=3.0), Keymap(), tmp_path / "MazeGame" / "config.json")
+    assert load()[0].glide_speed == 3.0
+    assert (tmp_path / "Labyrinth" / "config.json").exists()

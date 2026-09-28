@@ -79,15 +79,37 @@ def from_dict(raw: Any) -> Settings:
     return settings
 
 
+def app_data() -> Path:
+    return Path(os.environ.get("APPDATA") or str(Path.home()))
+
+
 def default_path() -> Path:
-    base = os.environ.get("APPDATA") or str(Path.home())
-    return Path(base) / "MazeScreensaver" / "config.json"
+    return app_data() / "Labyrinth Screensaver" / "config.json"
+
+
+def legacy_path() -> Path:
+    """Where settings lived before the project was renamed Labyrinth."""
+    return app_data() / "MazeScreensaver" / "config.json"
+
+
+def adopt_legacy(target: Path, legacy: Path) -> None:
+    """Copy settings from their pre-rename location once, if the new file is missing.
+    Never raises: a failed copy just means starting from defaults."""
+    try:
+        if not target.exists() and legacy.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(legacy.read_bytes())
+    except OSError:
+        pass
 
 
 def load(path: Optional[Path] = None) -> Settings:
     """Read settings. Never raises: any problem gives defaults."""
+    if path is None:
+        path = default_path()
+        adopt_legacy(path, legacy_path())
     try:
-        raw = json.loads(Path(path or default_path()).read_text(encoding="utf-8"))
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return Settings()
     return from_dict(raw)

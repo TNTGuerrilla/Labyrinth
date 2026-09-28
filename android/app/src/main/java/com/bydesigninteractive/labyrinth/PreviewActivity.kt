@@ -1,6 +1,6 @@
 // Runs the maze full screen from the settings screen, so it can be watched without
 // waiting for the TV to go idle. Any button returns to settings.
-package io.github.tntguerrilla.mazesaver
+package com.bydesigninteractive.labyrinth
 
 import android.app.Activity
 import android.os.Bundle

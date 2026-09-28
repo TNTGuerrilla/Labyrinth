@@ -27,7 +27,7 @@ from .ui.toolbar import TOOLBAR_H, Toolbar, ToolbarState
 from .ui.widgets import draw_progress
 from .ui.win_screen import WinScreen
 
-TITLE = "Maze Game"
+TITLE = "Labyrinth"
 START_SIZE = (1280, 720)
 MIN_SIZE = (960, 540)
 FPS_CAP = 120

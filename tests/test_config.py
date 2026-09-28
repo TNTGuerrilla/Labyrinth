@@ -89,4 +89,18 @@ def test_save_creates_parent_dirs(tmp_path):
 
 def test_default_path_uses_appdata(monkeypatch, tmp_path):
     monkeypatch.setenv("APPDATA", str(tmp_path))
-    assert default_path() == tmp_path / "MazeScreensaver" / "config.json"
+    assert default_path() == tmp_path / "Labyrinth Screensaver" / "config.json"
+
+
+def test_settings_carry_over_from_the_pre_rename_folder(monkeypatch, tmp_path):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    save(Settings(max_leads=5), tmp_path / "MazeScreensaver" / "config.json")
+    assert load().max_leads == 5
+    assert (tmp_path / "Labyrinth Screensaver" / "config.json").exists()
+
+
+def test_new_settings_win_over_the_pre_rename_folder(monkeypatch, tmp_path):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    save(Settings(max_leads=5), tmp_path / "MazeScreensaver" / "config.json")
+    save(Settings(max_leads=7))
+    assert load().max_leads == 7

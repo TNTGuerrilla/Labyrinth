@@ -1,6 +1,6 @@
 // Settings: defaults and validation, ported from maze_saver/config.py. Storage lives in
 // SettingsStore; the desktop frame rate cap has no equivalent here (Android paces to vsync).
-package io.github.tntguerrilla.mazesaver.maze
+package com.bydesigninteractive.labyrinth.maze
 
 data class Settings(
     val minCells: Int = 12,

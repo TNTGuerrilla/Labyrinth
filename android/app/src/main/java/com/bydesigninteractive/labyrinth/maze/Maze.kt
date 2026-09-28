@@ -2,7 +2,7 @@
 //
 // Generators carve into a Grid and yield one event per animation step. They have no
 // Android dependency. Both styles produce a perfect maze (a spanning tree).
-package io.github.tntguerrilla.mazesaver.maze
+package com.bydesigninteractive.labyrinth.maze
 
 import kotlin.random.Random
 

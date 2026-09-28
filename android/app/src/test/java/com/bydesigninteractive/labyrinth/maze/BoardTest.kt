@@ -1,4 +1,4 @@
-package io.github.tntguerrilla.mazesaver.maze
+package com.bydesigninteractive.labyrinth.maze
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

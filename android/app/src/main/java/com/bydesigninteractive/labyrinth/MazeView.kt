@@ -7,7 +7,7 @@
 // corners would make that box cover most of the maze every frame.
 // This avoids Surface.lockCanvas, whose software path copies the whole previous frame on
 // every call (several milliseconds per frame, even for a few changed cells).
-package io.github.tntguerrilla.mazesaver
+package com.bydesigninteractive.labyrinth
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -16,9 +16,9 @@ import android.graphics.Rect
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.os.Process
-import io.github.tntguerrilla.mazesaver.maze.Board
-import io.github.tntguerrilla.mazesaver.maze.FIRST_DELAY_MAX
-import io.github.tntguerrilla.mazesaver.maze.Settings
+import com.bydesigninteractive.labyrinth.maze.Board
+import com.bydesigninteractive.labyrinth.maze.FIRST_DELAY_MAX
+import com.bydesigninteractive.labyrinth.maze.Settings
 import java.nio.Buffer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder

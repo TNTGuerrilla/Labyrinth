@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Callable, Optional
+
+from maze_saver.config import adopt_legacy, app_data
 
 from .difficulty import DIFFICULTIES, MIN_CUSTOM
 from .keymap import Keymap
@@ -99,15 +100,22 @@ def from_dict(raw: Any) -> GameSettings:
 
 
 def default_path() -> Path:
-    base = os.environ.get("APPDATA") or str(Path.home())
-    return Path(base) / "MazeGame" / "config.json"
+    return app_data() / "Labyrinth" / "config.json"
+
+
+def legacy_path() -> Path:
+    """Where settings lived before the project was renamed Labyrinth."""
+    return app_data() / "MazeGame" / "config.json"
 
 
 def load(path: Optional[Path] = None,
          valid_key: Optional[Callable[[str], bool]] = None) -> tuple[GameSettings, Keymap]:
     """Read settings and keys. Never raises: any problem gives defaults."""
+    if path is None:
+        path = default_path()
+        adopt_legacy(path, legacy_path())
     try:
-        raw = json.loads(Path(path or default_path()).read_text(encoding="utf-8"))
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return GameSettings(), Keymap()
     if not isinstance(raw, dict):

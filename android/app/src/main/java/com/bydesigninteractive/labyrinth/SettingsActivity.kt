@@ -1,7 +1,7 @@
 // The app's launcher screen: screensaver settings, built for a TV remote. Up and down move
 // between rows, left and right change the focused value (hold to speed up), and changes
 // save as they are made. Also opened from the system screensaver settings, when a TV shows them.
-package io.github.tntguerrilla.mazesaver
+package com.bydesigninteractive.labyrinth
 
 import android.app.Activity
 import android.content.Intent
@@ -18,8 +18,8 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import io.github.tntguerrilla.mazesaver.maze.Field
-import io.github.tntguerrilla.mazesaver.maze.Settings
+import com.bydesigninteractive.labyrinth.maze.Field
+import com.bydesigninteractive.labyrinth.maze.Settings
 
 private val BACKGROUND = Color.rgb(16, 18, 22)
 private val FOCUSED = Color.rgb(52, 58, 70)
@@ -40,7 +40,7 @@ class SettingsActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(64), dp(40), dp(64), dp(40))
         }
-        column.addView(text("Maze Screensaver", 30f, TEXT).apply {
+        column.addView(text("Labyrinth", 30f, TEXT).apply {
             typeface = Typeface.DEFAULT_BOLD
             setPadding(dp(16), 0, dp(16), dp(16))
         })
@@ -130,12 +130,12 @@ class SettingsActivity : Activity() {
         }
 
     private fun setupHelp(): String {
-        val component = "$packageName/.MazeDreamService"
+        val component = "$packageName/.LabyrinthDreamService"
         val active = try {
             if (Secure.getString(contentResolver, "screensaver_components")?.contains(component) == true) {
-                "Maze Screensaver is the current screensaver."
+                "Labyrinth is the current screensaver."
             } else {
-                "Maze Screensaver is not the current screensaver yet."
+                "Labyrinth is not the current screensaver yet."
             }
         } catch (_: SecurityException) {
             null

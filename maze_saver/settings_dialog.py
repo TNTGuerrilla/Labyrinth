@@ -48,7 +48,7 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None) ->
 
     current = load(path)
     root = tk.Tk()
-    root.title("Maze Screensaver Settings")
+    root.title("Labyrinth Screensaver Settings")
     root.resizable(False, False)
     frame = ttk.Frame(root, padding=16)
     frame.grid()
@@ -71,12 +71,12 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None) ->
     def on_ok() -> None:
         settings, error = parse_fields({n: v.get() for n, v in variables.items()}, fps_var.get())
         if error:
-            messagebox.showerror("Maze Screensaver", error, parent=root)
+            messagebox.showerror("Labyrinth Screensaver", error, parent=root)
             return
         try:
             save(settings, path)
         except OSError as exc:
-            messagebox.showerror("Maze Screensaver", f"Could not save settings: {exc}", parent=root)
+            messagebox.showerror("Labyrinth Screensaver", f"Could not save settings: {exc}", parent=root)
             return
         root.destroy()
 
