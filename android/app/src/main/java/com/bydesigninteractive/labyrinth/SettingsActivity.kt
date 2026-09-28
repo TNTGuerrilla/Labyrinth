@@ -4,13 +4,17 @@
 package com.bydesigninteractive.labyrinth
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.net.ConnectivityManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings.Secure
 import android.util.TypedValue
@@ -22,7 +26,13 @@ import android.widget.ScrollView
 import android.widget.TextView
 import com.bydesigninteractive.labyrinth.maze.Field
 import com.bydesigninteractive.labyrinth.maze.Settings
+import com.bydesigninteractive.labyrinth.update.Release
+import com.bydesigninteractive.labyrinth.update.UpdateFailure
+import com.bydesigninteractive.labyrinth.update.UpdateStore
+import com.bydesigninteractive.labyrinth.update.Updates
+import java.io.IOException
 import java.net.Inet4Address
+import kotlin.concurrent.thread
 
 private val BACKGROUND = Color.rgb(16, 18, 22)
 private val FOCUSED = Color.rgb(52, 58, 70)
@@ -38,6 +48,12 @@ class SettingsActivity : Activity() {
     private lateinit var settings: Settings
     private val valueViews = HashMap<Field, TextView>()
     private lateinit var help: LinearLayout
+    private lateinit var updateStatus: TextView
+    private lateinit var updateButton: TextView
+    private lateinit var dismissButton: TextView
+    private lateinit var checkToggle: TextView
+    private var offered: Release? = null
+    private var downloading = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,6 +75,15 @@ class SettingsActivity : Activity() {
         }
         column.addView(button("Preview screensaver") { startActivity(Intent(this, PreviewActivity::class.java)) })
         column.addView(button("Reset to defaults") { update(Settings()) })
+        updateStatus = text("", 17f, DIM_TEXT).apply { setPadding(dp(16), dp(16), dp(16), dp(4)) }
+        column.addView(updateStatus)
+        updateButton = button("Update") { startUpdate() }
+        column.addView(updateButton)
+        dismissButton = button("Dismiss") { dismissUpdate() }
+        column.addView(dismissButton)
+        checkToggle = button("") { toggleChecks() }
+        column.addView(checkToggle)
+        showUpdate(null)
         // Focusable so the remote can scroll down to it: a ScrollView only follows focus.
         help = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -80,6 +105,99 @@ class SettingsActivity : Activity() {
         super.onResume()
         // Refreshed here so the status is current after running the ADB command.
         showSetupHelp()
+        if (!downloading) Updates.check(this, force = true) { if (!isDestroyed && !downloading) showUpdate(it) }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.action != Updates.ACTION_INSTALL_STATUS) return
+        when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
+            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                val confirm = if (Build.VERSION.SDK_INT >= 33) {
+                    intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                } else {
+                    @Suppress("DEPRECATION") intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+                }
+                confirm?.let { startActivity(it) }
+            }
+            PackageInstaller.STATUS_SUCCESS -> {} // Android replaces this app now.
+            else -> showUpdate(offered, "The update was not installed.")
+        }
+    }
+
+    /** The update row: what is on offer, or the running version, and the check switch. */
+    private fun showUpdate(release: Release?, message: String? = null) {
+        offered = release
+        val enabled = UpdateStore.enabled(this)
+        checkToggle.text = "Check for updates: ${if (enabled) "On" else "Off"}"
+        updateStatus.text = message
+            ?: release?.let { "Labyrinth ${it.version} is available." }
+            ?: "Version ${Updates.currentVersion(this)}"
+        val actions = if (release != null && !downloading) View.VISIBLE else View.GONE
+        updateButton.visibility = actions
+        dismissButton.visibility = actions
+    }
+
+    private fun startUpdate() {
+        val release = offered ?: return
+        if (!packageManager.canRequestPackageInstalls()) {
+            askForInstallPermission(release)
+            return
+        }
+        downloading = true
+        showUpdate(release, "Downloading Labyrinth ${release.version}...")
+        checkToggle.requestFocus()
+        thread(name = "update-download", isDaemon = true) {
+            val downloaded = try {
+                Result.success(Updates.download(this, release) { percent ->
+                    runOnUiThread { if (!isDestroyed) updateStatus.text = "Downloading Labyrinth ${release.version}: $percent%" }
+                })
+            } catch (e: IOException) {
+                Result.failure(e)
+            }
+            val message = downloaded.fold(
+                onSuccess = { apk ->
+                    try {
+                        Updates.install(this, apk)
+                        "Installing Labyrinth ${release.version}..."
+                    } catch (_: IOException) {
+                        "The update could not be installed."
+                    }
+                },
+                onFailure = { (it as? UpdateFailure)?.message ?: "The download was interrupted." },
+            )
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                downloading = false
+                showUpdate(release, message)
+            }
+        }
+    }
+
+    /** Android asks once per app before it lets an app install updates. */
+    private fun askForInstallPermission(release: Release) {
+        val intent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+        try {
+            startActivity(intent)
+            showUpdate(release, "Allow Labyrinth to install apps, then come back and select Update again.")
+        } catch (_: ActivityNotFoundException) {
+            showUpdate(release, "Allow installs from Labyrinth under Settings, Apps, Special app access, " +
+                "Install unknown apps, then select Update again.")
+        }
+    }
+
+    private fun dismissUpdate() {
+        val release = offered ?: return
+        UpdateStore.save(this, UpdateStore.load(this).copy(dismissed = release.version))
+        showUpdate(null)
+        checkToggle.requestFocus()
+    }
+
+    private fun toggleChecks() {
+        val enabled = !UpdateStore.enabled(this)
+        UpdateStore.setEnabled(this, enabled)
+        showUpdate(null)
+        if (enabled) Updates.check(this, force = true) { if (!isDestroyed && !downloading) showUpdate(it) }
     }
 
     private fun fieldRow(field: Field): LinearLayout {

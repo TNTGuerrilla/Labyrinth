@@ -72,6 +72,17 @@ object Updates {
             setRequestProperty("Accept", accept)
         }
 
+    /** Wraps opening the connection and reading its response code: unreachable, not interrupted. */
+    private fun connect(url: String, accept: String): HttpURLConnection {
+        try {
+            val connection = open(url, accept)
+            connection.responseCode
+            return connection
+        } catch (_: IOException) {
+            throw UpdateFailure("Could not reach the update server.")
+        }
+    }
+
     private fun fetch(url: String): String {
         val connection = open(url, "application/vnd.github+json")
         try {
@@ -86,11 +97,12 @@ object Updates {
     fun download(context: Context, release: Release, onProgress: (Int) -> Unit): File {
         val file = File(context.cacheDir, "update.apk")
         val digest = MessageDigest.getInstance("SHA-256")
-        val connection = open(release.url, "application/octet-stream")
+        val connection = connect(release.url, "application/octet-stream")
         try {
             if (connection.responseCode != 200) throw UpdateFailure("Could not reach the update server.")
             val total = connection.contentLengthLong
             var done = 0L
+            var lastPercent = -1
             connection.inputStream.use { input ->
                 file.outputStream().use { output ->
                     val buffer = ByteArray(64 * 1024)
@@ -100,7 +112,13 @@ object Updates {
                         output.write(buffer, 0, n)
                         digest.update(buffer, 0, n)
                         done += n
-                        if (total > 0) onProgress((done * 100 / total).toInt())
+                        if (total > 0) {
+                            val percent = (done * 100 / total).toInt()
+                            if (percent != lastPercent) {
+                                lastPercent = percent
+                                onProgress(percent)
+                            }
+                        }
                     }
                 }
             }
@@ -127,7 +145,8 @@ object Updates {
 
     /**
      * Hands the APK to Android's installer. Android reports back to SettingsActivity with
-     * [ACTION_INSTALL_STATUS], first asking for the user's confirmation.
+     * [ACTION_INSTALL_STATUS], first asking for the user's confirmation. Copies the whole
+     * APK and fsyncs it, so this must not be called on the main thread.
      */
     fun install(activity: Activity, apk: File) {
         val installer = activity.packageManager.packageInstaller
@@ -135,14 +154,19 @@ object Updates {
         params.setAppPackageName(activity.packageName)
         val id = installer.createSession(params)
         installer.openSession(id).use { session ->
-            session.openWrite(ASSET_NAME, 0, apk.length()).use { out ->
-                apk.inputStream().use { it.copyTo(out) }
-                session.fsync(out)
+            try {
+                session.openWrite(ASSET_NAME, 0, apk.length()).use { out ->
+                    apk.inputStream().use { it.copyTo(out) }
+                    session.fsync(out)
+                }
+                val intent = Intent(activity, SettingsActivity::class.java).setAction(ACTION_INSTALL_STATUS)
+                val flags = PendingIntent.FLAG_UPDATE_CURRENT or
+                    (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+                session.commit(PendingIntent.getActivity(activity, 0, intent, flags).intentSender)
+            } catch (e: Exception) {
+                session.abandon()
+                throw e
             }
-            val intent = Intent(activity, SettingsActivity::class.java).setAction(ACTION_INSTALL_STATUS)
-            val flags = PendingIntent.FLAG_UPDATE_CURRENT or
-                (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
-            session.commit(PendingIntent.getActivity(activity, 0, intent, flags).intentSender)
         }
     }
 }
