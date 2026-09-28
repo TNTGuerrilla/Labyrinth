@@ -14,6 +14,7 @@ from typing import Any, Callable, Optional
 from . import state as state_file
 from .install import cleanup_old
 from .net import Progress, UpdateError
+from .notes import collect_notes, merge_notes
 from .releases import Product, Release, fetch_releases, newest
 from .version import current_binary, running_version
 
@@ -87,13 +88,19 @@ class Updater:
 
     def _check(self) -> None:
         try:
-            found = newest(self._fetch(), self.product, self.current)
+            listing = self._fetch()
+            found = newest(listing, self.product, self.current)
+            fresh = ([] if found is None
+                     else collect_notes(listing, self.product, self.current, found.version))
         except UpdateError:
             return  # offline or rate limited: stay quiet and try again next launch
         except Exception:
             return  # a bug reading the list: a failed check, never a dead thread's traceback
         with self._lock:
-            self._state = replace(self._state, last_check=self._clock(), found=found)
+            state = replace(self._state, last_check=self._clock(), found=found)
+            if found is not None:  # the spec stores notes only when something newer exists
+                state = replace(state, notes=merge_notes(state.notes, fresh, self.current))
+            self._state = state
             self._save()
             if not self.enabled:
                 return  # turned off while the check was in flight: never re-show

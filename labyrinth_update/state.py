@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+from .notes import MAX_ENTRIES, NoteEntry
 from .releases import Release, is_sha256
 from .version import parse_version
 
@@ -18,6 +19,22 @@ class UpdateState:
     last_check: Optional[float] = None  # time.time() of the last successful check
     found: Optional[Release] = None  # newest release that check saw, if any
     dismissed: Optional[str] = None  # version the user chose to hide
+    notes: tuple[NoteEntry, ...] = ()  # release notes, newest first (notes.merge_notes)
+    # The version whose What's new was last seen, or the first version that ran with this
+    # feature. Lower than the running version means What's new is still to be shown.
+    last_run_version: Optional[str] = None
+    whats_new_runs: int = 0  # screensaver runs that showed What's new without finishing it
+
+
+def _notes(raw: Any) -> tuple[NoteEntry, ...]:
+    if not isinstance(raw, list):
+        return ()
+    entries = []
+    for item in raw[:MAX_ENTRIES]:
+        if (isinstance(item, dict) and parse_version(item.get("version")) is not None
+                and isinstance(item.get("notes"), str)):
+            entries.append(NoteEntry(item["version"], item["notes"]))
+    return tuple(entries)
 
 
 def _release(raw: Any) -> Optional[Release]:
@@ -43,8 +60,14 @@ def load(path: Path) -> UpdateState:
     dismissed = raw.get("dismissed")
     if parse_version(dismissed) is None:
         dismissed = None
+    last_run = raw.get("last_run_version")
+    if parse_version(last_run) is None:
+        last_run = None
+    runs = raw.get("whats_new_runs")
+    if not isinstance(runs, int) or isinstance(runs, bool) or runs < 0:
+        runs = 0
     return UpdateState(None if last is None else float(last), _release(raw.get("found")),
-                       dismissed)
+                       dismissed, _notes(raw.get("notes")), last_run, runs)
 
 
 def save(path: Path, state: UpdateState) -> None:
@@ -53,7 +76,10 @@ def save(path: Path, state: UpdateState) -> None:
     if state.found is not None:
         found = {"version": state.found.version, "url": state.found.url,
                  "sha256": state.found.sha256}
-    data = {"last_check": state.last_check, "found": found, "dismissed": state.dismissed}
+    data = {"last_check": state.last_check, "found": found, "dismissed": state.dismissed,
+            "notes": [{"version": e.version, "notes": e.notes} for e in state.notes],
+            "last_run_version": state.last_run_version,
+            "whats_new_runs": state.whats_new_runs}
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(data, indent=2), encoding="utf-8")

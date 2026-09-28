@@ -53,3 +53,39 @@ def test_fit_lines():
     spaced = [NoteLine(TEXT, "a"), NoteLine(BLANK), NoteLine(TEXT, "b"), NoteLine(TEXT, "c")]
     assert fit_lines(spaced, 3, more) == [NoteLine(TEXT, "a")] + more
     assert fit_lines(lines, 0, more) == []
+
+
+from labyrinth_update.notes import NoteEntry, collect_notes, merge_notes  # noqa: E402
+from labyrinth_update.releases import GAME_WINDOWS  # noqa: E402
+
+
+def rel(tag, body="", draft=False, prerelease=False):
+    return {"tag_name": tag, "body": body, "draft": draft, "prerelease": prerelease,
+            "assets": []}
+
+
+def test_collect_notes_of_newer_releases_newest_first():
+    listing = [rel("labyrinth-v1.4.0", "Four"), rel("labyrinth-v1.3.0", "Three\n---\nsha"),
+               rel("labyrinth-v1.2.1", ""), rel("labyrinth-v1.2.0", "Two"),
+               rel("labyrinth-v1.1.0", "One"), rel("labyrinth-v1.3.5", "d", draft=True),
+               rel("labyrinth-v1.3.6", "p", prerelease=True),
+               rel("labyrinth-screensaver-v1.3.0", "Other product"), None, {"tag_name": 5},
+               {"tag_name": "labyrinth-v1.2.5", "body": None}]
+    assert collect_notes(listing, GAME_WINDOWS, "1.1.0", "1.3.0") == [
+        NoteEntry("1.3.0", "Three"), NoteEntry("1.2.0", "Two")]
+
+
+def test_collect_orders_numerically_and_rejects_bad_input():
+    listing = [rel("labyrinth-v1.9.0", "Nine"), rel("labyrinth-v1.10.0", "Ten")]
+    assert [e.version for e in collect_notes(listing, GAME_WINDOWS, "1.0.0", "1.10.0")] == [
+        "1.10.0", "1.9.0"]
+    assert collect_notes("junk", GAME_WINDOWS, "1.0.0", "2.0.0") == []
+    assert collect_notes(listing, GAME_WINDOWS, "bad", "2.0.0") == []
+
+
+def test_merge_keeps_unshown_notes_and_adds_new_ones():
+    stored = (NoteEntry("1.2.0", "Two"), NoteEntry("1.1.0", "One"), NoteEntry("1.5.0", "Pulled"))
+    fresh = [NoteEntry("1.4.0", "Four"), NoteEntry("1.3.0", "Three")]
+    assert merge_notes(stored, fresh, "1.2.0") == (
+        NoteEntry("1.4.0", "Four"), NoteEntry("1.3.0", "Three"), NoteEntry("1.2.0", "Two"),
+        NoteEntry("1.1.0", "One"))

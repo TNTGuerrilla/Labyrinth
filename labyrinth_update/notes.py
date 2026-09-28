@@ -4,7 +4,10 @@ install steps) stay on GitHub only."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
+
+from .releases import Product
+from .version import parse_version
 
 CUTOFF = "---"
 RELEASES_TEXT = "github.com/TNTGuerrilla/Labyrinth/releases"
@@ -125,3 +128,59 @@ def fit_lines(lines: Sequence[NoteLine], max_lines: int,
     while kept and kept[-1].kind == BLANK:
         kept.pop()
     return kept + list(more)[:max(0, max_lines - len(kept))]
+
+
+MAX_ENTRIES = 20  # stored entries: a guard against a huge or hostile release list
+MAX_NOTES_CHARS = 20_000  # per entry
+
+
+@dataclass(frozen=True)
+class NoteEntry:
+    version: str
+    notes: str  # already cut at `---` and trimmed (extract_notes)
+
+
+def version_text(version: tuple[int, int, int]) -> str:
+    return ".".join(str(part) for part in version)
+
+
+def collect_notes(releases: Any, product: Product, current: str,
+                  newest: str) -> list[NoteEntry]:
+    """Notes of every release of `product` above `current` up to and including `newest`,
+    newest first. Drafts, pre-releases and releases with empty notes are left out. The
+    list is untrusted, so any shape is handled."""
+    low, high = parse_version(current), parse_version(newest)
+    if low is None or high is None or not isinstance(releases, list):
+        return []
+    found: dict[tuple[int, int, int], NoteEntry] = {}
+    for release in releases:
+        if not isinstance(release, dict) or release.get("draft") or release.get("prerelease"):
+            continue
+        tag = release.get("tag_name")
+        if not isinstance(tag, str) or not tag.startswith(product.tag_prefix):
+            continue
+        version = parse_version(tag[len(product.tag_prefix):])
+        if version is None or not low < version <= high:
+            continue
+        notes = extract_notes(release.get("body"))[:MAX_NOTES_CHARS]
+        if notes:
+            found[version] = NoteEntry(version_text(version), notes)
+    return [found[v] for v in sorted(found, reverse=True)][:MAX_ENTRIES]
+
+
+def merge_notes(stored: Sequence[NoteEntry], fresh: Sequence[NoteEntry],
+                current: str) -> tuple[NoteEntry, ...]:
+    """What to keep after a check found a newer release: the fresh notes, plus the stored
+    ones at or below the running version (not yet shown, or reopened by What's new).
+    Newest first."""
+    ours = parse_version(current)
+    kept: dict[tuple[int, int, int], NoteEntry] = {}
+    for entry in stored:
+        version = parse_version(entry.version)
+        if version is not None and ours is not None and version <= ours:
+            kept[version] = entry
+    for entry in fresh:
+        version = parse_version(entry.version)
+        if version is not None:
+            kept[version] = entry
+    return tuple(kept[v] for v in sorted(kept, reverse=True))[:MAX_ENTRIES]

@@ -281,3 +281,24 @@ def test_a_newer_release_replaces_a_failed_one(tmp_path):
     u._fetch = Fetch(listing("1.2.0", "1.3.0"))
     snap = checked(u, force=True)
     assert snap.status == AVAILABLE and snap.release.version == "1.3.0"
+
+
+from labyrinth_update.notes import NoteEntry  # noqa: E402
+from labyrinth_update.state import UpdateState, save  # noqa: E402
+
+
+def test_a_check_stores_the_notes_of_every_newer_release(tmp_path):
+    rels = listing("1.2.0", "1.3.0")
+    rels[0]["body"] = "Two\n---\nsha"
+    rels[1]["body"] = "Three"
+    checked(make(tmp_path, Fetch(rels)))
+    data = json.loads((tmp_path / "update.json").read_text(encoding="utf-8"))
+    assert data["notes"] == [{"version": "1.3.0", "notes": "Three"},
+                             {"version": "1.2.0", "notes": "Two"}]
+
+
+def test_nothing_newer_keeps_the_stored_notes(tmp_path):
+    save(tmp_path / "update.json", UpdateState(notes=(NoteEntry("1.1.0", "Now"),)))
+    u = make(tmp_path, Fetch(listing("1.1.0")))
+    checked(u)
+    assert u._state.notes == (NoteEntry("1.1.0", "Now"),)
