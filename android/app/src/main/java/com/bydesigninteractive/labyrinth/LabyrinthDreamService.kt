@@ -21,7 +21,6 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.bydesigninteractive.labyrinth.update.Box
 import com.bydesigninteractive.labyrinth.update.CLOSES_AFTER
 import com.bydesigninteractive.labyrinth.update.CLOSES_IN
 import com.bydesigninteractive.labyrinth.update.FADE_MS
@@ -78,7 +77,7 @@ class LabyrinthDreamService : DreamService(), MazeListener {
                 topMargin = s.board.y
             })
             maze.listener = this
-            val view = sectionView(news, s.section)
+            val view = sectionView(news)
             root.addView(view, FrameLayout.LayoutParams(s.section.w, s.section.h).apply {
                 leftMargin = s.section.x
                 topMargin = s.section.y
@@ -101,6 +100,9 @@ class LabyrinthDreamService : DreamService(), MazeListener {
         maze?.listener = null
         section?.animate()?.cancel()
         handler.removeCallbacksAndMessages(null)
+        section = null
+        clock = null
+        restorePending = false
         super.onDetachedFromWindow()
     }
 
@@ -119,8 +121,7 @@ class LabyrinthDreamService : DreamService(), MazeListener {
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
     }
 
-    @Suppress("UNUSED_PARAMETER")
-    private fun sectionView(news: WhatsNew, box: Box): LinearLayout {
+    private fun sectionView(news: WhatsNew): LinearLayout {
         val pad = dp(12)
         val notes = dimText("", 14f)
         notes.text = styledNotes(news.lines(), notes.paint)
@@ -188,6 +189,7 @@ class LabyrinthDreamService : DreamService(), MazeListener {
     }
 
     override fun onMazeSolved() {
+        if (!attached) return
         val view = section ?: return
         if (clock?.boardSolved(SystemClock.uptimeMillis()) != true) return
         view.animate().alpha(0f).setDuration(FADE_MS).withEndAction {
@@ -203,6 +205,7 @@ class LabyrinthDreamService : DreamService(), MazeListener {
     }
 
     override fun onMazeCleared() {
+        if (!attached) return
         if (!restorePending) return
         restorePending = false
         // The board just went black for its next maze: give the view the whole screen. Its
