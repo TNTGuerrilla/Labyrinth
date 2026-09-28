@@ -5,7 +5,7 @@ import pytest
 
 from maze_game.keymap import Keymap
 from maze_game.ui.toolbar import TOOLBAR_H, Toolbar, ToolbarState
-from maze_game.ui.widgets import Hits, format_time
+from maze_game.ui.widgets import Hits, button_rect, format_time
 from maze_game.ui.win_screen import WinScreen, win_lines
 
 
@@ -74,3 +74,59 @@ def test_win_screen_buttons():
     assert screen.click(screen.hits.rect_for("replay").center) == "replay"
     assert screen.click(screen.hits.rect_for("new").center) == "new"
     assert screen.click((1, 1)) is None
+
+
+def update_state(**kw):
+    values = dict(update_label="Update to 1.2.0", update_short="Update",
+                  update_tip="Labyrinth 1.2.0 is available.", update_dismiss=True)
+    values.update(kw)
+    return ToolbarState("medium", False, True, 3, 12.0, **values)
+
+
+@pytest.mark.parametrize("width", [960, 1280, 1920])
+def test_update_button_sits_left_of_the_counters_without_overlap(width):
+    surface = pygame.Surface((width, 700))
+    toolbar = Toolbar()
+    toolbar.draw(surface, Keymap(), update_state(), (-1, -1))
+    update = toolbar.hits.rect_for("update")
+    close = toolbar.hits.rect_for("update_dismiss")
+    settings = toolbar.hits.rect_for("settings")
+    assert settings.right < update.left < update.right < close.left
+    assert close.right <= width - 12
+    assert toolbar.action_at(update.center) == "update"
+    assert toolbar.action_at(close.center) == "update_dismiss"
+
+
+def test_wide_windows_get_the_full_label():
+    surface = pygame.Surface((1920, 700))
+    toolbar = Toolbar()
+    toolbar.draw(surface, Keymap(), update_state(), (-1, -1))
+    full = button_rect("Update to 1.2.0", (0, 0), size=15)
+    assert toolbar.hits.rect_for("update").w == full.w
+
+
+def test_no_update_means_no_update_buttons():
+    surface = pygame.Surface((1400, 700))
+    toolbar = Toolbar()
+    toolbar.draw(surface, Keymap(), ToolbarState("medium", False, True, 3, 12.0), (-1, -1))
+    assert toolbar.hits.rect_for("update") is None
+    assert toolbar.hits.rect_for("update_dismiss") is None
+
+
+def test_update_without_dismiss():
+    surface = pygame.Surface((1400, 700))
+    toolbar = Toolbar()
+    toolbar.draw(surface, Keymap(), update_state(update_dismiss=False), (-1, -1))
+    assert toolbar.hits.rect_for("update") is not None
+    assert toolbar.hits.rect_for("update_dismiss") is None
+
+
+def test_update_tooltip_draws_below_the_bar():
+    surface = pygame.Surface((1400, 700))
+    toolbar = Toolbar()
+    state = update_state()
+    toolbar.draw(surface, Keymap(), state, (-1, -1))
+    spot = toolbar.hits.rect_for("update").center
+    surface.fill((0, 0, 0))
+    toolbar.draw(surface, Keymap(), state, spot)
+    assert tuple(surface.get_at((min(spot[0] + 4, 1390), TOOLBAR_H + 12)))[:3] != (0, 0, 0)
