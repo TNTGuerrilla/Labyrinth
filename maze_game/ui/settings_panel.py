@@ -11,6 +11,7 @@ from .widgets import (BORDER, HILITE, LINK, MUTED, TEXT, WARN, Hits, button_rect
 
 ROW_H = 30
 VALUE_W = 220
+INFO_BUTTON_ROWS = ("check_now", "update", "whats_new")
 
 
 class SettingsPanel:
@@ -48,6 +49,7 @@ class SettingsPanel:
         footer = box.bottom - 48
         visible = max(1, (footer - 26 - top) // ROW_H)
         first = min(max(0, m.index - visible // 2), max(0, body - visible))
+        mouse = pygame.mouse.get_pos()
         for i in range(first, min(body, first + visible)):
             row = rows[i]
             rect = pygame.Rect(box.x + 12, top + (i - first) * ROW_H, box.w - 24, ROW_H - 4)
@@ -62,6 +64,15 @@ class SettingsPanel:
                 text(surface, row.label, (rect.x + 10, rect.centery), 15, color,
                      anchor="midleft")
                 continue  # text only: no highlight and no hit area
+            if row.kind == "button" and row.name in INFO_BUTTON_ROWS:
+                btn = button_rect(row.label, (rect.x + 10, rect.centery), 15, anchor="midleft")
+                draw_button(surface, btn, row.label, 15, active=(i == m.index),
+                            hovered=btn.collidepoint(mouse))
+                self.hits.add(btn, ("row", i))
+                if row.name == "check_now" and m.info.status:
+                    text(surface, m.info.status, (btn.right + 10, rect.centery), 15, MUTED,
+                         anchor="midleft")
+                continue  # a real button, not a highlighted row
             if i == m.index:
                 pygame.draw.rect(surface, HILITE, rect, border_radius=4)
             text(surface, row.label, (rect.x + 10, rect.centery), 15, anchor="midleft")

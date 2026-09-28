@@ -87,3 +87,35 @@ def test_info_links_are_clickable_and_info_lines_are_not():
     version = next(i for i, row in enumerate(rows) if row.name == "version")
     assert p.hits.rect_for(("row", version)) is None
     assert p.click(p.hits.rect_for(("row", github)).center) == "github"
+
+
+def test_check_now_button_hit_area_is_the_button_not_the_row():
+    p = SettingsPanel(SettingsModel(GameSettings(), Keymap(), 800, (1920, 1040),
+                                    info=InfoState("1.2.0", True, "Up to date")))
+    p.model.set_tab(3)
+    surface = pygame.Surface((1280, 720))
+    p.draw(surface)
+    rows = p.model.rows()
+    check_now = next(i for i, row in enumerate(rows) if row.name == "check_now")
+    btn = p.hits.rect_for(("row", check_now))
+    assert btn is not None
+    assert p.click(btn.center) == "check_now"
+    far_right = (btn.right + 150, btn.centery)
+    assert p.hits.at(far_right) is None
+    assert p.click(far_right) is None
+
+
+def test_selected_info_button_row_draws_no_full_row_highlight():
+    p = SettingsPanel(SettingsModel(GameSettings(), Keymap(), 800, (1920, 1040),
+                                    info=InfoState("1.2.0", True, "Up to date")))
+    p.model.set_tab(3)
+    surface = pygame.Surface((1280, 720))
+    p.draw(surface)
+    rows = p.model.rows()
+    check_now = next(i for i, row in enumerate(rows) if row.name == "check_now")
+    p.model.select(check_now)
+    p.draw(surface)
+    btn = p.hits.rect_for(("row", check_now))
+    sample = (btn.right + 60, btn.centery)
+    from maze_game.ui.widgets import HILITE
+    assert tuple(surface.get_at(sample))[:3] != HILITE
