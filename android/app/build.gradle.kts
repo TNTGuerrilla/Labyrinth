@@ -29,6 +29,11 @@ android {
         targetSdk = 35
         versionCode = major * 10000 + minor * 100 + patch
         versionName = tvVersion
+        buildConfigField("String", "UPDATE_URL", "\"https://api.github.com/repos/TNTGuerrilla/Labyrinth/releases?per_page=100\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     signingConfigs {
@@ -43,6 +48,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // tools/fake_release_server.py on the development PC, as the emulator sees it.
+            buildConfigField("String", "UPDATE_URL", "\"http://10.0.2.2:8765/releases\"")
+        }
+
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))

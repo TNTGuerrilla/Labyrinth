@@ -3,6 +3,10 @@
 
     <!-- Shows the TV's IP address in the setup steps. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Checks GitHub for new versions and downloads them. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Hands a downloaded update to Android's installer. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -15,7 +19,8 @@
 
         <activity
             android:name=".SettingsActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
