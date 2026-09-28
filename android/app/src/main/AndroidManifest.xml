@@ -28,6 +28,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Receives the installer's reports for an update. Not exported: other apps must not
+             be able to hand Labyrinth an intent to start. -->
+        <activity
+            android:name=".update.InstallStatusActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <activity
             android:name=".PreviewActivity"
             android:exported="false"

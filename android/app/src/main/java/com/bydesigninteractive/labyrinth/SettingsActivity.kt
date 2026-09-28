@@ -7,14 +7,12 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageInstaller
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.net.ConnectivityManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings.Secure
 import android.util.TypedValue
@@ -30,6 +28,7 @@ import com.bydesigninteractive.labyrinth.update.Release
 import com.bydesigninteractive.labyrinth.update.UpdateFailure
 import com.bydesigninteractive.labyrinth.update.UpdateStore
 import com.bydesigninteractive.labyrinth.update.Updates
+import com.bydesigninteractive.labyrinth.update.visibleUpdate
 import java.io.IOException
 import java.net.Inet4Address
 import kotlin.concurrent.thread
@@ -55,7 +54,7 @@ class SettingsActivity : Activity() {
     private var offered: Release? = null
     private var downloading = false
     private var installing = false
-    private var justHandledInstallStatus = false
+    private var justShowedInstallFailure = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,16 +100,19 @@ class SettingsActivity : Activity() {
         })
         refresh()
         first?.requestFocus()
-        if (intent?.action == Updates.ACTION_INSTALL_STATUS) handleInstallStatus(intent)
+        if (intent?.getBooleanExtra(Updates.EXTRA_INSTALL_FAILED, false) == true) {
+            intent.removeExtra(Updates.EXTRA_INSTALL_FAILED) // not again if the activity is recreated
+            showInstallFailed()
+        }
     }
 
     override fun onResume() {
         super.onResume()
         // Refreshed here so the status is current after running the ADB command.
         showSetupHelp()
-        if (justHandledInstallStatus) {
-            // A failure message from the installer is on screen; do not overwrite it right away.
-            justHandledInstallStatus = false
+        if (justShowedInstallFailure) {
+            // The failure message is on screen; do not overwrite it right away.
+            justShowedInstallFailure = false
         } else if (!downloading) {
             Updates.check(this, force = true) { if (!isDestroyed && !downloading) showUpdate(it) }
         }
@@ -118,28 +120,19 @@ class SettingsActivity : Activity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.action != Updates.ACTION_INSTALL_STATUS) return
-        handleInstallStatus(intent)
+        if (intent.getBooleanExtra(Updates.EXTRA_INSTALL_FAILED, false)) showInstallFailed()
     }
 
-    /** Handles the installer's report, whether it arrived via [onNewIntent] or a fresh [onCreate]. */
-    private fun handleInstallStatus(intent: Intent) {
-        when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
-            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                val confirm = if (Build.VERSION.SDK_INT >= 33) {
-                    intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
-                } else {
-                    @Suppress("DEPRECATION") intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
-                }
-                confirm?.let { startActivity(it) }
-            }
-            PackageInstaller.STATUS_SUCCESS -> {} // Android replaces this app now.
-            else -> {
-                installing = false
-                showUpdate(offered, "The update was not installed.")
-            }
-        }
-        justHandledInstallStatus = true
+    /**
+     * InstallStatusActivity reports that the installer did not install the update. Any app
+     * could send this extra, so it only shows a message and offers Update again.
+     */
+    private fun showInstallFailed() {
+        installing = false
+        // offered is null when this activity was recreated while the installer was open.
+        val release = offered ?: visibleUpdate(UpdateStore.load(this), Updates.currentVersion(this))
+        showUpdate(release, "The update was not installed.")
+        justShowedInstallFailure = true
     }
 
     /** The update row: what is on offer, or the running version, and the check switch. */

@@ -11,7 +11,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import com.bydesigninteractive.labyrinth.BuildConfig
-import com.bydesigninteractive.labyrinth.SettingsActivity
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -24,7 +23,8 @@ import kotlin.concurrent.thread
 class UpdateFailure(message: String) : IOException(message)
 
 object Updates {
-    const val ACTION_INSTALL_STATUS = "com.bydesigninteractive.labyrinth.INSTALL_STATUS"
+    /** Set on the intent that brings SettingsActivity back after an install did not happen. */
+    const val EXTRA_INSTALL_FAILED = "com.bydesigninteractive.labyrinth.INSTALL_FAILED"
     private const val TIMEOUT_MS = 15_000
     private val checking = AtomicBoolean(false)
 
@@ -55,7 +55,8 @@ object Updates {
                 val next = UpdateStore.load(app).copy(lastCheck = System.currentTimeMillis(), found = found)
                 UpdateStore.save(app, next)
                 visibleUpdate(next, current)
-            } catch (_: IOException) {
+            } catch (_: Exception) {
+                // Offline, a server error or a list that could not be read: a failed check.
                 visibleUpdate(UpdateStore.load(app), current)
             } finally {
                 checking.set(false)
@@ -146,9 +147,9 @@ object Updates {
     }
 
     /**
-     * Hands the APK to Android's installer. Android reports back to SettingsActivity with
-     * [ACTION_INSTALL_STATUS], first asking for the user's confirmation. Copies the whole
-     * APK and fsyncs it, so this must not be called on the main thread.
+     * Hands the APK to Android's installer. Android reports back to [InstallStatusActivity]
+     * (not exported), first asking for the user's confirmation. Copies the whole APK and
+     * fsyncs it, so this must not be called on the main thread.
      */
     fun install(activity: Activity, apk: File) {
         val installer = activity.packageManager.packageInstaller
@@ -161,7 +162,7 @@ object Updates {
                     apk.inputStream().use { it.copyTo(out) }
                     session.fsync(out)
                 }
-                val intent = Intent(activity, SettingsActivity::class.java).setAction(ACTION_INSTALL_STATUS)
+                val intent = Intent(activity, InstallStatusActivity::class.java)
                 val flags = PendingIntent.FLAG_UPDATE_CURRENT or
                     (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
                 session.commit(PendingIntent.getActivity(activity, 0, intent, flags).intentSender)
