@@ -150,7 +150,7 @@ class SettingsActivity : Activity() {
      * found earlier this session, if anything, stays on offer.
      */
     private fun onAutoCheck(release: Release?) {
-        if (isDestroyed || downloading) return
+        if (isDestroyed || downloading || checkingNow) return
         showUpdate(release ?: sessionOffer)
     }
 
@@ -239,7 +239,7 @@ class SettingsActivity : Activity() {
 
     private fun dismissUpdate() {
         val release = offered ?: return
-        UpdateStore.save(this, UpdateStore.load(this).copy(dismissed = release.version))
+        UpdateStore.edit(this) { it.copy(dismissed = release.version) }
         if (sessionOffer?.version == release.version) sessionOffer = null
         checkToggle.requestFocus()
         showUpdate(null)

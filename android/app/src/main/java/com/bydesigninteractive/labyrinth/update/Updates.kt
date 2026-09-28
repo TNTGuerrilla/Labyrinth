@@ -54,13 +54,17 @@ object Updates {
         thread(name = "update-check", isDaemon = true) {
             val offer = try {
                 val json = fetch(BuildConfig.UPDATE_URL)
+                try {
+                    JSONArray(json)
+                } catch (_: JSONException) {
+                    throw UpdateFailure("Could not read the list of releases.")
+                }
                 val found = newestRelease(json, current)
                 if (found != null) {
                     val fresh = collectNotes(json, current, found.version)
                     UpdateStore.editSeen(app) { it.copy(notes = mergeNotes(it.notes, fresh, current)) }
                 }
-                val next = UpdateStore.load(app).copy(lastCheck = System.currentTimeMillis(), found = found)
-                UpdateStore.save(app, next)
+                val next = UpdateStore.edit(app) { it.copy(lastCheck = System.currentTimeMillis(), found = found) }
                 visibleUpdate(next, current)
             } catch (_: Exception) {
                 // Offline, a server error or a list that could not be read: a failed check.
@@ -208,13 +212,14 @@ object Updates {
                     throw UpdateFailure("Could not read the list of releases.")
                 }
                 val found = newestRelease(json, current)
-                var next = UpdateStore.load(app).copy(lastCheck = System.currentTimeMillis(), found = found)
                 if (found != null) {
-                    if (next.dismissed == found.version) next = next.copy(dismissed = null)
                     val fresh = collectNotes(json, current, found.version)
                     UpdateStore.editSeen(app) { it.copy(notes = mergeNotes(it.notes, fresh, current)) }
                 }
-                UpdateStore.save(app, next)
+                val next = UpdateStore.edit(app) { state ->
+                    val cleared = if (found != null && state.dismissed == found.version) null else state.dismissed
+                    state.copy(lastCheck = System.currentTimeMillis(), found = found, dismissed = cleared)
+                }
                 visibleUpdate(next, current)?.let { CheckOutcome.Available(it) } ?: CheckOutcome.UpToDate
             } catch (e: UpdateFailure) {
                 CheckOutcome.Failed(e.message ?: "Could not reach the update server.")

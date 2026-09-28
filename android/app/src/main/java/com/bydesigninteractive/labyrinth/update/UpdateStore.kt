@@ -21,6 +21,8 @@ object UpdateStore {
         )
     }
 
+    /** Prefer [edit] for a read, change and write; use this directly only for the rare case
+     * where the whole state is being replaced without reading it first. */
     fun save(context: Context, state: UpdateState) {
         prefs(context).edit().apply {
             if (state.lastCheck != null) putLong("last_check", state.lastCheck) else remove("last_check")
@@ -29,6 +31,17 @@ object UpdateStore {
             putString("found_sha256", state.found?.sha256)
             putString("dismissed", state.dismissed)
         }.apply()
+    }
+
+    /**
+     * Read, change and write UpdateState as one step. A check running on a background thread
+     * and Dismiss on the main thread both write this state, and must not undo each other.
+     */
+    @Synchronized
+    fun edit(context: Context, change: (UpdateState) -> UpdateState): UpdateState {
+        val after = change(load(context))
+        save(context, after)
+        return after
     }
 
     fun enabled(context: Context): Boolean = prefs(context).getBoolean("check_updates", true)
