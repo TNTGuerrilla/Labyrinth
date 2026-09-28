@@ -120,8 +120,8 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
         nonlocal notes_frame
         if notes_frame is not None:
             notes_frame.destroy()
-        notes_frame = ttk.LabelFrame(frame, text=f"Updated to {shown.version}", padding=8)
-        notes_frame.grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, 12))
+        notes_frame = ttk.LabelFrame(info, text=f"Updated to {shown.version}", padding=8)
+        notes_frame.grid(row=7, column=0, columnspan=2, sticky="we", pady=(8, 0))
         box = tk.Text(notes_frame, height=8, width=56, wrap="word", relief="flat",
                       borderwidth=0, background=root.cget("background"))
         bar = ttk.Scrollbar(notes_frame, orient="vertical", command=box.yview)
@@ -138,18 +138,17 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
         box.grid(row=0, column=0, sticky="nsew")
         bar.grid(row=0, column=1, sticky="ns")
 
-    top = 1
     variables: dict[str, tk.StringVar] = {}
     for row, (name, label) in enumerate(FIELDS):
         low, high, _ = NUMERIC_RANGES[name]
-        ttk.Label(frame, text=label).grid(row=top + row, column=0, sticky="w", padx=(0, 12),
+        ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w", padx=(0, 12),
                                           pady=4)
         var = tk.StringVar(value=_fmt(getattr(current, name)))
         ttk.Spinbox(frame, from_=low, to=high, increment=INCREMENTS[name], textvariable=var,
-                    width=10).grid(row=top + row, column=1, sticky="e", pady=4)
+                    width=10).grid(row=row, column=1, sticky="e", pady=4)
         variables[name] = var
 
-    fps_row = top + len(FIELDS)
+    fps_row = len(FIELDS)
     fps_var = tk.StringVar(value=FPS_LABELS[current.fps_cap])
     ttk.Label(frame, text="Frame rate cap").grid(row=fps_row, column=0, sticky="w", padx=(0, 12), pady=4)
     ttk.Combobox(frame, textvariable=fps_var, values=list(FPS_LABELS.values()), state="readonly",
