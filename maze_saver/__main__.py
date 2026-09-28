@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import sys
 import traceback
+from pathlib import Path
 from typing import Optional, Sequence
 
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
@@ -23,18 +24,48 @@ def _log_error() -> None:
         pass
 
 
+def _updater(settings: config.Settings):
+    """The update checker for a built screensaver, or None when running from source."""
+    from labyrinth_update.releases import SCREENSAVER
+    from labyrinth_update.updater import for_program
+    return for_program(SCREENSAVER, config.default_path().parent, settings.check_updates)
+
+
+def _notice(updater):
+    """What the running screensaver shows about an update: a function the render loop
+    polls, since the check finishes in the background after the screensaver starts."""
+    if updater is None:
+        return None
+    from labyrinth_update.updater import AVAILABLE
+    updater.check()
+
+    def notice():
+        snap = updater.snapshot
+        if snap.status != AVAILABLE:
+            return None
+        return (f"Labyrinth Screensaver {snap.release.version} is available. "
+                "Open Screen Saver Settings to update.")
+
+    return notice
+
+
 def _run(argv: Sequence[str]) -> None:
     command = parse_args(argv)
     if command.mode == "none":
         return
+    if command.mode == "apply":
+        from labyrinth_update.install import apply_update
+        staged, target, sha256 = command.update_args
+        sys.exit(apply_update(Path(staged), Path(target), sha256))
     if command.mode == "config":
         from .settings_dialog import run_dialog
-        run_dialog(command.hwnd)
+        run_dialog(command.hwnd, updater=_updater(config.load()))
         return
     from . import app
     settings = config.load()
     if command.mode == "saver":
-        app.run_saver(settings, command.multiwindow, command.leads)
+        app.run_saver(settings, command.multiwindow, command.leads,
+                      notice=_notice(_updater(settings)))
     elif command.mode == "preview":
         app.run_preview(command.hwnd, settings)
     elif command.mode == "window":

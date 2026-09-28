@@ -129,3 +129,13 @@ def test_linux_settings_default_to_dot_config(monkeypatch, tmp_path):
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     assert app_data() == tmp_path / ".config"
+
+
+def test_check_updates_setting(tmp_path):
+    from maze_saver.config import Settings, from_dict, load, save
+    assert Settings().check_updates is True
+    assert from_dict({"check_updates": False}).check_updates is False
+    assert from_dict({"check_updates": 0}).check_updates is True
+    path = tmp_path / "config.json"
+    save(Settings(check_updates=False), path)
+    assert load(path).check_updates is False

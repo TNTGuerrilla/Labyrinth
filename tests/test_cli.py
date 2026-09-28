@@ -33,3 +33,11 @@ from maze_saver.cli import Command, parse_args
 ])
 def test_parse_args(argv, expected):
     assert parse_args(argv) == expected
+
+
+def test_apply_update():
+    sha = "ab" * 32
+    c = parse_args(["--apply-update", r"C:\t\u.exe", r"C:\Windows\System32\Labyrinth.scr", sha])
+    assert c.mode == "apply"
+    assert c.update_args == (r"C:\t\u.exe", r"C:\Windows\System32\Labyrinth.scr", sha)
+    assert parse_args(["--apply-update", "x"]).mode == "none"

@@ -4,13 +4,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
+from labyrinth_update import APPLY_FLAG
+
 
 @dataclass(frozen=True)
 class Command:
-    mode: str  # "saver", "config", "preview", "window" or "none"
+    mode: str  # "saver", "config", "preview", "window", "apply" or "none"
     hwnd: Optional[int] = None
     multiwindow: bool = False
     leads: Optional[int] = None
+    update_args: tuple[str, ...] = ()  # staged file, target .scr, sha256 for "apply"
 
 
 def _parse_int(text: str) -> Optional[int]:
@@ -29,6 +32,8 @@ def _parse_leads(text: str) -> Optional[int]:
 
 def parse_args(argv: Sequence[str]) -> Command:
     args = list(argv)
+    if args and args[0] == APPLY_FLAG:
+        return Command("apply", update_args=tuple(args[1:4])) if len(args) >= 4 else Command("none")
     multiwindow = "--multiwindow" in args
     args = [a for a in args if a != "--multiwindow"]
     leads = None

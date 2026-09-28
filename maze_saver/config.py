@@ -21,6 +21,7 @@ class Settings:
     hold_seconds: float = 4.0
     max_leads: int = 12
     fps_cap: FpsCap = "auto"
+    check_updates: bool = True
 
 
 # name -> (low, high, is_int); both bounds inclusive.
@@ -74,6 +75,8 @@ def from_dict(raw: Any) -> Settings:
         cap = _fps_cap(raw["fps_cap"])
         if cap is not None:
             values["fps_cap"] = cap
+    if isinstance(raw.get("check_updates"), bool):
+        values["check_updates"] = raw["check_updates"]
     settings = replace(Settings(), **values)
     if settings.min_cells > settings.max_cells:
         settings = replace(settings, min_cells=settings.max_cells, max_cells=settings.min_cells)

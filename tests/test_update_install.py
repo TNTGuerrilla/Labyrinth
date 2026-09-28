@@ -240,3 +240,13 @@ def test_relaunch_starts_an_independent_process_without_nuitka_variables(tmp_pat
     while time.monotonic() < deadline and not (out.exists() and out.read_text()):
         time.sleep(0.1)
     assert out.read_text() == "unset"
+
+
+def test_screensaver_main_runs_the_apply_step(tmp_path):
+    from maze_saver.__main__ import main
+    staged = program(tmp_path, "staged.exe", b"new")
+    target = program(tmp_path, "Labyrinth.scr")
+    with pytest.raises(SystemExit) as exit_info:
+        main([APPLY_FLAG, str(staged), str(target), sha(b"new")])
+    assert exit_info.value.code == 0
+    assert target.read_bytes() == b"new"
