@@ -128,6 +128,9 @@ class Board:
         # Where mazes are laid out, (x, y, w, h) inside this board's surface; None is all of
         # it. Read when a maze starts (DOTS), so the maze on screen never moves.
         self.area: Optional[tuple[int, int, int, int]] = None
+        # The area the maze on screen (or the last one) was laid out in: `area` as it was
+        # when that maze started. Overlays that must avoid the maze follow this one.
+        self.maze_area: Optional[tuple[int, int, int, int]] = None
         self.mazes_solved = 0  # hold phases entered; the screensaver closes What's new on one
         self._reset()
         self._enter_black(initial_delay)
@@ -200,6 +203,7 @@ class Board:
 
     def _enter_dots(self, changes: Changes) -> None:
         s = self.settings
+        self.maze_area = self.area
         x, y, w, h = self.area or (0, 0, self.width, self.height)
         g = compute_geometry(w, h, s.min_cells, s.max_cells, self.rng)
         self.geometry = replace(g, x=g.x + x, y=g.y + y)

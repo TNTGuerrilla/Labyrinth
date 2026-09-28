@@ -200,3 +200,17 @@ def test_mazes_solved_counts_hold_entries():
     run_until(board, Phase.BLACK)
     run_until(board, Phase.HOLD)
     assert board.mazes_solved == 2
+
+
+def test_maze_area_is_the_area_the_maze_on_screen_used():
+    board = Board(1000, 600, FAST, random.Random(3))
+    assert board.maze_area is None
+    board.set_area((0, 0, 700, 600))
+    assert board.maze_area is None  # nothing laid out yet
+    run_until(board, Phase.DOTS)
+    assert board.maze_area == (0, 0, 700, 600)
+    board.set_area(None)
+    assert board.maze_area == (0, 0, 700, 600)  # the maze on screen keeps its place
+    run_until(board, Phase.BLACK)
+    run_until(board, Phase.DOTS)
+    assert board.maze_area is None

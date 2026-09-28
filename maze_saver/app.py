@@ -9,6 +9,8 @@ from typing import Callable, Optional, Sequence
 
 import pygame
 
+from labyrinth_update.notes import NoteLine
+
 from . import monitors
 from .board import FIRST_DELAY_MAX, Board
 from .config import Settings
@@ -17,6 +19,8 @@ from .input_watch import ExitWatcher
 from .layout import Layout, Monitor, Rect, plan_layout, scale_to_fit
 from .render import BLACK, BoardRenderer
 from .watermark import Watermark, primary_index
+from .whats_new import SectionClock
+from .whats_new_view import WhatsNewSection
 
 TITLE = "Labyrinth Screensaver"
 MUTEX_NAME = "Local\\LabyrinthScreensaver"
@@ -29,6 +33,13 @@ DISPLAY_POLL_SECONDS = 2.0
 NOTICE_POLL_SECONDS = 1.0
 EXIT_EVENTS = frozenset({pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN, pygame.MOUSEWHEEL, pygame.QUIT,
                          pygame.WINDOWCLOSE})
+
+
+@dataclass(frozen=True)
+class SaverWhatsNew:
+    title: str
+    lines: tuple[NoteLine, ...]
+    on_seen: Callable[[], None]  # called once, when the section has faded out
 
 
 @dataclass
@@ -51,6 +62,15 @@ def make_slots(surface: pygame.Surface, rects: Sequence[Rect], settings: Setting
     return slots
 
 
+def _maze_area(board: Board) -> Optional[Rect]:
+    """The part of the board the watermark keeps to: the area the maze on screen was laid
+    out in, or while no maze is on screen (black), the area the next one will use. Never the
+    pending area while a maze shows: set_area only takes effect at the next maze, so the
+    maze on screen may be bigger (or smaller) than the pending area."""
+    area = board.maze_area if board.geometry is not None else board.area
+    return None if area is None else Rect(*area)
+
+
 class Stage:
     """The open window(s) for one layout and the boards drawn into them."""
 
@@ -59,6 +79,9 @@ class Stage:
         self.fps = fps
         self.primary = primary
         self.watermark: Optional[Watermark] = None
+        self.section: Optional[WhatsNewSection] = None
+        self._section_done: Optional[Callable[[], None]] = None
+        self._solved = 0
 
     def show_notice(self, message: str, now: float) -> None:
         """Show an update notice on the primary monitor's board from the next frame on."""
@@ -66,14 +89,47 @@ class Stage:
             surface = self.slots[self.primary].renderer.surface
             self.watermark = Watermark(message, surface.get_size(), now)
 
+    def show_section(self, section: WhatsNewSection, on_done: Callable[[], None]) -> None:
+        """Lay the primary maze out beside the section from its next maze on (the board is
+        still black when this is called at start or after a rebuild) and draw the section
+        from the next frame."""
+        if not self.slots:
+            return
+        board = self.slots[self.primary].board
+        b = section.split.board
+        board.set_area((b.x, b.y, b.w, b.h))  # set_area takes a tuple, the split a Rect
+        self.section, self._section_done, self._solved = section, on_done, board.mazes_solved
+
+    def _overlays(self, slot: Slot, changes, now: float) -> list:
+        """The section and the watermark on the primary board, drawn after the maze."""
+        rects = []
+        surface = slot.renderer.surface
+        section = self.section
+        if section is not None:
+            if slot.board.mazes_solved != self._solved:
+                self._solved = slot.board.mazes_solved
+                section.clock.board_solved(now)
+            rects += section.update(surface, now, changes.clear)
+            if section.clock.faded(now):
+                # The first maze that starts from now on uses the whole monitor; the maze on
+                # screen keeps its place, so the board never grows under a visible section.
+                slot.board.set_area(None)
+                self.section = None
+                done, self._section_done = self._section_done, None
+                if done is not None:
+                    done()
+        if self.watermark is not None:
+            rects += self.watermark.update(surface, now, changes.clear, _maze_area(slot.board))
+        return rects
+
     def frame(self, dt: float, now: Optional[float] = None) -> None:
         display_rects = []
         for i, slot in enumerate(self.slots):
             changes = slot.board.update(dt)
             rects = slot.renderer.apply(slot.board, changes)
-            if self.watermark is not None and i == self.primary:
+            if i == self.primary and (self.section is not None or self.watermark is not None):
                 moment = time.monotonic() if now is None else now
-                rects += self.watermark.update(slot.renderer.surface, moment, changes.clear)
+                rects += self._overlays(slot, changes, moment)
             if not rects:
                 continue
             if slot.window is not None:
@@ -144,7 +200,8 @@ def needs_rebuild(opened_signature: tuple[int, int, int, int, int],
 
 
 def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Optional[int] = None,
-             notice: Optional[Callable[[], Optional[str]]] = None) -> None:
+             notice: Optional[Callable[[], Optional[str]]] = None,
+             whats_new: Optional[SaverWhatsNew] = None) -> None:
     monitors.enable_dpi_awareness()
     mutex = monitors.acquire_single_instance(MUTEX_NAME)
     if mutex is None:
@@ -154,8 +211,25 @@ def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Option
         pygame.display.init()
         pygame.font.init()
         rng = random.Random()
+        section_clock = SectionClock(time.monotonic()) if whats_new is not None else None
+        showing = whats_new is not None
+
+        def seen() -> None:
+            nonlocal showing
+            showing = False
+            whats_new.on_seen()
+
+        def attach(target: Stage) -> None:
+            # A rebuild (monitor change) makes new boards: give the new primary board the
+            # same split, and keep the clock so the minute is not restarted.
+            if showing and target.slots:
+                size = target.slots[target.primary].renderer.surface.get_size()
+                target.show_section(WhatsNewSection(whats_new.title, whats_new.lines,
+                                                    section_clock, size), seen)
+
         current = monitors.get_monitors()
         stage = open_stage(current, settings, rng, force_multiwindow, first_cycle=True, forced_leads=leads)
+        attach(stage)
         pygame.mouse.set_visible(False)
         clock = pygame.time.Clock()
         watcher = ExitWatcher(time.monotonic(), monitors.cursor_pos())
@@ -173,6 +247,7 @@ def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Option
             pygame.display.init()
             stage = open_stage(current, settings, rng, force_multiwindow, first_cycle=False,
                                forced_leads=leads)
+            attach(stage)
             pygame.mouse.set_visible(False)
             watcher = ExitWatcher(time.monotonic(), monitors.cursor_pos())
             signature = monitors.virtual_screen_signature()

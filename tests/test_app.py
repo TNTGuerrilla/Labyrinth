@@ -87,3 +87,114 @@ def test_stage_draws_the_notice_on_the_primary_board():
         assert stage.watermark.corner == 0 and flips
     finally:
         pygame.quit()
+
+
+def test_the_section_shrinks_the_primary_maze_until_it_fades():
+    from types import SimpleNamespace
+
+    from maze_saver.whats_new import SectionClock
+    from maze_saver.whats_new_view import WhatsNewSection
+
+    surface = pygame.Surface((1600, 900))
+    quick = Settings(min_cells=4, max_cells=6, gen_speed=1000, solve_speed=500,
+                     hold_seconds=0.5)
+    slot = make_slots(surface, [Rect(0, 0, 1600, 900)], quick, random.Random(2), False)[0]
+    slot.window = SimpleNamespace(flip=lambda: None)
+    stage = Stage([slot], 60)
+    section = WhatsNewSection("Labyrinth Screensaver updated to 9.9.9", [],
+                              SectionClock(0.0), (1600, 900))
+    seen = []
+    stage.show_section(section, lambda: seen.append(True))
+    stage.show_notice("Labyrinth Screensaver 9.9.10 is available.", 0.0)
+    board = slot.board
+    t = 0.0
+
+    def step():
+        nonlocal t
+        t += 1 / 60
+        stage.frame(1 / 60, now=t)
+
+    while board.geometry is None:
+        step()
+    g = board.geometry
+    assert g.x + g.width <= section.split.board.right
+    mark = stage.watermark.rect_for(stage.watermark.corner, section.split.board)
+    assert mark.right <= section.split.board.right
+    while not seen:  # a minute, then the next solve, then the fade
+        step()
+    assert t >= 60 and stage.section is None
+    while board.phase is not Phase.BLACK:  # the first maze to start after the fade
+        step()
+    while board.geometry is None:
+        step()
+    assert abs(board.geometry.x + board.geometry.width / 2 - 800) <= board.geometry.cell
+
+
+def test_the_watermark_follows_the_area_of_the_maze_on_screen():
+    from types import SimpleNamespace
+
+    from maze_saver.whats_new import SectionClock
+    from maze_saver.whats_new_view import WhatsNewSection
+
+    surface = pygame.Surface((1600, 900))
+    quick = Settings(min_cells=4, max_cells=6, gen_speed=1000, solve_speed=500,
+                     hold_seconds=3.0)  # a hold longer than the fade
+    slot = make_slots(surface, [Rect(0, 0, 1600, 900)], quick, random.Random(5), False)[0]
+    slot.window = SimpleNamespace(flip=lambda: None)
+    stage = Stage([slot], 60)
+    section = WhatsNewSection("Labyrinth Screensaver updated to 9.9.9", [],
+                              SectionClock(0.0), (1600, 900))
+    seen = []
+    stage.show_section(section, lambda: seen.append(True))
+    stage.show_notice("Labyrinth Screensaver 9.9.10 is available.", 0.0)
+    board = slot.board
+    split = section.split.board
+    t = 0.0
+
+    def step():
+        nonlocal t
+        t += 1 / 60
+        stage.frame(1 / 60, now=t)
+
+    step()  # the section appears while the board is still black
+    assert board.geometry is None and stage.watermark.area == split
+    while not seen:
+        step()
+    # Faded while the maze laid out beside the section is still held on screen: the
+    # watermark stays in that maze's area.
+    assert board.phase is Phase.HOLD and board.area is None
+    step()
+    assert stage.watermark.area == split
+    while board.geometry is None or board.phase is Phase.HOLD:
+        step()
+    assert board.maze_area is None and stage.watermark.area is None
+
+
+def test_whats_new_counts_the_run_before_the_screensaver_starts():
+    from labyrinth_update.whats_new import WhatsNew
+    from maze_saver.__main__ import _whats_new
+
+    class FakeUpdater:
+        def __init__(self, shown):
+            self.shown, self.calls = shown, []
+
+        def start_whats_new(self):
+            self.calls.append("start")
+            return self.shown
+
+        def count_whats_new_run(self):
+            self.calls.append("count")
+
+        def mark_whats_new_seen(self):
+            self.calls.append("seen")
+
+    assert _whats_new(None) is None
+    quiet = FakeUpdater(None)
+    assert _whats_new(quiet) is None and quiet.calls == ["start"]
+    updater = FakeUpdater(WhatsNew("9.9.9"))
+    saver = _whats_new(updater)
+    assert updater.calls == ["start", "count"]
+    assert saver.title == "Labyrinth Screensaver updated to 9.9.9"
+    assert saver.lines == tuple(WhatsNew("9.9.9").lines())
+    saver.on_seen()
+    assert updater.calls[-1] == "seen"

@@ -49,6 +49,21 @@ def _notice(updater):
     return notice
 
 
+def _whats_new(updater):
+    """The What's new section for the first runs of a newer version, or None."""
+    if updater is None:
+        return None
+    shown = updater.start_whats_new()
+    if shown is None:
+        return None
+    # Counted before anything is shown: any key or mouse move ends the screensaver, and an
+    # interrupted run must still count toward the limit of SHOW_RUNS.
+    updater.count_whats_new_run()
+    from .app import SaverWhatsNew
+    return SaverWhatsNew(f"Labyrinth Screensaver updated to {shown.version}",
+                         tuple(shown.lines()), updater.mark_whats_new_seen)
+
+
 def _run(argv: Sequence[str]) -> None:
     command = parse_args(argv)
     if command.mode == "none":
@@ -64,8 +79,10 @@ def _run(argv: Sequence[str]) -> None:
     from . import app
     settings = config.load()
     if command.mode == "saver":
+        updater = _updater(settings)
+        whats_new = _whats_new(updater)
         app.run_saver(settings, command.multiwindow, command.leads,
-                      notice=_notice(_updater(settings)))
+                      notice=_notice(updater), whats_new=whats_new)
     elif command.mode == "preview":
         app.run_preview(command.hwnd, settings)
     elif command.mode == "window":
