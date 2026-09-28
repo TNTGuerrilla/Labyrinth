@@ -7,10 +7,27 @@ from typing import Optional
 import pygame
 
 from ..keymap import LABELS, Keymap, key_label
-from .widgets import (BAR_BG, BORDER, Hits, button_rect, draw_button, draw_panel, font,
-                      format_time, text)
+from .widgets import (BAR_BG, BORDER, Hits, button_rect, draw_button, draw_panel,
+                      draw_split_button, font, format_time, text)
 
 TOOLBAR_H = 40
+UPDATE_SIZE = 15
+
+
+def split_width(label: str, dismiss: bool) -> int:
+    width = button_rect(label, (0, 0), size=UPDATE_SIZE).w
+    return width + (button_rect("x", (0, 0), size=UPDATE_SIZE).w if dismiss else 0)
+
+
+def split_rects(label: str, right: int,
+                dismiss: bool) -> tuple[pygame.Rect, Optional[pygame.Rect]]:
+    """The install part and the x part of the update control, whose right edge is `right`.
+    The two share an edge, where the divider is drawn."""
+    close = (button_rect("x", (right, 6), size=UPDATE_SIZE, anchor="topright")
+             if dismiss else None)
+    main = button_rect(label, (close.x if close is not None else right, 6), size=UPDATE_SIZE,
+                       anchor="topright")
+    return main, close
 ITEMS = (
     ("new", "New maze"), ("replay", "Replay"), ("hint", "Hint"), ("autosolve", "Auto-solve"),
     ("flash", "Flash finish"), None,
@@ -73,35 +90,29 @@ class Toolbar:
 
     def _draw_update(self, surface: pygame.Surface, state: ToolbarState, stats: str,
                      left_end: int, mouse: tuple[int, int]) -> Optional[str]:
-        """The update button, and its x, just left of the counters. A narrow window gets the
+        """The update control just left of the counters: one split button, install on the
+        left and (when this version can be hidden) x on the right. A narrow window gets the
         short label, then compact counters, then no counters. Returns the hovered action."""
         width = surface.get_width()
         compact = f"{state.steps}   {format_time(state.elapsed)}"
-        close_w = button_rect("x", (0, 0), size=15).w + 4 if state.update_dismiss else 0
         choices = ((state.update_label, stats), (state.update_short, stats),
                    (state.update_short, compact), (state.update_short, ""))
         for label, info in choices:
             info_w = font(15).size(info)[0] + 12 if info else 0
-            if width - 12 - info_w - close_w - button_rect(label, (0, 0), size=15).w >= left_end + 8:
+            if width - 12 - info_w - split_width(label, state.update_dismiss) >= left_end + 8:
                 break
         right = width - 12
         if info:
             text(surface, info, (right, TOOLBAR_H // 2), 15, anchor="midright")
             right -= info_w
-        hovered = None
-        if state.update_dismiss:
-            close = button_rect("x", (right, 6), size=15, anchor="topright")
-            over = close.collidepoint(mouse)
-            draw_button(surface, close, "x", size=15, hovered=over)
+        main, close = split_rects(label, right, state.update_dismiss)
+        over_main = main.collidepoint(mouse)
+        over_close = close is not None and close.collidepoint(mouse)
+        draw_split_button(surface, main, close, label, over_main, over_close, UPDATE_SIZE)
+        self.hits.add(main, "update")
+        if close is not None:
             self.hits.add(close, "update_dismiss")
-            if over:
-                hovered = "update_dismiss"
-            right = close.x - 4
-        button = button_rect(label, (right, 6), size=15, anchor="topright")
-        over = button.collidepoint(mouse)
-        draw_button(surface, button, label, size=15, active=not over, hovered=over)
-        self.hits.add(button, "update")
-        return "update" if over else hovered
+        return "update" if over_main else "update_dismiss" if over_close else None
 
     def _tooltip(self, surface: pygame.Surface, keymap: Keymap, state: ToolbarState,
                  action: str, mouse: tuple[int, int]) -> None:

@@ -5,7 +5,7 @@ import pytest
 
 from maze_game.keymap import Keymap
 from maze_game.ui.toolbar import TOOLBAR_H, Toolbar, ToolbarState
-from maze_game.ui.widgets import Hits, button_rect, format_time
+from maze_game.ui.widgets import ACTIVE, BORDER, HOVER, Hits, button_rect, format_time
 from maze_game.ui.win_screen import WinScreen, win_lines
 
 
@@ -84,17 +84,37 @@ def update_state(**kw):
 
 
 @pytest.mark.parametrize("width", [960, 1280, 1920])
-def test_update_button_sits_left_of_the_counters_without_overlap(width):
+def test_update_control_is_one_split_button_left_of_the_counters(width):
     surface = pygame.Surface((width, 700))
     toolbar = Toolbar()
     toolbar.draw(surface, Keymap(), update_state(), (-1, -1))
     update = toolbar.hits.rect_for("update")
     close = toolbar.hits.rect_for("update_dismiss")
     settings = toolbar.hits.rect_for("settings")
-    assert settings.right < update.left < update.right < close.left
+    assert settings.right < update.left and update.right == close.left
+    assert (update.top, update.h) == (close.top, close.h)
     assert close.right <= width - 12
     assert toolbar.action_at(update.center) == "update"
     assert toolbar.action_at(close.center) == "update_dismiss"
+
+
+def test_hover_highlights_only_the_part_under_the_mouse():
+    surface = pygame.Surface((1400, 700))
+    toolbar = Toolbar()
+    toolbar.draw(surface, Keymap(), update_state(), (-1, -1))
+    update = toolbar.hits.rect_for("update")
+    close = toolbar.hits.rect_for("update_dismiss")
+
+    def color(x, y):
+        return tuple(surface.get_at((x, y)))[:3]
+
+    assert color(close.x, close.centery) == BORDER  # the divider
+    toolbar.draw(surface, Keymap(), update_state(), close.center)
+    assert color(update.x + 4, update.centery) == ACTIVE
+    assert color(close.right - 4, close.centery) == HOVER
+    toolbar.draw(surface, Keymap(), update_state(), update.center)
+    assert color(update.x + 4, update.centery) == HOVER
+    assert color(close.right - 4, close.centery) == ACTIVE
 
 
 def test_wide_windows_get_the_full_label():

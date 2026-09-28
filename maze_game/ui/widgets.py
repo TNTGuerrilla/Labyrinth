@@ -66,6 +66,29 @@ def draw_button(surface: pygame.Surface, rect: pygame.Rect, label: str, size: in
     text(surface, label, rect.center, size, anchor="center")
 
 
+def draw_split_button(surface: pygame.Surface, main: pygame.Rect,
+                      close: Optional[pygame.Rect], label: str, hover_main: bool,
+                      hover_close: bool, size: int = 15) -> None:
+    """One rounded control in two parts with a thin divider: `main` on the left and, when
+    given, `close` (an x) on the right. Only the hovered part changes color."""
+    radius = 5
+    main_color = HOVER if hover_main else ACTIVE
+    if close is None:
+        pygame.draw.rect(surface, main_color, main, border_radius=radius)
+        outline = main
+    else:
+        pygame.draw.rect(surface, main_color, main, border_top_left_radius=radius,
+                         border_bottom_left_radius=radius)
+        pygame.draw.rect(surface, HOVER if hover_close else ACTIVE, close,
+                         border_top_right_radius=radius, border_bottom_right_radius=radius)
+        pygame.draw.line(surface, BORDER, (close.x, close.y + 5), (close.x, close.bottom - 6))
+        outline = main.union(close)
+    pygame.draw.rect(surface, BORDER, outline, 1, border_radius=radius)
+    text(surface, label, main.center, size, anchor="center")
+    if close is not None:
+        text(surface, "x", close.center, size, anchor="center")
+
+
 def dim(surface: pygame.Surface) -> None:
     shade = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
     shade.fill((0, 0, 0, 150))
