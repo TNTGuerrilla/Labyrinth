@@ -83,9 +83,13 @@ def save(path: Path, state: UpdateState) -> None:
             "whats_new_runs": state.whats_new_runs}
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_name(target.name + ".tmp")
+    tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
     tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    os.replace(tmp, target)
+    try:
+        os.replace(tmp, target)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def is_due(state: UpdateState, now: float) -> bool:

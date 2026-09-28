@@ -6,6 +6,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+from labyrinth_update.notes import NoteLine
+
 from .layout import Rect
 
 SHOW_SECONDS = 60
@@ -14,6 +16,13 @@ CLOSES_IN = "Closes in "
 CLOSES_AFTER = "Closes after this maze"
 
 Measure = Callable[[str], int]
+
+
+@dataclass(frozen=True)
+class SaverWhatsNew:
+    title: str
+    lines: tuple[NoteLine, ...]
+    on_seen: Callable[[], None]  # called once, when the section has faded out
 
 
 def countdown(elapsed: float) -> Optional[int]:

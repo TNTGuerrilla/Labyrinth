@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from labyrinth_update.releases import Release
 from labyrinth_update.state import CHECK_INTERVAL, UpdateState, is_due, load, save, visible
 
@@ -61,9 +63,24 @@ def test_save_writes_a_temp_file_then_replaces_the_target(tmp_path, monkeypatch)
     tmp, dst = calls[0]
     assert dst == path
     assert tmp.parent == path.parent and tmp != path
+    assert tmp.name == f"update.json.{os.getpid()}.tmp"  # per-process: no cross-process clash
     assert not tmp.exists()  # replaced onto the target, nothing left behind
     assert list(tmp_path.iterdir()) == [path]
     assert load(path) == state
+
+
+def test_save_removes_the_temp_file_if_the_replace_fails(tmp_path, monkeypatch):
+    from labyrinth_update import state as state_module
+
+    path = tmp_path / "update.json"
+
+    def fake_replace(src, dst):
+        raise OSError("locked")
+
+    monkeypatch.setattr(state_module.os, "replace", fake_replace)
+    with pytest.raises(OSError):
+        save(path, UpdateState(1000.0, REL, "1.1.5"))
+    assert list(tmp_path.iterdir()) == []  # nothing left behind after the failure
 
 
 def test_found_with_a_bad_sha256_is_dropped(tmp_path):

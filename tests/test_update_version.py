@@ -27,6 +27,14 @@ def test_running_version_from_source_reads_the_repo_file():
     assert running_version("game") is not None
 
 
+def test_running_version_tolerates_a_utf8_bom(tmp_path):
+    """A versions.json saved by Windows PowerShell 5.1 (`Out-File`, `Set-Content`) carries a
+    UTF-8 BOM by default; a plain utf-8 read would fail to parse it as JSON."""
+    f = tmp_path / "versions.json"
+    f.write_bytes(b"\xef\xbb\xbf" + b'{"game": "1.1.0"}')
+    assert running_version("game", f) == "1.1.0"
+
+
 def test_current_binary(tmp_path):
     exe = tmp_path / "Labyrinth.exe"
     exe.write_bytes(b"x")

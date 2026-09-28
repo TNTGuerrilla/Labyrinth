@@ -9,8 +9,6 @@ from typing import Callable, Optional, Sequence
 
 import pygame
 
-from labyrinth_update.notes import NoteLine
-
 from . import monitors
 from .board import FIRST_DELAY_MAX, Board
 from .config import Settings
@@ -19,7 +17,7 @@ from .input_watch import ExitWatcher
 from .layout import Layout, Monitor, Rect, plan_layout, scale_to_fit
 from .render import BLACK, BoardRenderer
 from .watermark import Watermark, primary_index
-from .whats_new import SectionClock
+from .whats_new import SaverWhatsNew, SectionClock
 from .whats_new_view import WhatsNewSection
 
 TITLE = "Labyrinth Screensaver"
@@ -33,13 +31,6 @@ DISPLAY_POLL_SECONDS = 2.0
 NOTICE_POLL_SECONDS = 1.0
 EXIT_EVENTS = frozenset({pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN, pygame.MOUSEWHEEL, pygame.QUIT,
                          pygame.WINDOWCLOSE})
-
-
-@dataclass(frozen=True)
-class SaverWhatsNew:
-    title: str
-    lines: tuple[NoteLine, ...]
-    on_seen: Callable[[], None]  # called once, when the section has faded out
 
 
 @dataclass

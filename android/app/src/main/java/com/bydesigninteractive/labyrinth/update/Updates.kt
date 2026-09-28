@@ -54,11 +54,7 @@ object Updates {
         thread(name = "update-check", isDaemon = true) {
             val offer = try {
                 val json = fetch(BuildConfig.UPDATE_URL)
-                try {
-                    JSONArray(json)
-                } catch (_: JSONException) {
-                    throw UpdateFailure("Could not read the list of releases.")
-                }
+                requireListing(json)
                 val found = newestRelease(json, current)
                 if (found != null) {
                     val fresh = collectNotes(json, current, found.version)
@@ -96,6 +92,14 @@ object Updates {
             throw UpdateFailure("Could not reach the update server.")
         }
     }
+
+    /** Parses `json` as the release list GitHub returns, or throws when it cannot be read. */
+    private fun requireListing(json: String): JSONArray =
+        try {
+            JSONArray(json)
+        } catch (_: JSONException) {
+            throw UpdateFailure("Could not read the list of releases.")
+        }
 
     private fun fetch(url: String): String {
         val connection = open(url, "application/vnd.github+json")
@@ -206,11 +210,7 @@ object Updates {
         thread(name = "update-check-now", isDaemon = true) {
             val outcome = try {
                 val json = fetch(BuildConfig.UPDATE_URL)
-                try {
-                    JSONArray(json)
-                } catch (_: JSONException) {
-                    throw UpdateFailure("Could not read the list of releases.")
-                }
+                requireListing(json)
                 val found = newestRelease(json, current)
                 if (found != null) {
                     val fresh = collectNotes(json, current, found.version)

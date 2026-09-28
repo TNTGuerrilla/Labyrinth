@@ -59,7 +59,7 @@ def _whats_new(updater):
     # Counted before anything is shown: any key or mouse move ends the screensaver, and an
     # interrupted run must still count toward the limit of SHOW_RUNS.
     updater.count_whats_new_run()
-    from .app import SaverWhatsNew
+    from .whats_new import SaverWhatsNew
     return SaverWhatsNew(f"Labyrinth Screensaver updated to {shown.version}",
                          tuple(shown.lines()), updater.mark_whats_new_seen)
 

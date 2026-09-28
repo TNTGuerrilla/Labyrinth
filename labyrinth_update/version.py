@@ -41,7 +41,7 @@ def versions_file() -> Path:
 def running_version(key: str, path: Optional[Path] = None) -> Optional[str]:
     """The version for `key` ("game" or "screensaver") in versions.json, or None."""
     try:
-        data = json.loads((path or versions_file()).read_text(encoding="utf-8"))
+        data = json.loads((path or versions_file()).read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return None
     value = data.get(key) if isinstance(data, dict) else None
