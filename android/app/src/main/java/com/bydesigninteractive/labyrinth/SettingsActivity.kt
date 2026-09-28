@@ -4,11 +4,13 @@
 package com.bydesigninteractive.labyrinth
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
+import android.net.ConnectivityManager
 import android.os.Bundle
 import android.provider.Settings.Secure
 import android.util.TypedValue
@@ -20,17 +22,22 @@ import android.widget.ScrollView
 import android.widget.TextView
 import com.bydesigninteractive.labyrinth.maze.Field
 import com.bydesigninteractive.labyrinth.maze.Settings
+import java.net.Inet4Address
 
 private val BACKGROUND = Color.rgb(16, 18, 22)
 private val FOCUSED = Color.rgb(52, 58, 70)
 private val TEXT = Color.rgb(230, 230, 230)
 private val DIM_TEXT = Color.rgb(150, 150, 150)
 private val ACCENT = Color.rgb(60, 220, 90)
+// Between BACKGROUND and FOCUSED, so the command box shows whether or not the help has focus.
+private val CODE_BACKGROUND = Color.rgb(30, 34, 42)
+
+private const val GUIDE_URL = "github.com/TNTGuerrilla/Labyrinth"
 
 class SettingsActivity : Activity() {
     private lateinit var settings: Settings
     private val valueViews = HashMap<Field, TextView>()
-    private lateinit var help: TextView
+    private lateinit var help: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,7 +59,13 @@ class SettingsActivity : Activity() {
         }
         column.addView(button("Preview screensaver") { startActivity(Intent(this, PreviewActivity::class.java)) })
         column.addView(button("Reset to defaults") { update(Settings()) })
-        help = text("", 15f, DIM_TEXT).apply { setPadding(dp(16), dp(24), dp(16), 0) }
+        // Focusable so the remote can scroll down to it: a ScrollView only follows focus.
+        help = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(2))
+            isFocusable = true
+            background = focusBackground()
+        }
         column.addView(help)
 
         setContentView(ScrollView(this).apply {
@@ -66,7 +79,7 @@ class SettingsActivity : Activity() {
     override fun onResume() {
         super.onResume()
         // Refreshed here so the status is current after running the ADB command.
-        help.text = setupHelp()
+        showSetupHelp()
     }
 
     private fun fieldRow(field: Field): LinearLayout {
@@ -129,23 +142,69 @@ class SettingsActivity : Activity() {
             setOnClickListener { onClick() }
         }
 
-    private fun setupHelp(): String {
+    /**
+     * The status line and setup steps under the settings. The commands are written for
+     * PowerShell, since a bare `adb` is usually not on a Windows PC's PATH.
+     */
+    private fun showSetupHelp() {
         val component = "$packageName/.LabyrinthDreamService"
         val active = try {
-            if (Secure.getString(contentResolver, "screensaver_components")?.contains(component) == true) {
-                "Labyrinth is the current screensaver."
-            } else {
-                "Labyrinth is not the current screensaver yet."
-            }
+            Secure.getString(contentResolver, "screensaver_components")?.contains(component) == true
         } catch (_: SecurityException) {
             null
         }
-        return listOfNotNull(
-            active,
-            "To make it the screensaver, run this once from a computer connected with ADB:",
-            "adb shell settings put secure screensaver_components $component",
-            "On TCL TVs, also allow Auto Launch for this app so it can start when the TV is idle.",
-        ).joinToString("\n\n")
+        help.removeAllViews()
+        when (active) {
+            true -> paragraph("Labyrinth is the current screensaver.", TEXT)
+            false -> paragraph("Labyrinth is not the current screensaver yet.", TEXT)
+            null -> {}
+        }
+        paragraph(
+            "To make it the screensaver, turn on USB debugging in this TV's Developer options, then run these " +
+                "in PowerShell on a PC on the same network. adb comes with Android Studio or Google's SDK " +
+                "Platform-Tools; change the first line if yours is somewhere else.",
+            DIM_TEXT,
+        )
+        val ip = tvAddress()
+        code(
+            "\$adb = \"\$env:LOCALAPPDATA\\Android\\Sdk\\platform-tools\\adb.exe\"",
+            "& \$adb connect ${ip ?: "<TV IP address>"}:5555",
+            "& \$adb shell settings put secure screensaver_components $component",
+        )
+        paragraph(
+            buildString {
+                if (ip == null) append("Find this TV's IP address under Settings, Network & Internet. ")
+                append("After the connect command, choose Always allow on the \"Allow USB debugging?\" prompt on this TV.")
+            },
+            DIM_TEXT,
+        )
+        paragraph("On TCL TVs, also allow Auto Launch for this app so it can start when the TV is idle.", DIM_TEXT)
+        paragraph("Full setup guide: $GUIDE_URL", DIM_TEXT)
+    }
+
+    /** This TV's IPv4 address on its current network, or null if it has none. */
+    private fun tvAddress(): String? {
+        val connectivity = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivity.activeNetwork ?: return null
+        val addresses = connectivity.getLinkProperties(network)?.linkAddresses ?: return null
+        return addresses.map { it.address }.firstOrNull { it is Inet4Address && !it.isLoopbackAddress }?.hostAddress
+    }
+
+    private fun paragraph(value: String, color: Int) {
+        help.addView(text(value, 15f, color).apply { setPadding(0, 0, 0, dp(14)) })
+    }
+
+    private fun code(vararg lines: String) {
+        help.addView(text(lines.joinToString("\n"), 14f, ACCENT).apply {
+            typeface = Typeface.MONOSPACE
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = GradientDrawable().apply {
+                setColor(CODE_BACKGROUND)
+                cornerRadius = dp(6).toFloat()
+            }
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(14)
+        })
     }
 
     private fun text(value: String, sizeSp: Float, color: Int) = TextView(this).apply {
