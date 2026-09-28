@@ -222,7 +222,7 @@ def test_info_tab_in_a_build():
     m.set_info(InfoState("1.2.0", True, "Up to date", False))
     m.set_tab(3)
     assert [r.label for r in m.rows() if r.kind == "info"] == [
-        "Labyrinth 1.2.0", "© 2026 ByDesign Interactive"]
+        "Labyrinth 1.2.0", "\u00a9 2026 ByDesign Interactive"]
     assert names(m) == ["version", "copyright", "github", "license", "check_updates",
                         "check_now", "whats_new", "apply", "cancel"]
     assert m.selected.name == "github"  # the info lines are skipped
