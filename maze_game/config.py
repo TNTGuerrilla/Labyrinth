@@ -33,6 +33,7 @@ class GameSettings:
     bench_size: Optional[int] = None
     bench_rate: Optional[float] = None  # seconds to build one cell
     bench_resolution: Optional[tuple[int, int]] = None
+    check_updates: bool = True
 
 
 # name -> (low, high, is_int); both bounds inclusive.
@@ -47,7 +48,7 @@ NUMERIC_RANGES = {
     "custom_min": (MIN_CUSTOM, MAX_CUSTOM, True),
     "custom_max": (MIN_CUSTOM, MAX_CUSTOM, True),
 }
-BOOL_FIELDS = ("follow_bends", "animated", "multicolor", "show_grid")
+BOOL_FIELDS = ("follow_bends", "animated", "multicolor", "show_grid", "check_updates")
 
 
 def _is_number(value: Any) -> bool:

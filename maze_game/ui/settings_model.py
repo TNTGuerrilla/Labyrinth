@@ -45,6 +45,8 @@ GAMEPLAY_ROWS = (
     Row("number", "Auto-solve speed (steps/s)", "solve_speed", 2, 500, 2),
     Row("number", "Solver look-ahead (cells)", "lookahead", 0, 12, 1),
     Row("number", "Hint length (cells)", "hint_length", 2, 40, 1),
+    header("Updates"),
+    Row("bool", "Check for updates weekly", "check_updates"),
 )
 CONTROL_GROUPS = (
     ("Movement", ("up", "left", "down", "right")),

@@ -35,7 +35,7 @@ def test_tab_key_cycles_tabs():
 
 def test_every_tab_is_split_into_sections():
     m = model()
-    assert headers(m) == ["Movement", "Display", "Maze growth", "Assists"]
+    assert headers(m) == ["Movement", "Display", "Maze growth", "Assists", "Updates"]
     assert names(m)[:3] == ["follow_bends", "glide_speed", "turn_pause"]
     m.set_tab(1)
     assert headers(m) == ["Maze size", "Performance"]
@@ -196,3 +196,11 @@ def test_result_orders_the_custom_range_and_leaves_the_original_alone():
     settings, keys = m.result()
     assert (settings.custom_min, settings.custom_max) == (30, 90)
     assert keys.keys_for("hint") == ("h",) and original.keys_for("hint") == ("q",)
+
+
+def test_check_updates_toggles():
+    m = model()
+    m.select(row_index(m, "check_updates"))
+    assert m.value_text(m.selected) == "On"
+    m.activate()
+    assert m.draft.check_updates is False

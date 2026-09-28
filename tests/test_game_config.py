@@ -79,3 +79,14 @@ def test_settings_carry_over_from_the_pre_rename_folder(monkeypatch, tmp_path):
     save(GameSettings(glide_speed=3.0), Keymap(), tmp_path / "MazeGame" / "config.json")
     assert load()[0].glide_speed == 3.0
     assert (tmp_path / "Labyrinth" / "config.json").exists()
+
+
+def test_check_updates_round_trip(tmp_path):
+    path = tmp_path / "config.json"
+    assert GameSettings().check_updates is True
+    save(GameSettings(check_updates=False), Keymap(), path)
+    assert load(path)[0].check_updates is False
+
+
+def test_check_updates_must_be_a_bool():
+    assert from_dict({"check_updates": "no"}).check_updates is True
