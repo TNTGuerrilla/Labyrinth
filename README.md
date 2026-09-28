@@ -1,6 +1,6 @@
 # Maze Game
 
-Guide a dot from the green start to the red finish through procedurally grown pipe mazes. Each maze grows in front of you (or appears instantly), and if you get stuck, Hint lights up the next few cells and Auto-solve takes over from wherever you are. The same mazes also come as a Windows screensaver add-on.
+Guide a dot from the green start to the red finish through procedurally grown pipe mazes. Each maze grows in front of you (or appears instantly), and if you get stuck, Hint lights up the next few cells and Auto-solve takes over from wherever you are. The same mazes also come as a Windows screensaver add-on and as a Google TV screensaver.
 
 ## Play
 
@@ -41,19 +41,67 @@ The mazes are also available as a Windows screensaver, installed separately from
 
 ## Google TV screensaver
 
-`android/` is a Kotlin port of the screensaver for Google TV and Android TV. It runs as an Android screensaver (a `DreamService`), with a settings screen in the app list.
+`android/` is a Kotlin port of the screensaver for Google TV and Android TV (Android 8 or newer). It runs as a real Android screensaver (a `DreamService`) and adds a Maze Screensaver app to the TV's app list, with the same settings as the Windows version, a Preview button, and a status line showing whether it is the active screensaver. It is tested on a TCL 65QM6K Pro running Android 14.
 
-1. On the TV, open Settings, System, About and select "Android TV OS build" 7 times to unlock Developer options. Then turn on USB debugging there.
-2. From the PC: `adb connect <tv-ip>:5555` and accept the prompt on the TV.
-3. Build and install: `cd android` then `.\gradlew.bat installDebug` (or Run in Android Studio).
-4. Google TV hides the screensaver picker, so select it with ADB once:
+Google TV has no store listing for it and hides the screensaver picker, so setup is a one-time sideload from a PC. You need [Android Studio](https://developer.android.com/studio) (for the SDK and `adb`) and the TV on the same network as the PC.
 
-       adb shell settings put secure screensaver_components io.github.tntguerrilla.mazesaver/.MazeDreamService
+### 1. Turn on debugging on the TV
 
-5. On TCL TVs, allow Auto Launch for Maze Screensaver so it can start while the TV is idle.
-6. If it still never starts on its own, the TV may have idle screensavers switched off. Turn them on with `adb shell settings put secure screensaver_activate_on_sleep 1`.
+1. Open **Settings, System, About**, scroll to **Android TV OS build**, and select it 7 times until the TV says you are a developer.
+2. Open **Settings, System, Developer options** and turn on **USB debugging**. On Android TV this also opens network debugging on port 5555; **Wireless debugging** is not needed.
+3. Note the TV's IP address (**Settings, Network & Internet**, then your connection).
 
-The app's settings screen shows whether it is the current screensaver and has a Preview button. Unit tests: `.\gradlew.bat testDebugUnitTest`.
+### 2. Connect and install
+
+The commands below are for PowerShell. `adb` ships with Android Studio's SDK, so first point a variable at it:
+
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+& $adb connect <tv-ip>:5555
+```
+
+The TV shows **Allow USB debugging?** Choose **Always allow from this computer**, then **OK**. `& $adb devices` should now list the TV as `device`, not `unauthorized`.
+
+Build and install from the `android` folder:
+
+```powershell
+cd android
+.\gradlew.bat installDebug
+```
+
+Or open `android/` in Android Studio, pick the TV as the target device, and press Run. If Gradle complains about the Java version, set `JAVA_HOME` to the JDK bundled with Android Studio (`C:\Program Files\Android\Android Studio\jbr`).
+
+### 3. Make it the screensaver
+
+Select it once:
+
+```powershell
+& $adb shell settings put secure screensaver_components io.github.tntguerrilla.mazesaver/.MazeDreamService
+& $adb shell settings get secure screensaver_components
+```
+
+The second command should print `io.github.tntguerrilla.mazesaver/.MazeDreamService`. Then, on the TV:
+
+- **TCL TVs:** allow **Auto Launch** for Maze Screensaver (under **Settings, Apps, Special app access**, or TCL's app permission settings). Without it, TCL's firmware stops the screensaver from starting in the background.
+- Open **Maze Screensaver** from the app list. The bottom of the screen should say it is the current screensaver, and **Preview screensaver** shows it right away.
+
+The screensaver starts after the TV's normal screensaver timeout; any remote button ends it. If it never starts on its own, idle screensavers may be switched off on that TV. Check with `& $adb shell settings get secure screensaver_activate_on_sleep`, and if it prints `0`, turn them on:
+
+```powershell
+& $adb shell settings put secure screensaver_activate_on_sleep 1
+```
+
+### Updating and cleanup
+
+To install a new version, turn USB debugging back on if needed, reconnect with `& $adb connect <tv-ip>:5555`, and run `.\gradlew.bat installDebug` again. The screensaver selection and settings are kept.
+
+Once it is set up, USB debugging can be turned off; the screensaver keeps working without it. While it is on, only computers you have approved can connect.
+
+To go back to Google's Ambient mode, run `& $adb shell settings delete secure screensaver_components`, then uninstall Maze Screensaver from the TV if you no longer want it.
+
+### Develop
+
+Unit tests for the Kotlin port (maze generation, solver, board cycle, settings) run on the PC: `.\gradlew.bat testDebugUnitTest` in `android/`.
 
 ## Develop
 
