@@ -34,6 +34,17 @@ def _valid_key(name: str) -> bool:
     return True
 
 
+def _updater(enabled: bool):
+    """The update checker for a built game, already checking if a week has passed. None
+    when running from source."""
+    from labyrinth_update.releases import game_product
+    from labyrinth_update.updater import for_program
+    updater = for_program(game_product(), config.default_path().parent, enabled)
+    if updater is not None:
+        updater.check()
+    return updater
+
+
 def main() -> None:
     try:
         import pygame
@@ -45,7 +56,7 @@ def main() -> None:
         pygame.init()
         try:
             settings, keymap = config.load(valid_key=_valid_key)
-            app.run(settings, keymap)
+            app.run(settings, keymap, updater=_updater(settings.check_updates))
         finally:
             pygame.quit()
     except Exception:

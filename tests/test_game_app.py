@@ -476,3 +476,85 @@ def test_benchmark_from_the_custom_dialog_updates_it(game, monkeypatch):
     game._dialog_outcome("benchmark")
     assert game.dialog.bench_size == game.settings.bench_size is not None
     assert game.dialog.bench_rate == 1e-6
+
+
+from labyrinth_update.releases import GAME_WINDOWS
+from labyrinth_update.updater import Updater
+from maze_game import app as game_app
+
+UPDATE_LIST = [{"tag_name": "labyrinth-v9.0.0", "assets": [{
+    "name": "Labyrinth.exe", "browser_download_url": "https://example.test/Labyrinth.exe",
+    "digest": "sha256:" + "ab" * 32}]}]
+
+
+@pytest.fixture
+def updated_game(tmp_path):
+    pygame.init()
+    u = Updater(GAME_WINDOWS, "1.0.0", tmp_path / "update.json", True,
+                fetch=lambda: UPDATE_LIST, target=tmp_path / "Labyrinth.exe")
+    u.check()
+    u.wait(5)
+    g = Game(GameSettings(animated=False), Keymap(), tmp_path / "config.json", updater=u)
+    yield g
+    pygame.quit()
+
+
+def click(game, action):
+    game.frame(1 / 60)
+    pos = game.toolbar.hits.rect_for(action).center
+    game.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=pos))
+
+
+def test_toolbar_offers_the_update(updated_game):
+    updated_game.frame(1 / 60)
+    assert updated_game.toolbar.hits.rect_for("update") is not None
+
+
+def test_no_updater_no_button(game):
+    game.frame(1 / 60)
+    assert game.toolbar.hits.rect_for("update") is None
+
+
+def test_update_click_installs_then_restarts(updated_game, monkeypatch):
+    installed, launched = [], []
+    monkeypatch.setattr(game_app, "install_game",
+                        lambda release, target, progress: installed.append((release.version, target)))
+    monkeypatch.setattr(game_app, "relaunch", lambda target, args=(): launched.append(target))
+    click(updated_game, "update")
+    updated_game.updater.wait(5)
+    updated_game.frame(1 / 60)
+    assert installed == [("9.0.0", updated_game.updater.target)]
+    assert launched == [updated_game.updater.target]
+    assert not updated_game.running
+
+
+def test_failed_update_shows_and_can_be_dismissed(updated_game, monkeypatch):
+    from labyrinth_update.net import UpdateError
+
+    def broken(release, target, progress):
+        raise UpdateError("The download was interrupted.")
+
+    monkeypatch.setattr(game_app, "install_game", broken)
+    click(updated_game, "update")
+    updated_game.updater.wait(5)
+    updated_game.frame(1 / 60)
+    assert updated_game.running
+    assert updated_game.toolbar.hits.rect_for("update") is not None
+    click(updated_game, "update_dismiss")
+    updated_game.frame(1 / 60)
+    assert updated_game.toolbar.hits.rect_for("update") is None
+
+
+def test_dismiss_hides_the_button(updated_game):
+    click(updated_game, "update_dismiss")
+    updated_game.frame(1 / 60)
+    assert updated_game.toolbar.hits.rect_for("update") is None
+
+
+def test_turning_checks_off_in_settings_hides_the_button(updated_game):
+    updated_game.do("settings")
+    panel = updated_game.dialog
+    panel.model.draft = replace(panel.model.draft, check_updates=False)
+    updated_game._dialog_outcome("apply")
+    updated_game.frame(1 / 60)
+    assert updated_game.toolbar.hits.rect_for("update") is None

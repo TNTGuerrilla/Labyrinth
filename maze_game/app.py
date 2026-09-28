@@ -12,6 +12,8 @@ import pygame
 
 from maze_saver.icon import load_icon
 from maze_saver.maze import E, N, S, W
+from labyrinth_update.install import install_game, relaunch
+from labyrinth_update.updater import AVAILABLE, DOWNLOADING, FAILED, READY, Updater
 
 from . import benchmark, config, difficulty
 from .assist import route
@@ -39,7 +41,7 @@ DRAG_PX = 6
 KEY_REPEAT = (350, 35)  # only while a dialog is open
 DIRS = {"up": N, "left": W, "down": S, "right": E}
 GROW_ACTIONS = frozenset({"confirm", "new", "small", "medium", "large", "xl", "custom",
-                          "settings", "fullscreen", "colors"})
+                          "settings", "fullscreen", "colors", "update", "update_dismiss"})
 NAV_KEYS = {"up": "up", "down": "down", "left": "left", "right": "right", "return": "confirm",
             "enter": "confirm", "space": "confirm", "escape": "cancel", "tab": "tab",
             "backspace": "backspace"}
@@ -79,10 +81,11 @@ def nav_for(key_name: str, keymap: Keymap) -> Optional[str]:
 
 class Game:
     def __init__(self, settings: GameSettings, keymap: Keymap,
-                 config_path: Optional[Path] = None):
+                 config_path: Optional[Path] = None, updater: Optional[Updater] = None):
         self.settings = settings
         self.keymap = keymap
         self.config_path = config_path
+        self.updater = updater
         self.rng = random.Random()
         self.window = pygame.Window(TITLE, START_SIZE, resizable=True)
         icon = load_icon()
@@ -198,10 +201,57 @@ class Game:
             self.camera.zoom_by(-1, r.mover.position())
         elif action == "zoom_reset":
             self.camera.reset_zoom()
+        elif action == "update":
+            self._start_update()
+        elif action == "update_dismiss":
+            if self.updater is not None:
+                self.updater.dismiss()
         elif action == "settings":
             self._open_settings()
         elif action == "fullscreen":
             self._toggle_fullscreen()
+
+    # --- updates ----------------------------------------------------------------
+
+    def _start_update(self) -> None:
+        u = self.updater
+        if u is None or u.target is None:
+            return
+        target = u.target
+        u.install(lambda release, progress: install_game(release, target, progress))
+
+    def _update_fields(self) -> dict:
+        """The toolbar's update button for the updater's current state."""
+        u = self.updater
+        if u is None:
+            return {}
+        snap = u.snapshot
+        version = snap.release.version if snap.release is not None else ""
+        if snap.status == AVAILABLE:
+            return dict(update_label=f"Update to {version}", update_short="Update",
+                        update_tip=f"Labyrinth {version} is available. Click to install it "
+                                   "and restart.",
+                        update_dismiss=True)
+        if snap.status == DOWNLOADING:
+            percent = int(snap.progress * 100)
+            return dict(update_label=f"Downloading {percent}%", update_short=f"{percent}%",
+                        update_tip=f"Downloading Labyrinth {version}")
+        if snap.status == READY:
+            return dict(update_label="Restarting", update_short="Restarting")
+        if snap.status == FAILED:
+            return dict(update_label="Update failed", update_short="Failed",
+                        update_tip=f"{snap.message} Click to try again.", update_dismiss=True)
+        return {}
+
+    def _restart(self) -> None:
+        """The new version is in place: start it and close this one. If it cannot be
+        started, closing still leaves the new version to run next time."""
+        self.save()
+        try:
+            relaunch(self.updater.target)
+        except OSError:
+            pass
+        self.running = False
 
     # --- events -----------------------------------------------------------------
 
@@ -323,6 +373,9 @@ class Game:
                 s.glide_speed, False)
 
     def frame(self, dt: float) -> None:
+        if self.updater is not None and self.updater.snapshot.status == READY:
+            self._restart()
+            return
         r = self.round
         before = r.phase
         self.keys.tick(dt)
@@ -358,7 +411,8 @@ class Game:
         if r.win_overlay_visible:
             self.win_screen.draw(self.screen, pr, r, self.keymap)
         state = ToolbarState(self.settings.difficulty, self.auto is not None,
-                             self.settings.multicolor, r.steps, r.elapsed)
+                             self.settings.multicolor, r.steps, r.elapsed,
+                             **self._update_fields())
         mouse = pygame.mouse.get_pos() if self.dialog is None else (-1, -1)
         self.toolbar.draw(self.screen, self.keymap, state, mouse)
         if self.dialog is not None:
@@ -440,6 +494,8 @@ class Game:
         elif outcome == "apply":
             self.settings, self.keymap = d.model.result()
             self.save()
+            if self.updater is not None:
+                self.updater.set_enabled(self.settings.check_updates)
             r = self.round
             r.multicolor = self.settings.multicolor
             r.gen_speed = self.settings.gen_speed
@@ -542,8 +598,9 @@ class Game:
                     raise BenchmarkCancelled
 
 
-def run(settings: GameSettings, keymap: Keymap, config_path: Optional[Path] = None) -> None:
-    game = Game(settings, keymap, config_path)
+def run(settings: GameSettings, keymap: Keymap, config_path: Optional[Path] = None,
+        updater: Optional[Updater] = None) -> None:
+    game = Game(settings, keymap, config_path, updater)
     clock = pygame.time.Clock()
     while game.running:
         dt = min(clock.tick(FPS_CAP) / 1000.0, MAX_DT)
