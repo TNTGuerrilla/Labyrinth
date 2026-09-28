@@ -5,7 +5,7 @@ import os
 import random
 import time
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 import pygame
 
@@ -16,6 +16,7 @@ from .icon import load_icon, set_display_icon
 from .input_watch import ExitWatcher
 from .layout import Layout, Monitor, Rect, plan_layout, scale_to_fit
 from .render import BLACK, BoardRenderer
+from .watermark import Watermark, primary_index
 
 TITLE = "Labyrinth Screensaver"
 MUTEX_NAME = "Local\\LabyrinthScreensaver"
@@ -25,6 +26,7 @@ DEBUG_FPS = 60
 DEBUG_WINDOW_MAX = (1600, 900)
 DEBUG_GAP_COLOR = (24, 24, 24)
 DISPLAY_POLL_SECONDS = 2.0
+NOTICE_POLL_SECONDS = 1.0
 EXIT_EVENTS = frozenset({pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN, pygame.MOUSEWHEEL, pygame.QUIT,
                          pygame.WINDOWCLOSE})
 
@@ -52,14 +54,26 @@ def make_slots(surface: pygame.Surface, rects: Sequence[Rect], settings: Setting
 class Stage:
     """The open window(s) for one layout and the boards drawn into them."""
 
-    def __init__(self, slots: Sequence[Slot], fps: int):
+    def __init__(self, slots: Sequence[Slot], fps: int, primary: int = 0):
         self.slots = list(slots)
         self.fps = fps
+        self.primary = primary
+        self.watermark: Optional[Watermark] = None
 
-    def frame(self, dt: float) -> None:
+    def show_notice(self, message: str, now: float) -> None:
+        """Show an update notice on the primary monitor's board from the next frame on."""
+        if self.watermark is None and self.slots:
+            surface = self.slots[self.primary].renderer.surface
+            self.watermark = Watermark(message, surface.get_size(), now)
+
+    def frame(self, dt: float, now: Optional[float] = None) -> None:
         display_rects = []
-        for slot in self.slots:
-            rects = slot.renderer.apply(slot.board, slot.board.update(dt))
+        for i, slot in enumerate(self.slots):
+            changes = slot.board.update(dt)
+            rects = slot.renderer.apply(slot.board, changes)
+            if self.watermark is not None and i == self.primary:
+                moment = time.monotonic() if now is None else now
+                rects += self.watermark.update(slot.renderer.surface, moment, changes.clear)
             if not rects:
                 continue
             if slot.window is not None:
@@ -89,7 +103,8 @@ def _open_single(layout: Layout, settings: Settings, rng: random.Random, first_c
     surface.fill(BLACK)
     pygame.display.flip()
     rects = [r.moved(-win.x, -win.y) for r in layout.boards]
-    return Stage(make_slots(surface, rects, settings, rng, first_cycle, forced_leads), layout.fps)
+    return Stage(make_slots(surface, rects, settings, rng, first_cycle, forced_leads), layout.fps,
+                 primary_index(layout.boards))
 
 
 def _open_multi(layout: Layout, settings: Settings, rng: random.Random, first_cycle: bool,
@@ -110,7 +125,7 @@ def _open_multi(layout: Layout, settings: Settings, rng: random.Random, first_cy
         slots.append(slot)
     slots[0].window.focus()
     monitors.bring_to_foreground(slots[0].window.handle)
-    return Stage(slots, min(layout.fps, MULTIWINDOW_FPS_MAX))
+    return Stage(slots, min(layout.fps, MULTIWINDOW_FPS_MAX), primary_index(layout.boards))
 
 
 def open_stage(monitor_list: Sequence[Monitor], settings: Settings, rng: random.Random,
@@ -128,7 +143,8 @@ def needs_rebuild(opened_signature: tuple[int, int, int, int, int],
     return opened_signature != current_signature
 
 
-def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Optional[int] = None) -> None:
+def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Optional[int] = None,
+             notice: Optional[Callable[[], Optional[str]]] = None) -> None:
     monitors.enable_dpi_awareness()
     mutex = monitors.acquire_single_instance(MUTEX_NAME)
     if mutex is None:
@@ -136,6 +152,7 @@ def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Option
     try:
         monitors.set_below_normal_priority()
         pygame.display.init()
+        pygame.font.init()
         rng = random.Random()
         current = monitors.get_monitors()
         stage = open_stage(current, settings, rng, force_multiwindow, first_cycle=True, forced_leads=leads)
@@ -144,6 +161,7 @@ def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Option
         watcher = ExitWatcher(time.monotonic(), monitors.cursor_pos())
         signature = monitors.virtual_screen_signature()
         next_poll = time.monotonic() + DISPLAY_POLL_SECONDS
+        next_notice = 0.0
 
         def rebuild() -> None:
             nonlocal stage, watcher, signature, current
@@ -173,6 +191,11 @@ def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Option
                 if latest and latest != current:
                     current = latest
                     rebuild()
+            if notice is not None and stage.watermark is None and now >= next_notice:
+                next_notice = now + NOTICE_POLL_SECONDS
+                message = notice()
+                if message:
+                    stage.show_notice(message, now)
             stage.frame(dt)
     finally:
         pygame.quit()

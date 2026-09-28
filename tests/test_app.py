@@ -62,3 +62,28 @@ def test_needs_rebuild_true_only_when_signature_differs():
     assert needs_rebuild((0, 0, 1920, 1080, 1), (0, 0, 1920, 1080, 1)) is False
     assert needs_rebuild((0, 0, 1920, 1080, 1), (0, 0, 2560, 1080, 2)) is True
     assert needs_rebuild((0, 0, 1920, 1080, 1), (-1920, 0, 3840, 1080, 2)) is True
+
+
+def test_stage_draws_the_notice_on_the_primary_board():
+    import random
+    from types import SimpleNamespace
+
+    import pygame
+
+    from maze_saver.app import Stage, make_slots
+    from maze_saver.config import Settings
+    from maze_saver.layout import Rect
+
+    pygame.init()
+    try:
+        surface = pygame.Surface((800, 600))
+        slot = make_slots(surface, [Rect(0, 0, 800, 600)], Settings(), random.Random(1),
+                          False)[0]
+        flips = []
+        slot.window = SimpleNamespace(flip=lambda: flips.append(1))
+        stage = Stage([slot], 60)
+        stage.show_notice("Labyrinth Screensaver 9.9.9 is available.", 0.0)
+        stage.frame(1 / 60, now=1.0)
+        assert stage.watermark.corner == 0 and flips
+    finally:
+        pygame.quit()
