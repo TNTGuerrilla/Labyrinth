@@ -36,4 +36,52 @@ object UpdateStore {
     fun setEnabled(context: Context, value: Boolean) {
         prefs(context).edit().putBoolean("check_updates", value).apply()
     }
+
+    private const val NOTES = "notes" // the JSON array of Notes.kt, a contract between versions
+    private const val LAST_RUN = "last_run_version"
+    private const val RUNS = "whats_new_runs"
+
+    @Synchronized
+    fun loadSeen(context: Context): SeenState {
+        val p = prefs(context)
+        return SeenState(
+            lastRunVersion = p.getString(LAST_RUN, null)?.takeIf { parseVersion(it) != null },
+            runs = p.getInt(RUNS, 0).coerceAtLeast(0),
+            notes = notesFromJson(p.getString(NOTES, null)),
+        )
+    }
+
+    @Synchronized
+    fun saveSeen(context: Context, state: SeenState) {
+        prefs(context).edit().apply {
+            putString(NOTES, notesToJson(state.notes))
+            putString(LAST_RUN, state.lastRunVersion)
+            putInt(RUNS, state.runs)
+        }.apply()
+    }
+
+    /**
+     * Read, change and write the seen state as one step. The update check thread (notes) and
+     * the main thread (seen, run count) both write it, and must not undo each other.
+     */
+    @Synchronized
+    fun editSeen(context: Context, change: (SeenState) -> SeenState): SeenState {
+        val before = loadSeen(context)
+        val after = change(before)
+        if (after != before) saveSeen(context, after)
+        return after
+    }
+
+    /** Call once when the dream or the app starts: What's new to show now, or null. */
+    fun startWhatsNew(context: Context, current: String): WhatsNew? {
+        var shown: WhatsNew? = null
+        editSeen(context) { state -> onStart(state, current).also { shown = it.second }.first }
+        return shown
+    }
+
+    fun countWhatsNewRun(context: Context, current: String) { editSeen(context) { countRun(it, current) } }
+
+    fun markWhatsNewSeen(context: Context, current: String) { editSeen(context) { markSeen(it, current) } }
+
+    fun runningWhatsNew(context: Context, current: String): WhatsNew = runningNotes(loadSeen(context), current)
 }

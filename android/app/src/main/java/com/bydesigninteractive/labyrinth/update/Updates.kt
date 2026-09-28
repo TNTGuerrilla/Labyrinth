@@ -18,6 +18,8 @@ import java.net.URL
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
+import org.json.JSONArray
+import org.json.JSONException
 
 /** A failed download or install. The message is a sentence for the user. */
 class UpdateFailure(message: String) : IOException(message)
@@ -51,7 +53,12 @@ object Updates {
         val main = Handler(Looper.getMainLooper())
         thread(name = "update-check", isDaemon = true) {
             val offer = try {
-                val found = newestRelease(fetch(BuildConfig.UPDATE_URL), current)
+                val json = fetch(BuildConfig.UPDATE_URL)
+                val found = newestRelease(json, current)
+                if (found != null) {
+                    val fresh = collectNotes(json, current, found.version)
+                    UpdateStore.editSeen(app) { it.copy(notes = mergeNotes(it.notes, fresh, current)) }
+                }
                 val next = UpdateStore.load(app).copy(lastCheck = System.currentTimeMillis(), found = found)
                 UpdateStore.save(app, next)
                 visibleUpdate(next, current)
@@ -170,6 +177,53 @@ object Updates {
                 session.abandon()
                 throw e
             }
+        }
+    }
+
+    sealed class CheckOutcome {
+        data class Available(val release: Release) : CheckOutcome()
+        object UpToDate : CheckOutcome()
+        data class Failed(val message: String) : CheckOutcome()
+    }
+
+    /**
+     * The user selected Check now: asks GitHub even with checks off and reports the outcome on
+     * the main thread. A dismissed version found this way is offered again.
+     */
+    fun checkNow(context: Context, onDone: (CheckOutcome) -> Unit) {
+        val app = context.applicationContext
+        val main = Handler(Looper.getMainLooper())
+        if (!checking.compareAndSet(false, true)) {
+            // An automatic check is in flight: ask again once it has had time to finish.
+            main.postDelayed({ checkNow(app, onDone) }, 500)
+            return
+        }
+        val current = currentVersion(app)
+        thread(name = "update-check-now", isDaemon = true) {
+            val outcome = try {
+                val json = fetch(BuildConfig.UPDATE_URL)
+                try {
+                    JSONArray(json)
+                } catch (_: JSONException) {
+                    throw UpdateFailure("Could not read the list of releases.")
+                }
+                val found = newestRelease(json, current)
+                var next = UpdateStore.load(app).copy(lastCheck = System.currentTimeMillis(), found = found)
+                if (found != null) {
+                    if (next.dismissed == found.version) next = next.copy(dismissed = null)
+                    val fresh = collectNotes(json, current, found.version)
+                    UpdateStore.editSeen(app) { it.copy(notes = mergeNotes(it.notes, fresh, current)) }
+                }
+                UpdateStore.save(app, next)
+                visibleUpdate(next, current)?.let { CheckOutcome.Available(it) } ?: CheckOutcome.UpToDate
+            } catch (e: UpdateFailure) {
+                CheckOutcome.Failed(e.message ?: "Could not reach the update server.")
+            } catch (_: Exception) {
+                CheckOutcome.Failed("Could not reach the update server.")
+            } finally {
+                checking.set(false)
+            }
+            main.post { onDone(outcome) }
         }
     }
 }
