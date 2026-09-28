@@ -105,6 +105,12 @@ def test_accumulator_keeps_fractions():
     assert [acc.take(0.25) for _ in range(8)] == [0, 1, 0, 1, 1, 0, 1, 1]
 
 
+def test_accumulator_fraction_is_progress_to_next_step():
+    acc = StepAccumulator(4)
+    acc.take(0.3)
+    assert acc.fraction == pytest.approx(0.2)
+
+
 def test_accumulator_caps_and_drops_backlog():
     acc = StepAccumulator(1000)
     assert acc.take(10.0) == MAX_STEPS_PER_FRAME

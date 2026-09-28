@@ -39,6 +39,22 @@ The mazes are also available as a Windows screensaver, installed separately from
 1. Right-click `MazeScreensaver.scr` and choose **Install**.
 2. In Screen Saver Settings pick "MazeScreensaver". Its Settings button controls maze density, speeds, hold time and frame rate cap.
 
+## Google TV screensaver
+
+`android/` is a Kotlin port of the screensaver for Google TV and Android TV. It runs as an Android screensaver (a `DreamService`), with a settings screen in the app list.
+
+1. On the TV, open Settings, System, About and select "Android TV OS build" 7 times to unlock Developer options. Then turn on USB debugging there.
+2. From the PC: `adb connect <tv-ip>:5555` and accept the prompt on the TV.
+3. Build and install: `cd android` then `.\gradlew.bat installDebug` (or Run in Android Studio).
+4. Google TV hides the screensaver picker, so select it with ADB once:
+
+       adb shell settings put secure screensaver_components io.github.tntguerrilla.mazesaver/.MazeDreamService
+
+5. On TCL TVs, allow Auto Launch for Maze Screensaver so it can start while the TV is idle.
+6. If it still never starts on its own, the TV may have idle screensavers switched off. Turn them on with `adb shell settings put secure screensaver_activate_on_sleep 1`.
+
+The app's settings screen shows whether it is the current screensaver and has a Preview button. Unit tests: `.\gradlew.bat testDebugUnitTest`.
+
 ## Develop
 
     python -m venv .venv
