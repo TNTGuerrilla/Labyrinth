@@ -20,6 +20,7 @@ build_number=$(( ($(date +%-d) - 1) * 1440 + $(date +%-H) * 60 + $(date +%-M) ))
     --onefile \
     "--onefile-tempdir-spec={CACHE_DIR}/Labyrinth/$version.$build_number" \
     --include-data-files="$root/maze_saver/assets/icon.png=maze_saver/assets/icon.png" \
+    --include-data-files="$root/versions.json=labyrinth_update/versions.json" \
     --linux-icon="$root/maze_saver/assets/icon.png" \
     --assume-yes-for-downloads \
     --output-dir="$build" \
