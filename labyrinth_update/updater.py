@@ -21,6 +21,8 @@ from .version import current_binary, running_version
 from .whats_new import WhatsNew
 
 IDLE, AVAILABLE, DOWNLOADING, READY, FAILED = "idle", "available", "downloading", "ready", "failed"
+NOT_CHECKED, CHECKING, UP_TO_DATE, CHECK_FAILED = (
+    "not_checked", "checking", "up_to_date", "check_failed")
 DEBUG_ENV = "LABYRINTH_UPDATE_DEBUG"  # a file path: builds write what the updater sees there
 
 Installer = Callable[[Release, Progress], None]
@@ -32,6 +34,13 @@ class Snapshot:
     release: Optional[Release] = None
     progress: float = 0.0  # 0 to 1 while DOWNLOADING
     message: str = ""  # why it FAILED
+
+
+@dataclass(frozen=True)
+class CheckReport:
+    """The outcome of the latest check, for the Info section's status line."""
+    status: str = NOT_CHECKED
+    message: str = ""  # why a Check now failed
 
 
 class Updater:
@@ -49,6 +58,9 @@ class Updater:
         self._check_thread: Optional[threading.Thread] = None
         self._install_thread: Optional[threading.Thread] = None
         self._state = state_file.load(state_path)
+        self._asked = False  # Check now ran this session: offer even with weekly checks off
+        self._asking = False  # a Check now waits for the check in flight to report
+        self._report = CheckReport()
         self._snapshot = self._offer()
 
     @property
@@ -60,9 +72,20 @@ class Updater:
         with self._lock:
             self._snapshot = snapshot
 
+    @property
+    def check_report(self) -> CheckReport:
+        with self._lock:
+            return self._report
+
     def _offer(self) -> Snapshot:
-        release = state_file.visible(self._state, self.current) if self.enabled else None
+        allowed = self.enabled or self._asked
+        release = state_file.visible(self._state, self.current) if allowed else None
         return Snapshot(AVAILABLE, release) if release is not None else Snapshot()
+
+    def _start_check(self) -> None:
+        self._report = CheckReport(CHECKING)
+        self._check_thread = threading.Thread(target=self._check, daemon=True)
+        self._check_thread.start()
 
     def _check_busy(self) -> bool:
         return self._check_thread is not None and self._check_thread.is_alive()
@@ -85,8 +108,25 @@ class Updater:
                 return
             if not force and not state_file.is_due(self._state, self._clock()):
                 return
-            self._check_thread = threading.Thread(target=self._check, daemon=True)
-            self._check_thread.start()
+            self._start_check()
+
+    def check_now(self) -> None:
+        """The user pressed Check now: check even with weekly checks off, report the outcome
+        (Up to date, or why it failed), and offer a dismissed version again."""
+        with self._lock:
+            if self._install_busy():
+                return
+            self._asking = True
+            self._report = CheckReport(CHECKING)
+            if self._check_busy():
+                return  # the check in flight reports to this request when it ends
+            self._start_check()
+
+    def _check_failed(self, message: str) -> None:
+        with self._lock:
+            asked, self._asking = self._asking, False
+            # Automatic checks fail silently; only the user's own request hears about it.
+            self._report = CheckReport(CHECK_FAILED, message) if asked else CheckReport()
 
     def _check(self) -> None:
         try:
@@ -94,17 +134,25 @@ class Updater:
             found = newest(listing, self.product, self.current)
             fresh = ([] if found is None
                      else collect_notes(listing, self.product, self.current, found.version))
-        except UpdateError:
-            return  # offline or rate limited: stay quiet and try again next launch
+        except UpdateError as exc:
+            self._check_failed(str(exc))  # offline or rate limited: try again next launch
+            return
         except Exception:
-            return  # a bug reading the list: a failed check, never a dead thread's traceback
+            self._check_failed("Could not check for updates.")  # a bug reading the list
+            return
         with self._lock:
+            asked, self._asking = self._asking, False
             state = replace(self._state, last_check=self._clock(), found=found)
             if found is not None:  # the spec stores notes only when something newer exists
                 state = replace(state, notes=merge_notes(state.notes, fresh, self.current))
+                if asked and found.version == state.dismissed:
+                    state = replace(state, dismissed=None)  # the user asked: offer it again
             self._state = state
             self._save()
-            if not self.enabled:
+            self._report = CheckReport(UP_TO_DATE) if found is None else CheckReport()
+            if asked:
+                self._asked = True
+            if not (self.enabled or self._asked):
                 return  # turned off while the check was in flight: never re-show
             current = self._snapshot
             if current.status in (IDLE, AVAILABLE):

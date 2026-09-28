@@ -332,3 +332,67 @@ def test_screensaver_run_counter_is_saved(tmp_path):
         assert u.start_whats_new() is not None
         u.count_whats_new_run()
     assert make(tmp_path, Fetch(listing())).start_whats_new() is None
+
+
+from labyrinth_update.updater import (CHECK_FAILED, CHECKING, UP_TO_DATE,  # noqa: E402
+                                      CheckReport)
+
+
+def asked(u):
+    u.check_now()
+    u.wait(5)
+    return u.snapshot
+
+
+def test_check_now_works_with_weekly_checks_off(tmp_path):
+    fetch = Fetch(listing("1.2.0"))
+    u = make(tmp_path, fetch, enabled=False)
+    assert asked(u).status == AVAILABLE and fetch.calls == 1
+
+
+def test_check_now_reports_up_to_date(tmp_path):
+    u = make(tmp_path, Fetch(listing("1.1.0")))
+    asked(u)
+    assert u.check_report == CheckReport(UP_TO_DATE)
+
+
+def test_only_check_now_reports_failures(tmp_path):
+    u = make(tmp_path, Fetch(UpdateError("Could not reach the update server.")))
+    checked(u)
+    assert u.check_report == CheckReport()
+    asked(u)
+    assert u.check_report == CheckReport(CHECK_FAILED, "Could not reach the update server.")
+
+
+def test_check_now_offers_a_dismissed_version_again(tmp_path):
+    u = make(tmp_path, Fetch(listing("1.2.0")))
+    checked(u)
+    u.dismiss()
+    assert asked(u).status == AVAILABLE and u._state.dismissed is None
+
+
+def test_check_now_joins_a_check_in_flight(tmp_path):
+    fetch = BlockingFetch(listing("1.1.0"))
+    u = make(tmp_path, fetch)
+    u.check()
+    assert fetch.started.wait(5)
+    u.check_now()
+    assert u.check_report.status == CHECKING
+    fetch.release_event.set()
+    u.wait(5)
+    assert fetch.calls == 1 and u.check_report.status == UP_TO_DATE
+
+
+def test_check_now_preserves_run_state_fields(tmp_path):
+    """A check that finds something newer must be a read-modify-write of the whole state:
+    last_run_version, whats_new_runs and dismissed set before the check must still be in the
+    saved update.json afterward, alongside the newly found release and notes."""
+    save(tmp_path / "update.json",
+         UpdateState(last_run_version="1.0.0", whats_new_runs=2, dismissed="0.9.0"))
+    u = make(tmp_path, Fetch(listing("1.2.0")))
+    asked(u)
+    data = json.loads((tmp_path / "update.json").read_text(encoding="utf-8"))
+    assert data["last_run_version"] == "1.0.0"
+    assert data["whats_new_runs"] == 2
+    assert data["dismissed"] == "0.9.0"
+    assert data["found"]["version"] == "1.2.0"
