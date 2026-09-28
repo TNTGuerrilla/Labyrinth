@@ -83,6 +83,17 @@ def test_update_row_reports_checks():
         "Version 1.2.0 is available.", True, True)
 
 
+def test_update_row_keeps_buttons_while_a_later_check_runs():
+    # An offer already on the snapshot keeps its Update and Dismiss buttons while an
+    # automatic or forced check is in flight; only the status text says "Checking...".
+    assert update_row(Snapshot(AVAILABLE, REL), "1.0.1", CheckReport(CHECKING)) == (
+        "Checking...", True, True)
+    assert update_row(Snapshot(FAILED, REL, message="Offline."), "1.0.1",
+                      CheckReport(CHECKING)) == ("Checking...", True, True)
+    assert update_row(Snapshot(), "1.0.1", CheckReport(CHECKING)) == (
+        "Checking...", False, False)
+
+
 def test_note_segments():
     lines = [NoteLine(HEADING, "New"), NoteLine(ITEM, "Faster"), NoteLine(BLANK),
              NoteLine(TEXT, "Thanks")]

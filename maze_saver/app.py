@@ -211,7 +211,7 @@ def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Option
         pygame.display.init()
         pygame.font.init()
         rng = random.Random()
-        section_clock = SectionClock(time.monotonic()) if whats_new is not None else None
+        section_clock: Optional[SectionClock] = None
         showing = whats_new is not None
 
         def seen() -> None:
@@ -221,8 +221,13 @@ def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Option
 
         def attach(target: Stage) -> None:
             # A rebuild (monitor change) makes new boards: give the new primary board the
-            # same split, and keep the clock so the minute is not restarted.
+            # same split, and keep the clock so the minute is not restarted. The clock starts
+            # here, just before the first frame, so a slow window open does not eat into the
+            # minute (it would otherwise show 59 first).
+            nonlocal section_clock
             if showing and target.slots:
+                if section_clock is None:
+                    section_clock = SectionClock(time.monotonic())
                 size = target.slots[target.primary].renderer.surface.get_size()
                 target.show_section(WhatsNewSection(whats_new.title, whats_new.lines,
                                                     section_clock, size), seen)

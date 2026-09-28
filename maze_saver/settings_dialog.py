@@ -62,7 +62,8 @@ def update_row(snapshot: Snapshot, current: str,
         return (f"Updated to version {version}. It runs the next time the screensaver starts.",
                 False, False)
     if report.status == CHECKING:
-        return "Checking...", False, False
+        can = snapshot.status in (AVAILABLE, FAILED)
+        return "Checking...", can, can
     if snapshot.status == FAILED:
         return snapshot.message, True, True
     if snapshot.status == AVAILABLE:
