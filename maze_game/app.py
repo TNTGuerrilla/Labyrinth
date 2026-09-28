@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 import random
 import time
+import webbrowser
 from dataclasses import replace
 from pathlib import Path
 from typing import Optional, Union
@@ -12,8 +13,10 @@ import pygame
 
 from maze_saver.icon import load_icon
 from maze_saver.maze import E, N, S, W
+from labyrinth_update.info import LICENSE_URL, REPO_URL, status_text
 from labyrinth_update.install import install_game, relaunch
 from labyrinth_update.updater import AVAILABLE, DOWNLOADING, FAILED, READY, Updater
+from labyrinth_update.version import running_version
 
 from . import benchmark, config, difficulty
 from .assist import route
@@ -24,7 +27,7 @@ from .keymap import Keymap
 from .round import Phase, Round
 from .steering import AutoSteer, KeyboardSteer, PathSteer, dash_path, is_reverse, steer_toward
 from .ui.custom_dialog import CustomDialog
-from .ui.settings_model import SettingsModel
+from .ui.settings_model import InfoState, SettingsModel
 from .ui.settings_panel import SettingsPanel
 from .ui.toolbar import TOOLBAR_H, Toolbar, ToolbarState
 from .ui.whats_new_dialog import WhatsNewDialog
@@ -32,6 +35,8 @@ from .ui.widgets import draw_progress
 from .ui.win_screen import WinScreen
 
 TITLE = "Labyrinth"
+open_browser = webbrowser.open  # the default browser; tests replace it
+LINKS = {"github": REPO_URL, "license": LICENSE_URL}
 START_SIZE = (1280, 720)
 MIN_SIZE = (960, 540)
 FPS_CAP = 120
@@ -87,6 +92,7 @@ class Game:
         self.keymap = keymap
         self.config_path = config_path
         self.updater = updater
+        self.version = updater.current if updater is not None else (running_version("game") or "")
         self.rng = random.Random()
         self.window = pygame.Window(TITLE, START_SIZE, resizable=True)
         icon = load_icon()
@@ -225,6 +231,14 @@ class Game:
             return
         target = u.target
         u.install(lambda release, progress: install_game(release, target, progress))
+
+    def _info_state(self) -> InfoState:
+        u = self.updater
+        if u is None:
+            return InfoState(self.version)
+        snap = u.snapshot
+        return InfoState(self.version, True, status_text(snap, u.check_report),
+                         snap.status in (AVAILABLE, FAILED))
 
     def _update_fields(self) -> dict:
         """The toolbar's update button for the updater's current state."""
@@ -427,6 +441,8 @@ class Game:
         mouse = pygame.mouse.get_pos() if self.dialog is None else (-1, -1)
         self.toolbar.draw(self.screen, self.keymap, state, mouse)
         if self.dialog is not None:
+            if isinstance(self.dialog, SettingsPanel):
+                self.dialog.model.set_info(self._info_state())
             self.dialog.draw(self.screen)
         self.window.flip()
 
@@ -485,7 +501,7 @@ class Game:
             self.updater.check(force=True)
         pr = self.play_rect
         model = SettingsModel(self.settings, self.keymap, difficulty.ceiling(pr.w, pr.h),
-                              (pr.w, pr.h))
+                              (pr.w, pr.h), info=self._info_state())
         self._open_dialog(SettingsPanel(model))
 
     def _dialog_key(self, name: str) -> None:
@@ -529,6 +545,20 @@ class Game:
                 d.model.draft = replace(d.model.draft, bench_size=s.bench_size,
                                         bench_rate=s.bench_rate,
                                         bench_resolution=s.bench_resolution)
+        elif outcome in LINKS:
+            open_browser(LINKS[outcome])
+        elif outcome == "check_now":
+            if self.updater is not None:
+                self.updater.check_now()
+        elif outcome == "update":
+            self._start_update()  # progress shows in the status line and on the toolbar
+        elif outcome == "whats_new":
+            if self.updater is not None:
+                shown = self.updater.running_whats_new()
+                below = self.dialog
+                self._open_dialog(WhatsNewDialog(f"Labyrinth updated to {shown.version}",
+                                                 shown.lines()))
+                self._dialog_below = below  # Esc or OK returns to Settings
 
     # --- benchmark --------------------------------------------------------------
 

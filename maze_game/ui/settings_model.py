@@ -7,13 +7,16 @@ from typing import Optional
 from ..config import GameSettings
 from ..difficulty import DIFFICULTIES, LABELS as DIFFICULTY_LABELS, MIN_CUSTOM, PRESETS
 from ..keymap import LABELS as ACTION_LABELS, SLOTS, Keymap, key_label
+from labyrinth_update.info import COPYRIGHT, LICENSE_TEXT, REPO_TEXT, SOURCE_ONLY
 
-TABS = ("Gameplay", "Difficulty", "Controls")
+TABS = ("Gameplay", "Difficulty", "Controls", "Info")
+UNSELECTABLE = ("header", "info")
+LINK_TEXT = {"github": REPO_TEXT, "license": LICENSE_TEXT}
 
 
 @dataclass(frozen=True)
 class Row:
-    kind: str  # "header", "bool", "choice", "number", "key" or "button"
+    kind: str  # "header", "bool", "choice", "number", "key", "button", "info" or "link"
     label: str
     name: str  # settings field, action (key rows) or button id
     lo: float = 0
@@ -21,6 +24,15 @@ class Row:
     step: float = 1
     choices: tuple = ()  # (value, label) pairs for "choice"
     slot: int = 0  # key slot for "key" rows
+
+
+@dataclass(frozen=True)
+class InfoState:
+    """What the Info tab shows; the game refreshes it every frame from its updater."""
+    version: str = ""  # "" when unknown
+    updates: bool = False  # an updater exists (a released build)
+    status: str = ""  # the line beside Check now (labyrinth_update.info.status_text)
+    can_update: bool = False  # an update is on offer (available, or failed and retryable)
 
 
 def header(title: str) -> Row:
@@ -45,8 +57,6 @@ GAMEPLAY_ROWS = (
     Row("number", "Auto-solve speed (steps/s)", "solve_speed", 2, 500, 2),
     Row("number", "Solver look-ahead (cells)", "lookahead", 0, 12, 1),
     Row("number", "Hint length (cells)", "hint_length", 2, 40, 1),
-    header("Updates"),
-    Row("bool", "Check for updates weekly", "check_updates"),
 )
 CONTROL_GROUPS = (
     ("Movement", ("up", "left", "down", "right")),
@@ -68,7 +78,7 @@ def difficulty_label(d: str) -> str:
 
 class SettingsModel:
     def __init__(self, settings: GameSettings, keymap: Keymap, ceiling: int,
-                 resolution: tuple[int, int]):
+                 resolution: tuple[int, int], info: InfoState = InfoState()):
         self.draft = settings
         self.keys = keymap.copy()
         self.ceiling = ceiling
@@ -78,6 +88,7 @@ class SettingsModel:
         self.capturing = False
         self.pending_swap: Optional[str] = None
         self.message = ""
+        self.info = info
         self.select(0)
 
     def rows(self) -> list[Row]:
@@ -96,13 +107,45 @@ class SettingsModel:
                 header("Performance"),
                 Row("button", "Run benchmark", "benchmark"),
             )
-        rows = []
-        for title, actions in CONTROL_GROUPS:
-            rows.append(header(title))
-            rows.extend(Row("key", ACTION_LABELS[a] + (" (alt)" if s else ""), a, slot=s)
-                        for a in actions for s in range(SLOTS[a]))
-        rows.append(Row("button", "Reset to defaults", "reset_keys"))
+        if self.tab == 2:
+            rows = []
+            for title, actions in CONTROL_GROUPS:
+                rows.append(header(title))
+                rows.extend(Row("key", ACTION_LABELS[a] + (" (alt)" if s else ""), a, slot=s)
+                            for a in actions for s in range(SLOTS[a]))
+            rows.append(Row("button", "Reset to defaults", "reset_keys"))
+            return tuple(rows)
+        return self._info_rows()
+
+    def _info_rows(self) -> tuple:
+        i = self.info
+        rows = [Row("info", f"Labyrinth {i.version}".rstrip(), "version"),
+                Row("info", COPYRIGHT, "copyright"),
+                Row("link", "GitHub", "github"),
+                Row("link", "License", "license"),
+                header("Updates"),
+                Row("bool", "Check for updates weekly", "check_updates")]
+        if not i.updates:
+            rows.append(Row("info", SOURCE_ONLY, "source_only"))
+            return tuple(rows)
+        rows.append(Row("button", "Check now", "check_now"))
+        if i.can_update:
+            rows.append(Row("button", "Update", "update"))
+        rows.append(Row("button", "What's new", "whats_new"))
         return tuple(rows)
+
+    def set_info(self, info: InfoState) -> None:
+        """New Info content. Rows can appear (Update), so the selection follows its row."""
+        if info == self.info:
+            return
+        selected = self.selected
+        self.info = info
+        rows = self.rows()
+        index = next((i for i, r in enumerate(rows) if r == selected),
+                     min(self.index, len(rows) - 1))
+        capturing = self.capturing
+        self.select(index)
+        self.capturing = capturing
 
     @property
     def selected(self) -> Row:
@@ -128,15 +171,19 @@ class SettingsModel:
                 return "Press a key..."
             keys = self.keys.keys_for(row.name)
             return key_label(keys[row.slot]) if row.slot < len(keys) else "(none)"
+        if row.kind == "link":
+            return LINK_TEXT[row.name]
+        if row.name == "check_now":
+            return self.info.status
         if row.name == "benchmark":
             return self.bench_text()
         return ""
 
     def select(self, index: int, direction: int = 1) -> None:
-        """Select a row, stepping past section headers in `direction`."""
+        """Select a row, stepping past section headers and info lines in `direction`."""
         rows = self.rows()
         index %= len(rows)
-        while rows[index].kind == "header":
+        while rows[index].kind in UNSELECTABLE:
             index = (index + direction) % len(rows)
         self.index = index
         self.capturing = False
@@ -173,6 +220,8 @@ class SettingsModel:
             if row.name == "reset_keys":
                 self.keys = Keymap()
                 return None
+            return row.name
+        elif row.kind == "link":
             return row.name
         return None
 

@@ -6,8 +6,8 @@ from typing import Optional
 import pygame
 
 from .settings_model import TABS, SettingsModel
-from .widgets import (BORDER, HILITE, MUTED, WARN, Hits, button_rect, dim, draw_button,
-                      draw_panel, text)
+from .widgets import (BORDER, HILITE, LINK, MUTED, TEXT, WARN, Hits, button_rect, dim,
+                      draw_button, draw_panel, text)
 
 ROW_H = 30
 VALUE_W = 220
@@ -57,6 +57,11 @@ class SettingsPanel:
                 pygame.draw.line(surface, BORDER, (label.right + 8, label.centery),
                                  (rect.right, label.centery))
                 continue
+            if row.kind == "info":
+                color = TEXT if row.name == "version" else MUTED
+                text(surface, row.label, (rect.x + 10, rect.centery), 15, color,
+                     anchor="midleft")
+                continue  # text only: no highlight and no hit area
             if i == m.index:
                 pygame.draw.rect(surface, HILITE, rect, border_radius=4)
             text(surface, row.label, (rect.x + 10, rect.centery), 15, anchor="midleft")
@@ -71,8 +76,8 @@ class SettingsPanel:
                 self.hits.add(dec, ("dec", i))
                 self.hits.add(inc, ("inc", i))
             elif value:
-                text(surface, value, (rect.right - 10, rect.centery), 15, MUTED,
-                     anchor="midright")
+                text(surface, value, (rect.right - 10, rect.centery), 15,
+                     LINK if row.kind == "link" else MUTED, anchor="midright")
             self.hits.add(rect, ("row", i))
         if m.message:
             text(surface, m.message, (box.x + 20, footer - 22), 14, WARN)

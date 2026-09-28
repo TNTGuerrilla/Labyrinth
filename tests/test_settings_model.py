@@ -13,7 +13,7 @@ def row_index(m, name):
 
 def test_every_tab_ends_with_apply_and_cancel():
     m = model()
-    for tab in range(3):
+    for tab in range(4):
         m.set_tab(tab)
         assert [row.name for row in m.rows()[-2:]] == ["apply", "cancel"]
 
@@ -35,7 +35,7 @@ def test_tab_key_cycles_tabs():
 
 def test_every_tab_is_split_into_sections():
     m = model()
-    assert headers(m) == ["Movement", "Display", "Maze growth", "Assists", "Updates"]
+    assert headers(m) == ["Movement", "Display", "Maze growth", "Assists"]
     assert names(m)[:3] == ["follow_bends", "glide_speed", "turn_pause"]
     m.set_tab(1)
     assert headers(m) == ["Maze size", "Performance"]
@@ -57,6 +57,13 @@ def test_headers_are_never_selected():
         assert m.selected.kind != "header"
     m.select(0)
     assert m.selected.kind != "header"
+    m.set_tab(3)
+    for _ in range(len(m.rows()) * 2):
+        m.handle("down")
+        assert m.selected.kind != "header" and m.selected.kind != "info"
+    for _ in range(len(m.rows()) * 2):
+        m.handle("up")
+        assert m.selected.kind != "header" and m.selected.kind != "info"
 
 
 def test_navigation_wraps():
@@ -200,7 +207,48 @@ def test_result_orders_the_custom_range_and_leaves_the_original_alone():
 
 def test_check_updates_toggles():
     m = model()
+    m.set_tab(3)
     m.select(row_index(m, "check_updates"))
     assert m.value_text(m.selected) == "On"
     m.activate()
     assert m.draft.check_updates is False
+
+
+from maze_game.ui.settings_model import InfoState  # noqa: E402
+
+
+def test_info_tab_in_a_build():
+    m = model()
+    m.set_info(InfoState("1.2.0", True, "Up to date", False))
+    m.set_tab(3)
+    assert [r.label for r in m.rows() if r.kind == "info"] == [
+        "Labyrinth 1.2.0", "© 2026 ByDesign Interactive"]
+    assert names(m) == ["version", "copyright", "github", "license", "check_updates",
+                        "check_now", "whats_new", "apply", "cancel"]
+    assert m.selected.name == "github"  # the info lines are skipped
+    rows = {r.name: r for r in m.rows()}
+    assert m.value_text(rows["github"]) == "github.com/TNTGuerrilla/Labyrinth"
+    assert m.value_text(rows["license"]) == "Licensed under Apache 2.0"
+    assert m.value_text(rows["check_now"]) == "Up to date"
+    assert m.activate() == "github"
+    m.select(row_index(m, "license"))
+    assert m.activate() == "license"
+
+
+def test_info_tab_from_source():
+    m = model()
+    m.set_tab(3)
+    labels = [r.label for r in m.rows() if r.kind == "info"]
+    assert "Updates are only available in released builds." in labels
+    assert "check_updates" in names(m)
+    assert not {"check_now", "update", "whats_new"} & set(names(m))
+
+
+def test_update_row_appears_without_moving_the_selection():
+    m = model()
+    m.set_info(InfoState("1.0.0", True))
+    m.set_tab(3)
+    m.select(row_index(m, "whats_new"))
+    m.set_info(InfoState("1.0.0", True, "Version 1.1.0 is available", True))
+    assert m.selected.name == "whats_new"
+    assert names(m).index("update") == names(m).index("check_now") + 1

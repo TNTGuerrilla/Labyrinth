@@ -659,3 +659,40 @@ def test_whats_new_scrolls_with_arrows_and_the_wheel(tmp_path):
         assert g.dialog is None
     finally:
         pygame.quit()
+
+
+def test_info_links_open_the_browser(game, monkeypatch):
+    opened = []
+    monkeypatch.setattr(game_app, "open_browser", opened.append)
+    game.do("settings")
+    game._dialog_outcome("github")
+    game._dialog_outcome("license")
+    assert opened == ["https://github.com/TNTGuerrilla/Labyrinth",
+                      "https://github.com/TNTGuerrilla/Labyrinth/blob/master/LICENSE"]
+
+
+def test_info_from_source_has_no_update_controls(game):
+    game.do("settings")
+    game.frame(1 / 60)
+    assert game.dialog.model.info.updates is False
+
+
+def test_check_now_from_info_reports_the_result(updated_game):
+    updated_game.do("settings")
+    updated_game.updater.wait(5)
+    updated_game.updater.dismiss()
+    updated_game._dialog_outcome("check_now")
+    updated_game.updater.wait(5)
+    updated_game.frame(1 / 60)
+    info = updated_game.dialog.model.info
+    assert info.status == "Version 9.0.0 is available" and info.can_update
+
+
+def test_whats_new_from_info_returns_to_settings(updated_game):
+    updated_game.do("settings")
+    panel = updated_game.dialog
+    updated_game._dialog_outcome("whats_new")
+    assert isinstance(updated_game.dialog, WhatsNewDialog)
+    assert updated_game.dialog.title == "Labyrinth updated to 1.0.0"
+    press(updated_game, pygame.K_ESCAPE)
+    assert updated_game.dialog is panel

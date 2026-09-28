@@ -72,3 +72,18 @@ def test_keyboard_calls_pass_through():
     assert p.capturing
     p.capture("h")
     assert not p.capturing and p.model.keys.keys_for("up")[0] == "h"
+
+
+from maze_game.ui.settings_model import InfoState  # noqa: E402
+
+
+def test_info_links_are_clickable_and_info_lines_are_not():
+    p = SettingsPanel(SettingsModel(GameSettings(), Keymap(), 800, (1920, 1040),
+                                    info=InfoState("1.2.0", True, "Up to date")))
+    p.model.set_tab(3)
+    p.draw(pygame.Surface((1280, 720)))
+    rows = p.model.rows()
+    github = next(i for i, row in enumerate(rows) if row.name == "github")
+    version = next(i for i, row in enumerate(rows) if row.name == "version")
+    assert p.hits.rect_for(("row", version)) is None
+    assert p.click(p.hits.rect_for(("row", github)).center) == "github"
