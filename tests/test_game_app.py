@@ -558,3 +558,52 @@ def test_turning_checks_off_in_settings_hides_the_button(updated_game):
     updated_game._dialog_outcome("apply")
     updated_game.frame(1 / 60)
     assert updated_game.toolbar.hits.rect_for("update") is None
+
+
+def test_opening_settings_checks_for_updates(tmp_path):
+    pygame.init()
+    try:
+        # Create a counting fetch function
+        fetch_count = [0]
+        def counting_fetch():
+            fetch_count[0] += 1
+            return UPDATE_LIST
+
+        # Use a fixed clock so the weekly check is not due
+        fixed_clock = lambda: 1000.0
+
+        # Create updater with counting fetch and fixed clock
+        u = Updater(GAME_WINDOWS, "1.0.0", tmp_path / "update.json", True,
+                    fetch=counting_fetch, clock=fixed_clock,
+                    target=tmp_path / "Labyrinth.exe")
+
+        # Create game with the updater
+        g = Game(GameSettings(animated=False), Keymap(), tmp_path / "config.json", updater=u)
+
+        # Initially, no fetch has happened (check not due without force)
+        assert fetch_count[0] == 0
+
+        # Opening settings should trigger a check
+        g.do("settings")
+        u.wait(5)
+        g.frame(1 / 60)
+
+        # Fetch should have been called once
+        assert fetch_count[0] == 1
+
+        # Close the dialog
+        g._close_dialog()
+
+        # Now test with disabled updater
+        g.updater.set_enabled(False)
+        fetch_count[0] = 0
+
+        # Opening settings with disabled updater should not fetch
+        g.do("settings")
+        u.wait(5)
+        g.frame(1 / 60)
+
+        # Fetch should not have been called
+        assert fetch_count[0] == 0
+    finally:
+        pygame.quit()

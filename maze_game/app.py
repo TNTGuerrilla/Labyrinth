@@ -466,6 +466,8 @@ class Game:
                                        (pr.w, pr.h)))
 
     def _open_settings(self) -> None:
+        if self.updater is not None:
+            self.updater.check(force=True)
         pr = self.play_rect
         model = SettingsModel(self.settings, self.keymap, difficulty.ceiling(pr.w, pr.h),
                               (pr.w, pr.h))
