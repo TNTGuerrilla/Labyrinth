@@ -168,8 +168,8 @@ def test_screensaver_in_a_writable_folder_swaps_directly(serve, tmp_path):
     assert list(staging.iterdir()) == []
 
 
-def test_screensaver_in_a_protected_folder_elevates_the_new_program(serve, tmp_path,
-                                                                    monkeypatch):
+def test_screensaver_in_a_protected_folder_elevates_the_installed_program(serve, tmp_path,
+                                                                          monkeypatch):
     body = b"new scr"
     server = serve({"/Labyrinth.scr": body})
     target = program(tmp_path, "Labyrinth.scr")
@@ -184,7 +184,7 @@ def test_screensaver_in_a_protected_folder_elevates_the_new_program(serve, tmp_p
     install_screensaver(Release("2.0.0", server.url("/Labyrinth.scr"), sha(body)), target,
                         staging, elevate=elevate)
     program_path, args = calls[0]
-    assert program_path == staging / STAGED_NAME
+    assert program_path == target
     assert args == [APPLY_FLAG, str(staging / STAGED_NAME), str(target), sha(body)]
     assert target.read_bytes() == body
     assert not (staging / STAGED_NAME).exists()
@@ -220,6 +220,11 @@ def test_apply_update_rejects_a_changed_file(tmp_path):
     target = program(tmp_path, "Labyrinth.scr")
     assert apply_update(staged, target, sha(b"expected")) == 2
     assert target.read_bytes() == b"old"
+    assert not (tmp_path / "Labyrinth.scr.new").exists()
+
+
+def test_staged_download_is_not_an_executable_name():
+    assert STAGED_NAME == "Labyrinth.scr.download"
 
 
 def test_apply_update_only_replaces_screensavers(tmp_path):
@@ -250,3 +255,19 @@ def test_screensaver_main_runs_the_apply_step(tmp_path):
         main([APPLY_FLAG, str(staged), str(target), sha(b"new")])
     assert exit_info.value.code == 0
     assert target.read_bytes() == b"new"
+
+
+def test_apply_update_hashes_the_copy_in_the_target_folder(tmp_path, monkeypatch):
+    staged = program(tmp_path, "staged.exe", b"new")
+    target = program(tmp_path, "Labyrinth.scr")
+    hashed = []
+    real = install.file_sha256
+
+    def spy(path):
+        hashed.append(Path(path))
+        return real(path)
+
+    monkeypatch.setattr(install, "file_sha256", spy)
+    assert apply_update(staged, target, sha(b"new")) == 0
+    assert hashed == [new_path(target)]
+    assert target.read_bytes() == b"new" and not new_path(target).exists()

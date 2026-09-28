@@ -16,9 +16,9 @@ from .releases import Release
 
 MAX_OLD = 10
 LINUX_BINARY = "Labyrinth"
-# The UAC prompt shows this name. It is an .exe so Windows runs it whatever program has
-# claimed the .scr file type.
-STAGED_NAME = "Labyrinth Screensaver Update.exe"
+# The download waits here while the installed screensaver asks for administrator rights.
+# It is never run, so it does not carry a program's file name.
+STAGED_NAME = "Labyrinth.scr.download"
 WINDOWS = sys.platform == "win32"
 
 Elevate = Callable[[Path, Sequence[str]], int]
@@ -143,8 +143,9 @@ def install_screensaver(release: Release, target: Path, staging: Path,
                         on_progress: Optional[Progress] = None,
                         elevate: Optional[Elevate] = None) -> None:
     """Download and verify a new screensaver, then swap it in: directly when its folder is
-    writable, otherwise by running the new program through the UAC prompt with APPLY_FLAG.
-    Raises UpdateError."""
+    writable, otherwise by running the installed screensaver (target) through the UAC prompt
+    with APPLY_FLAG. The download sits in a folder the user can write to, so it is never the
+    program that gets administrator rights. Raises UpdateError."""
     staged = staging / STAGED_NAME
     try:
         staging.mkdir(parents=True, exist_ok=True)
@@ -154,7 +155,7 @@ def install_screensaver(release: Release, target: Path, staging: Path,
             return
         if elevate is None:
             from .elevate import run_elevated as elevate
-        code = elevate(staged, [APPLY_FLAG, str(staged), str(target), release.sha256])
+        code = elevate(target, [APPLY_FLAG, str(staged), str(target), release.sha256])
         if code != 0:
             raise UpdateError("The update could not be installed.")
     except OSError as exc:
@@ -164,16 +165,20 @@ def install_screensaver(release: Release, target: Path, staging: Path,
 
 
 def apply_update(staged: Path, target: Path, sha256: str) -> int:
-    """The elevated half of a screensaver update. The staged file sat in a folder the user
-    can write to, so it is checked again before it replaces a file in a protected one.
-    Returns a process exit code."""
+    """The elevated half of a screensaver update. The staged file sits in a folder the user
+    can write to, so it is copied into the protected folder first and that copy is checked
+    before it replaces target. Returns a process exit code."""
     if target.suffix.lower() != ".scr":
         return 3
+    new = new_path(target)
     try:
-        if file_sha256(staged) != sha256.lower():
+        shutil.copyfile(staged, new)
+        if file_sha256(new) != sha256.lower():
+            _remove(new)
             return 2
-        install_file(staged, target)
+        swap(target, new)
     except OSError:
+        _remove(new)
         return 1
     from .elevate import schedule_delete_at_reboot
     for leftover in cleanup_old(target):
