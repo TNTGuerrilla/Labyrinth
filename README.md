@@ -1,8 +1,24 @@
 # Maze Game
 
-Guide a dot from the green start to the red finish through procedurally grown pipe mazes. Each maze grows in front of you (or appears instantly), and if you get stuck, Hint lights up the next few cells and Auto-solve takes over from wherever you are. The same mazes also come as a Windows screensaver add-on and as a Google TV screensaver.
+Procedurally grown pipe mazes in three forms: a playable game for Windows, a Windows screensaver, and a Google TV screensaver. Each maze is carved live by one or more snake-like leads (up to 12 by default), each in its own color, that race across the screen and weld their regions together into a single perfect maze with exactly one route between any two cells. In the screensavers, a solver then traces that route the way a person would with a finger: it looks a few cells ahead, sometimes takes a wrong turn, backs out of dead ends, and leaves a bright trail behind its gliding dot. The game and the Windows screensaver are Python and pygame; the TV version is a Kotlin port that runs as a native Android screensaver.
+
+## Contents
+
+- [Play](#play)
+  - [Difficulty](#difficulty)
+- [Add the screensaver](#add-the-screensaver)
+- [Google TV screensaver](#google-tv-screensaver)
+  - [1. Turn on debugging on the TV](#1-turn-on-debugging-on-the-tv)
+  - [2. Connect and install](#2-connect-and-install)
+  - [3. Make it the screensaver](#3-make-it-the-screensaver)
+  - [Updating and cleanup](#updating-and-cleanup)
+  - [Tests](#tests)
+- [Develop](#develop)
+- [Build](#build)
 
 ## Play
+
+Guide a dot from the green start to the red finish. Each maze grows in front of you (or appears instantly), and if you get stuck, Hint lights up the next few cells and Auto-solve takes over from wherever you are.
 
 Run `MazeGame.exe`. Hold a direction to glide; the dot follows corridor bends on its own and stops at forks and dead ends. Walking back over your trail dims it, so the bright line is always your route from the start.
 
@@ -99,7 +115,7 @@ Once it is set up, USB debugging can be turned off; the screensaver keeps workin
 
 To go back to Google's Ambient mode, run `& $adb shell settings delete secure screensaver_components`, then uninstall Maze Screensaver from the TV if you no longer want it.
 
-### Develop
+### Tests
 
 Unit tests for the Kotlin port (maze generation, solver, board cycle, settings) run on the PC: `.\gradlew.bat testDebugUnitTest` in `android/`.
 
