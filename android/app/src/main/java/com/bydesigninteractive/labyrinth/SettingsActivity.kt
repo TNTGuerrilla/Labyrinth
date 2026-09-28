@@ -28,6 +28,7 @@ import com.bydesigninteractive.labyrinth.update.Release
 import com.bydesigninteractive.labyrinth.update.UpdateFailure
 import com.bydesigninteractive.labyrinth.update.UpdateStore
 import com.bydesigninteractive.labyrinth.update.Updates
+import com.bydesigninteractive.labyrinth.update.WhatsNew
 import com.bydesigninteractive.labyrinth.update.visibleUpdate
 import java.io.IOException
 import java.net.Inet4Address
@@ -42,16 +43,25 @@ private val ACCENT = Color.rgb(60, 220, 90)
 private val CODE_BACKGROUND = Color.rgb(30, 34, 42)
 
 private const val GUIDE_URL = "github.com/TNTGuerrilla/Labyrinth"
+private const val COPYRIGHT = "\u00a9 2026 ByDesign Interactive"
+private const val LICENSE_TEXT = "Licensed under Apache 2.0"
+private const val LICENSE_ADDRESS = "github.com/TNTGuerrilla/Labyrinth/blob/master/LICENSE"
 
 class SettingsActivity : Activity() {
     private lateinit var settings: Settings
     private val valueViews = HashMap<Field, TextView>()
+    private lateinit var column: LinearLayout
     private lateinit var help: LinearLayout
+    private var notesBlock: LinearLayout? = null
     private lateinit var updateStatus: TextView
     private lateinit var updateButton: TextView
     private lateinit var dismissButton: TextView
     private lateinit var checkToggle: TextView
     private var offered: Release? = null
+    // Check now found this and it stays on offer for the rest of the session, even if weekly
+    // checks are off and later automatic checks answer null without asking the network.
+    private var sessionOffer: Release? = null
+    private var checkingNow = false
     private var downloading = false
     private var installing = false
     private var justShowedInstallFailure = false
@@ -60,7 +70,7 @@ class SettingsActivity : Activity() {
         super.onCreate(savedInstanceState)
         settings = SettingsStore.load(this)
 
-        val column = LinearLayout(this).apply {
+        column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(64), dp(40), dp(64), dp(40))
         }
@@ -68,6 +78,11 @@ class SettingsActivity : Activity() {
             typeface = Typeface.DEFAULT_BOLD
             setPadding(dp(16), 0, dp(16), dp(16))
         })
+        val current = Updates.currentVersion(this)
+        UpdateStore.startWhatsNew(this, current)?.let { news ->
+            showNotes(news)
+            UpdateStore.markWhatsNewSeen(this, current) // shown once: it counts as seen
+        }
         var first: View? = null
         for (field in Field.entries) {
             val row = fieldRow(field)
@@ -76,12 +91,23 @@ class SettingsActivity : Activity() {
         }
         column.addView(button("Preview screensaver") { startActivity(Intent(this, PreviewActivity::class.java)) })
         column.addView(button("Reset to defaults") { update(Settings()) })
+        column.addView(text("Info", 24f, TEXT).apply {
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(dp(16), dp(24), dp(16), dp(8))
+        })
+        column.addView(infoLine("Labyrinth ${Updates.currentVersion(this)}", TEXT))
+        column.addView(infoLine(COPYRIGHT, DIM_TEXT))
+        column.addView(infoRow("GitHub", GUIDE_URL))
+        column.addView(infoRow("License", LICENSE_TEXT))
+        column.addView(infoLine(LICENSE_ADDRESS, DIM_TEXT))
         updateStatus = text("", 17f, DIM_TEXT).apply { setPadding(dp(16), dp(16), dp(16), dp(4)) }
         column.addView(updateStatus)
         updateButton = button("Update") { startUpdate() }
         column.addView(updateButton)
         dismissButton = button("Dismiss") { dismissUpdate() }
         column.addView(dismissButton)
+        column.addView(button("Check now") { checkNow() })
+        column.addView(button("What's new") { showNotes(UpdateStore.runningWhatsNew(this, Updates.currentVersion(this)), focus = true) })
         checkToggle = button("") { toggleChecks() }
         column.addView(checkToggle)
         showUpdate(null)
@@ -114,8 +140,18 @@ class SettingsActivity : Activity() {
             // The failure message is on screen; do not overwrite it right away.
             justShowedInstallFailure = false
         } else if (!downloading) {
-            Updates.check(this, force = true) { if (!isDestroyed && !downloading) showUpdate(it) }
+            Updates.check(this, force = true, onDone = ::onAutoCheck)
         }
+    }
+
+    /**
+     * An automatic check (on resume, or after turning checks on) came back. It answers null
+     * without asking the network when weekly checks are off, in which case whatever Check now
+     * found earlier this session, if anything, stays on offer.
+     */
+    private fun onAutoCheck(release: Release?) {
+        if (isDestroyed || downloading) return
+        showUpdate(release ?: sessionOffer)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -204,6 +240,7 @@ class SettingsActivity : Activity() {
     private fun dismissUpdate() {
         val release = offered ?: return
         UpdateStore.save(this, UpdateStore.load(this).copy(dismissed = release.version))
+        if (sessionOffer?.version == release.version) sessionOffer = null
         checkToggle.requestFocus()
         showUpdate(null)
     }
@@ -211,8 +248,61 @@ class SettingsActivity : Activity() {
     private fun toggleChecks() {
         val enabled = !UpdateStore.enabled(this)
         UpdateStore.setEnabled(this, enabled)
-        showUpdate(null)
-        if (enabled) Updates.check(this, force = true) { if (!isDestroyed && !downloading) showUpdate(it) }
+        showUpdate(sessionOffer)
+        if (enabled) Updates.check(this, force = true, onDone = ::onAutoCheck)
+    }
+
+    /** The user selected Check now: asks GitHub even with checks off, once at a time. */
+    private fun checkNow() {
+        if (downloading || installing || checkingNow) return
+        checkingNow = true
+        updateStatus.text = "Checking..."
+        Updates.checkNow(this) { outcome ->
+            checkingNow = false
+            if (isDestroyed || downloading) return@checkNow
+            when (outcome) {
+                is Updates.CheckOutcome.Available -> {
+                    sessionOffer = outcome.release
+                    showUpdate(outcome.release)
+                }
+                Updates.CheckOutcome.UpToDate -> {
+                    sessionOffer = null
+                    showUpdate(null, "Up to date")
+                }
+                is Updates.CheckOutcome.Failed -> showUpdate(offered, outcome.message)
+            }
+        }
+    }
+
+    private fun infoLine(value: String, color: Int) =
+        text(value, 17f, color).apply { setPadding(dp(16), dp(2), dp(16), dp(2)) }
+
+    private fun infoRow(label: String, value: String) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        setPadding(dp(16), dp(2), dp(16), dp(2))
+        addView(text(label, 17f, TEXT), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        addView(text(value, 17f, DIM_TEXT))
+    }
+
+    /** The "Updated to X.Y.Z" block under the title: after an update, or from What's new. */
+    private fun showNotes(news: WhatsNew, focus: Boolean = false) {
+        notesBlock?.let { column.removeView(it) }
+        val block = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(16))
+            isFocusable = true // a ScrollView only follows focus
+            background = focusBackground()
+        }
+        block.addView(text("Updated to ${news.version}", 22f, TEXT).apply {
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(0, 0, 0, dp(8))
+        })
+        val notes = text("", 16f, DIM_TEXT)
+        notes.text = styledNotes(news.lines(), notes.paint)
+        block.addView(notes)
+        column.addView(block, 1) // index 0 is the title
+        notesBlock = block
+        if (focus) block.requestFocus()
     }
 
     private fun fieldRow(field: Field): LinearLayout {
