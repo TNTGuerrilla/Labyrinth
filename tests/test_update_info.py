@@ -19,4 +19,4 @@ def test_status_text():
 
 
 def test_copyright_uses_the_sign():
-    assert COPYRIGHT == "© 2026 ByDesign Interactive"
+    assert COPYRIGHT == "\u00a9 2026 ByDesign Interactive"

@@ -383,6 +383,19 @@ def test_check_now_joins_a_check_in_flight(tmp_path):
     assert fetch.calls == 1 and u.check_report.status == UP_TO_DATE
 
 
+def test_check_now_after_a_check_finishes_starts_a_new_check(tmp_path):
+    """A finished check must leave `_checking` clear so a later Check now is not mistaken
+    for one still in flight (the bug this guards against used `is_alive()`, which can still
+    read True for a moment after the worker leaves its last locked block)."""
+    fetch = Fetch(listing("1.1.0"))
+    u = make(tmp_path, fetch)
+    checked(u)
+    assert fetch.calls == 1
+    u.check_now()
+    u.wait(5)
+    assert fetch.calls == 2 and u.check_report == CheckReport(UP_TO_DATE)
+
+
 def test_check_now_preserves_run_state_fields(tmp_path):
     """A check that finds something newer must be a read-modify-write of the whole state:
     last_run_version, whats_new_runs and dismissed set before the check must still be in the
@@ -396,3 +409,15 @@ def test_check_now_preserves_run_state_fields(tmp_path):
     assert data["whats_new_runs"] == 2
     assert data["dismissed"] == "0.9.0"
     assert data["found"]["version"] == "1.2.0"
+
+
+def test_automatic_force_check_stays_off_after_check_now_with_weekly_checks_off(tmp_path):
+    """Weekly checks off means automatic checks, forced or not, must never reach the
+    network; only the user's own Check now may do that."""
+    fetch = Fetch(listing("1.2.0"))
+    u = make(tmp_path, fetch, enabled=False)
+    asked(u)
+    assert fetch.calls == 1
+    u.check(force=True)
+    u.wait(5)
+    assert fetch.calls == 1

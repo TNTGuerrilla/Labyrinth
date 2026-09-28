@@ -60,6 +60,7 @@ class Updater:
         self._state = state_file.load(state_path)
         self._asked = False  # Check now ran this session: offer even with weekly checks off
         self._asking = False  # a Check now waits for the check in flight to report
+        self._checking = False  # a check thread is running, set and cleared under the lock
         self._report = CheckReport()
         self._snapshot = self._offer()
 
@@ -84,11 +85,9 @@ class Updater:
 
     def _start_check(self) -> None:
         self._report = CheckReport(CHECKING)
+        self._checking = True
         self._check_thread = threading.Thread(target=self._check, daemon=True)
         self._check_thread.start()
-
-    def _check_busy(self) -> bool:
-        return self._check_thread is not None and self._check_thread.is_alive()
 
     def _install_busy(self) -> bool:
         return self._install_thread is not None and self._install_thread.is_alive()
@@ -104,7 +103,7 @@ class Updater:
         (a settings screen was opened). A running install is left alone; a click on Update
         must not be dropped just because a check is also in flight."""
         with self._lock:
-            if not self.enabled or self._check_busy() or self._install_busy():
+            if not self.enabled or self._checking or self._install_busy():
                 return
             if not force and not state_file.is_due(self._state, self._clock()):
                 return
@@ -118,13 +117,14 @@ class Updater:
                 return
             self._asking = True
             self._report = CheckReport(CHECKING)
-            if self._check_busy():
+            if self._checking:
                 return  # the check in flight reports to this request when it ends
             self._start_check()
 
     def _check_failed(self, message: str) -> None:
         with self._lock:
             asked, self._asking = self._asking, False
+            self._checking = False
             # Automatic checks fail silently; only the user's own request hears about it.
             self._report = CheckReport(CHECK_FAILED, message) if asked else CheckReport()
 
@@ -142,6 +142,7 @@ class Updater:
             return
         with self._lock:
             asked, self._asking = self._asking, False
+            self._checking = False
             state = replace(self._state, last_check=self._clock(), found=found)
             if found is not None:  # the spec stores notes only when something newer exists
                 state = replace(state, notes=merge_notes(state.notes, fresh, self.current))

@@ -8,7 +8,7 @@ REPO_TEXT = "github.com/TNTGuerrilla/Labyrinth"
 REPO_URL = "https://github.com/TNTGuerrilla/Labyrinth"
 LICENSE_TEXT = "Licensed under Apache 2.0"
 LICENSE_URL = "https://github.com/TNTGuerrilla/Labyrinth/blob/master/LICENSE"
-COPYRIGHT = "© 2026 ByDesign Interactive"
+COPYRIGHT = "\u00a9 2026 ByDesign Interactive"
 SOURCE_ONLY = "Updates are only available in released builds."
 
 
