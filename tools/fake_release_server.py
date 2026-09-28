@@ -1,13 +1,13 @@
 """Serves a fake GitHub releases list, for trying the in-app updater without publishing.
 
     .venv\\Scripts\\python tools\\fake_release_server.py --release labyrinth-v9.9.9=new\\Labyrinth.exe
-    --notes "labyrinth-v9.9.9=## New\n- Faster"
+    --notes "labyrinth-v9.9.9=## New\\n- Faster"
 
 Then start a build with LABYRINTH_UPDATE_URL=http://127.0.0.1:8765/releases. Debug builds of
 the TV app already look at http://10.0.2.2:8765/releases, which is this PC as the Android
 emulator sees it. The download links in the list use the host each client asked for (its
 Host header), so they work from this PC and from the emulator alike. The --notes option sets
-a release's notes (\n is a line break).
+a release's notes (\\n is a line break).
 """
 from __future__ import annotations
 
