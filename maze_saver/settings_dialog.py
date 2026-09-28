@@ -1,13 +1,18 @@
 """The Settings dialog Windows opens with /c. tkinter, loaded only in this mode."""
 from __future__ import annotations
 
+import webbrowser
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
-from labyrinth_update.updater import AVAILABLE, DOWNLOADING, FAILED, READY, Snapshot
+from labyrinth_update.notes import BLANK, BULLET, HEADING, ITEM, NoteLine
+from labyrinth_update.updater import (AVAILABLE, CHECK_FAILED, CHECKING, DOWNLOADING, FAILED,
+                                      READY, UP_TO_DATE, CheckReport, Snapshot)
 
 from .config import NUMERIC_RANGES, FpsCap, Settings, from_dict, load, save
 from .icon import ICON_PATH
+
+open_browser = webbrowser.open
 
 FIELDS = [
     ("min_cells", "Minimum rows/columns"),
@@ -47,24 +52,55 @@ def _fmt(value: float) -> str:
     return str(int(value)) if float(value).is_integer() else str(value)
 
 
-def update_row(snapshot: Snapshot, current: str) -> tuple[str, bool, bool]:
+def update_row(snapshot: Snapshot, current: str,
+               report: CheckReport = CheckReport()) -> tuple[str, bool, bool]:
     """(message, show Update, show Dismiss) for the dialog's update row."""
     version = snapshot.release.version if snapshot.release is not None else ""
-    if snapshot.status == AVAILABLE:
-        return f"Version {version} is available.", True, True
     if snapshot.status == DOWNLOADING:
         return f"Downloading version {version}: {int(snapshot.progress * 100)}%", False, False
     if snapshot.status == READY:
         return (f"Updated to version {version}. It runs the next time the screensaver starts.",
                 False, False)
+    if report.status == CHECKING:
+        return "Checking...", False, False
     if snapshot.status == FAILED:
         return snapshot.message, True, True
+    if snapshot.status == AVAILABLE:
+        return f"Version {version} is available.", True, True
+    if report.status == CHECK_FAILED:
+        return report.message, False, False
+    if report.status == UP_TO_DATE:
+        return "Up to date", False, False
     return f"Version {current}", False, False
+
+
+def note_segments(lines: Sequence[NoteLine]) -> list[tuple[str, str]]:
+    """(text, tag) pieces for the notes box. The "item" tag indents wrapped rows under the
+    text after the bullet (lmargin2); "heading" is bold."""
+    out = []
+    for line in lines:
+        if line.kind == BLANK:
+            out.append(("\n", "text"))
+        elif line.kind == HEADING:
+            out.append((line.text + "\n", "heading"))
+        elif line.kind == ITEM:
+            out.append((BULLET + line.text + "\n", "item"))
+        else:
+            out.append((line.text + "\n", "text"))
+    if out:
+        text, tag = out[-1]
+        out[-1] = (text[:-1] if text.endswith("\n") and text != "\n" else text, tag)
+    return out
 
 
 def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, updater=None) -> None:
     import tkinter as tk
+    import tkinter.font as tkfont
     from tkinter import messagebox, ttk
+
+    from labyrinth_update.info import (COPYRIGHT, LICENSE_TEXT, LICENSE_URL, REPO_TEXT,
+                                       REPO_URL, SOURCE_ONLY)
+    from labyrinth_update.version import running_version
 
     current = load(path)
     root = tk.Tk()
@@ -77,30 +113,74 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
     frame = ttk.Frame(root, padding=16)
     frame.grid()
 
+    notes_frame = None
+
+    def show_notes(shown) -> None:
+        nonlocal notes_frame
+        if notes_frame is not None:
+            notes_frame.destroy()
+        notes_frame = ttk.LabelFrame(frame, text=f"Updated to {shown.version}", padding=8)
+        notes_frame.grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, 12))
+        box = tk.Text(notes_frame, height=8, width=56, wrap="word", relief="flat",
+                      borderwidth=0, background=root.cget("background"))
+        bar = ttk.Scrollbar(notes_frame, orient="vertical", command=box.yview)
+        box.configure(yscrollcommand=bar.set)
+        base = tkfont.nametofont("TkDefaultFont")
+        bold = base.copy()
+        bold.configure(weight="bold")
+        box.tag_configure("heading", font=bold)
+        box.tag_configure("item", lmargin1=0, lmargin2=base.measure(BULLET))
+        for text, tag in note_segments(shown.lines()):
+            box.insert("end", text, tag)
+        box.configure(state="disabled")
+        box.fonts = (bold,)
+        box.grid(row=0, column=0, sticky="nsew")
+        bar.grid(row=0, column=1, sticky="ns")
+
+    top = 1
     variables: dict[str, tk.StringVar] = {}
     for row, (name, label) in enumerate(FIELDS):
         low, high, _ = NUMERIC_RANGES[name]
-        ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w", padx=(0, 12), pady=4)
+        ttk.Label(frame, text=label).grid(row=top + row, column=0, sticky="w", padx=(0, 12),
+                                          pady=4)
         var = tk.StringVar(value=_fmt(getattr(current, name)))
         ttk.Spinbox(frame, from_=low, to=high, increment=INCREMENTS[name], textvariable=var,
-                    width=10).grid(row=row, column=1, sticky="e", pady=4)
+                    width=10).grid(row=top + row, column=1, sticky="e", pady=4)
         variables[name] = var
 
-    fps_row = len(FIELDS)
+    fps_row = top + len(FIELDS)
     fps_var = tk.StringVar(value=FPS_LABELS[current.fps_cap])
     ttk.Label(frame, text="Frame rate cap").grid(row=fps_row, column=0, sticky="w", padx=(0, 12), pady=4)
     ttk.Combobox(frame, textvariable=fps_var, values=list(FPS_LABELS.values()), state="readonly",
                  width=22).grid(row=fps_row, column=1, sticky="e", pady=4)
 
+    version = updater.current if updater is not None else (running_version("screensaver") or "")
+    info = ttk.LabelFrame(frame, text="Info", padding=10)
+    info.grid(row=fps_row + 1, column=0, columnspan=2, sticky="we", pady=(12, 0))
+    info.columnconfigure(1, weight=1)
+    ttk.Label(info, text=f"Labyrinth Screensaver {version}".rstrip()).grid(
+        row=0, column=0, columnspan=2, sticky="w")
+    ttk.Label(info, text=COPYRIGHT).grid(row=1, column=0, columnspan=2, sticky="w")
+    link_font = tkfont.nametofont("TkDefaultFont").copy()
+    link_font.configure(underline=True)
+    for row, (label, shown, url) in enumerate((("GitHub", REPO_TEXT, REPO_URL),
+                                               ("License", LICENSE_TEXT, LICENSE_URL)), 2):
+        ttk.Label(info, text=label).grid(row=row, column=0, sticky="w", padx=(0, 12), pady=(4, 0))
+        link = ttk.Label(info, text=shown, foreground="#0066cc", cursor="hand2", font=link_font)
+        link.grid(row=row, column=1, sticky="w", pady=(4, 0))
+        link.bind("<Button-1>", lambda _e, u=url: open_browser(u))
+    info.link_font = link_font  # tk fonts vanish when garbage collected
     check_var = tk.BooleanVar(value=current.check_updates)
-    ttk.Checkbutton(frame, text="Check for updates weekly", variable=check_var).grid(
-        row=fps_row + 1, column=0, columnspan=2, sticky="w", pady=(8, 4))
+    ttk.Checkbutton(info, text="Check for updates weekly", variable=check_var).grid(
+        row=4, column=0, columnspan=2, sticky="w", pady=(8, 4))
 
-    if updater is not None:
+    if updater is None:
+        ttk.Label(info, text=SOURCE_ONLY).grid(row=5, column=0, columnspan=2, sticky="w")
+    else:
         from labyrinth_update.install import install_screensaver, staging_dir
 
-        box = ttk.Frame(frame)
-        box.grid(row=fps_row + 2, column=0, columnspan=2, sticky="we", pady=(4, 0))
+        box = ttk.Frame(info)
+        box.grid(row=5, column=0, columnspan=2, sticky="we", pady=(4, 0))
         box.columnconfigure(0, weight=1)
         status = ttk.Label(box, text="", wraplength=300)
         status.grid(row=0, column=0, sticky="w")
@@ -110,8 +190,16 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
                                                           progress)))
         dismiss_button = ttk.Button(box, text="Dismiss", command=updater.dismiss)
 
+        actions = ttk.Frame(info)
+        actions.grid(row=6, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        ttk.Button(actions, text="Check now", command=updater.check_now).grid(
+            row=0, column=0, padx=(0, 8))
+        ttk.Button(actions, text="What's new",
+                  command=lambda: show_notes(updater.running_whats_new())).grid(row=0, column=1)
+
         def poll() -> None:
-            message, can_update, can_dismiss = update_row(updater.snapshot, updater.current)
+            message, can_update, can_dismiss = update_row(updater.snapshot, updater.current,
+                                                          updater.check_report)
             status.configure(text=message)
             for widget, show, column in ((update_button, can_update, 1),
                                          (dismiss_button, can_dismiss, 2)):
@@ -123,6 +211,12 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
 
         updater.check(force=True)
         poll()
+
+    if updater is not None:
+        shown = updater.start_whats_new()
+        if shown is not None:
+            show_notes(shown)
+            updater.mark_whats_new_seen()  # opening the dialog is what counts as seen
 
     def close() -> None:
         """Hide at once, but let a download or install that is under way finish. A check
@@ -155,7 +249,7 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
         check_var.set(defaults.check_updates)
 
     buttons = ttk.Frame(frame)
-    buttons.grid(row=fps_row + 3, column=0, columnspan=2, sticky="e", pady=(12, 0))
+    buttons.grid(row=fps_row + 2, column=0, columnspan=2, sticky="e", pady=(12, 0))
     ttk.Button(buttons, text="Reset to defaults", command=on_reset).grid(row=0, column=0, padx=(0, 8))
     ttk.Button(buttons, text="Cancel", command=close).grid(row=0, column=1, padx=(0, 8))
     ttk.Button(buttons, text="OK", command=on_ok).grid(row=0, column=2)
