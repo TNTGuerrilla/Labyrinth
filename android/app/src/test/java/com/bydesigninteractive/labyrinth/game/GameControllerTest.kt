@@ -117,6 +117,41 @@ class GameControllerTest {
         assertNull(g.keys.wanted)
     }
 
+    /** Skips growth with an arrow, as the game screen does, then lets the maze finish. */
+    private fun GameController.growWithArrowReleased(d: Int) {
+        start(Round.create(6, 4, TEST, Random(3)))
+        skipGrowth()
+        releaseArrow(d)
+        var t = 0.0
+        while (round.phase == RoundPhase.GROW) {
+            frame(0.01)
+            t += 0.01
+        }
+        assertTrue(t < 0.15) // still inside the grace a stutter would get
+    }
+
+    @Test
+    fun anArrowReleasedDuringGrowthDoesNotSwallowTheFirstPress() {
+        val g = GameController(TEST, RemoteProfile(arrowHoldGapMs = 100))
+        g.growWithArrowReleased(E)
+        g.pressArrow(E)
+        assertEquals(E, g.keys.request)
+        assertEquals(E, g.keys.wanted)
+    }
+
+    @Test
+    fun aHoldStartedAfterGrowthIsStillSmoothedOver() {
+        val g = GameController(TEST, RemoteProfile(arrowHoldGapMs = 100))
+        g.growWithArrowReleased(E)
+        g.pressArrow(E)
+        g.keys.request = null
+        g.releaseArrow(E)
+        g.frame(0.1)
+        g.pressArrow(E) // the stutter's next "press" continues the hold
+        assertNull(g.keys.request)
+        assertEquals(E, g.keys.wanted)
+    }
+
     @Test
     fun autoSolveDrivesTheShortestRouteAndStops() {
         val g = controller(end = c(3, 1))

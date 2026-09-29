@@ -10,6 +10,7 @@ import android.content.pm.PackageInstaller
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import com.bydesigninteractive.labyrinth.BuildConfig
 import java.io.File
 import java.io.IOException
@@ -28,8 +29,15 @@ object Updates {
     /** Set on the intent that brings SettingsActivity back after an install did not happen. */
     const val EXTRA_INSTALL_FAILED = "com.bydesigninteractive.labyrinth.INSTALL_FAILED"
     private const val TIMEOUT_MS = 15_000
+    /** Far above any real APK, so a wrong or hostile file cannot fill the TV's storage. */
+    private const val MAX_DOWNLOAD_BYTES = 300L * 1024 * 1024
     private val checking = AtomicBoolean(false)
     private val updating = AtomicBoolean(false)
+    // Set when install() commits a session and cleared when its report reaches this app, so the
+    // exported settings screen ignores an install failure extra this process did not cause.
+    private val awaitingInstall = AtomicBoolean(false)
+    /** When a check last reached GitHub and read the list, on the monotonic clock. */
+    @Volatile private var lastSuccessAt: Long? = null
 
     /**
      * Claims the one update download for the whole process. A download keeps running after
@@ -41,6 +49,12 @@ object Updates {
     fun endUpdate() = updating.set(false)
 
     val isUpdating: Boolean get() = updating.get()
+
+    /**
+     * Whether an install this process committed is still waiting for its report, clearing it.
+     * InstallStatusActivity's failure report is honored only when this is true.
+     */
+    fun takeInstallReport(): Boolean = awaitingInstall.getAndSet(false)
 
     fun currentVersion(context: Context): String =
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
@@ -54,7 +68,8 @@ object Updates {
     /**
      * Calls [onDone] on the main thread with the update to offer, if any. Asks GitHub first
      * when checks are on and a week has passed, or when [force] is set (the settings screen
-     * opened). With checks off it answers null without any network access.
+     * opened) and no check succeeded in the last ten minutes. With checks off it answers null
+     * without any network access.
      */
     fun check(context: Context, force: Boolean, onDone: (Release?) -> Unit) {
         val app = context.applicationContext
@@ -64,7 +79,12 @@ object Updates {
         }
         val current = currentVersion(app)
         val state = UpdateStore.load(app)
-        if ((!force && !isDue(state, System.currentTimeMillis())) || !checking.compareAndSet(false, true)) {
+        val ask = if (force) {
+            !checkedRecently(lastSuccessAt, SystemClock.elapsedRealtime())
+        } else {
+            isDue(state, System.currentTimeMillis())
+        }
+        if (!ask || !checking.compareAndSet(false, true)) {
             onDone(visibleUpdate(state, current))
             return
         }
@@ -79,6 +99,7 @@ object Updates {
                     UpdateStore.editSeen(app) { it.copy(notes = mergeNotes(it.notes, fresh, current)) }
                 }
                 val next = UpdateStore.edit(app) { it.copy(lastCheck = System.currentTimeMillis(), found = found) }
+                lastSuccessAt = SystemClock.elapsedRealtime()
                 visibleUpdate(next, current)
             } catch (_: Exception) {
                 // Offline, a server error or a list that could not be read: a failed check.
@@ -91,7 +112,7 @@ object Updates {
     }
 
     private fun open(url: String, accept: String): HttpURLConnection =
-        (URL(url).openConnection() as HttpURLConnection).apply {
+        (URL(url).openConnection() as? HttpURLConnection ?: throw UpdateFailure("The update's address is not allowed.")).apply {
             connectTimeout = TIMEOUT_MS
             readTimeout = TIMEOUT_MS
             setRequestProperty("User-Agent", "Labyrinth-TV-updater")
@@ -129,14 +150,23 @@ object Updates {
         }
     }
 
-    /** Downloads the APK into app storage and checks its SHA-256. Runs on the caller's thread. */
+    /**
+     * Downloads the APK into app storage and checks its SHA-256. Runs on the caller's thread.
+     * Only GitHub addresses are used (see [isAllowedDownloadUrl]), before and after redirects.
+     */
     fun download(context: Context, release: Release, onProgress: (Int) -> Unit): File {
         val file = File(context.cacheDir, "update.apk")
         val digest = MessageDigest.getInstance("SHA-256")
+        val notAllowed = "The update's address is not allowed."
+        if (!isAllowedDownloadUrl(release.url, BuildConfig.DEBUG)) throw UpdateFailure(notAllowed)
         val connection = connect(release.url, "application/octet-stream")
         try {
+            // Redirects are followed within https (or within http), so check where they led.
+            if (!isAllowedDownloadUrl(connection.url.toString(), BuildConfig.DEBUG)) throw UpdateFailure(notAllowed)
             if (connection.responseCode != 200) throw UpdateFailure("Could not reach the update server.")
             val total = connection.contentLengthLong
+            val tooLarge = "The download was larger than an update can be."
+            if (total > MAX_DOWNLOAD_BYTES) throw UpdateFailure(tooLarge)
             var done = 0L
             var lastPercent = -1
             connection.inputStream.use { input ->
@@ -145,9 +175,10 @@ object Updates {
                     while (true) {
                         val n = input.read(buffer)
                         if (n < 0) break
+                        done += n
+                        if (done > MAX_DOWNLOAD_BYTES) throw UpdateFailure(tooLarge)
                         output.write(buffer, 0, n)
                         digest.update(buffer, 0, n)
-                        done += n
                         if (total > 0) {
                             val percent = (done * 100 / total).toInt()
                             if (percent != lastPercent) {
@@ -198,8 +229,11 @@ object Updates {
                 val intent = Intent(activity, InstallStatusActivity::class.java)
                 val flags = PendingIntent.FLAG_UPDATE_CURRENT or
                     (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+                // Set first: the installer may report back before commit returns.
+                awaitingInstall.set(true)
                 session.commit(PendingIntent.getActivity(activity, 0, intent, flags).intentSender)
             } catch (e: Exception) {
+                awaitingInstall.set(false)
                 session.abandon()
                 throw e
             }
@@ -238,6 +272,7 @@ object Updates {
                     val cleared = if (found != null && state.dismissed == found.version) null else state.dismissed
                     state.copy(lastCheck = System.currentTimeMillis(), found = found, dismissed = cleared)
                 }
+                lastSuccessAt = SystemClock.elapsedRealtime()
                 visibleUpdate(next, current)?.let { CheckOutcome.Available(it) } ?: CheckOutcome.UpToDate
             } catch (e: UpdateFailure) {
                 CheckOutcome.Failed(e.message ?: "Could not reach the update server.")

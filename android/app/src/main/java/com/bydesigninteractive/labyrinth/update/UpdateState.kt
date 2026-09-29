@@ -12,6 +12,19 @@ fun isDue(state: UpdateState, nowMs: Long): Boolean {
     return age < 0 || age >= CHECK_INTERVAL_MS
 }
 
+/** How long a successful check answers the settings screen's checks on resume. */
+const val RECHECK_INTERVAL_MS = 10L * 60 * 1000
+
+/**
+ * A successful check finished within [RECHECK_INTERVAL_MS] of [nowMs], so an automatic check
+ * answers from stored state; unauthenticated GitHub allows only 60 requests an hour. Both
+ * times come from the same monotonic clock; a time from the future counts as not recent.
+ */
+fun checkedRecently(lastSuccessMs: Long?, nowMs: Long): Boolean {
+    val last = lastSuccessMs ?: return false
+    return nowMs - last in 0 until RECHECK_INTERVAL_MS
+}
+
 /** The update notice earlier checks left pending: none while checks are off. */
 fun pendingNotice(enabled: Boolean, state: UpdateState, current: String): Release? =
     if (enabled) visibleUpdate(state, current) else null

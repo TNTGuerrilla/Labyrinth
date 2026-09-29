@@ -58,7 +58,9 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
 
     fun releaseArrow(d: Int) {
         val grace = remote.holdGraceSeconds
-        if (grace == null) keys.release(d) else pendingRelease[d] = now + grace
+        // Only a held arrow can stutter. One pressed during growth never became held, and a
+        // grace for its release would swallow the first real press of it once play starts.
+        if (grace == null || d !in keys.held) keys.release(d) else pendingRelease[d] = now + grace
     }
 
     /** Forget every held arrow, including releases still waiting out a stutter's grace. */

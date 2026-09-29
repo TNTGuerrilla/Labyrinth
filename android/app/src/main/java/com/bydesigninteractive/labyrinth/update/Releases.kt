@@ -2,6 +2,8 @@
 // tested on the desktop JVM, and the same rules as the desktop updater.
 package com.bydesigninteractive.labyrinth.update
 
+import java.net.URI
+import java.net.URISyntaxException
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -57,6 +59,27 @@ fun newestRelease(json: String, current: String): Release? {
         bestVersion = version
     }
     return best
+}
+
+private val GITHUB_HOSTS = setOf("github.com", "api.github.com")
+// The local fake release server debug builds point at (see UPDATE_URL in build.gradle.kts).
+private val FAKE_SERVER_HOSTS = setOf("10.0.2.2", "127.0.0.1", "localhost")
+
+/**
+ * Whether the updater may download from [url]: https from GitHub or its asset storage, and in
+ * a debug build also plain http from the local fake release server. Anything else, such as a
+ * file: URL, is refused before a connection is opened.
+ */
+fun isAllowedDownloadUrl(url: String, debug: Boolean): Boolean {
+    val uri = try {
+        URI(url)
+    } catch (_: URISyntaxException) {
+        return false
+    }
+    val scheme = uri.scheme?.lowercase() ?: return false
+    val host = uri.host?.lowercase() ?: return false
+    if (scheme == "https" && (host in GITHUB_HOSTS || host.endsWith(".githubusercontent.com"))) return true
+    return debug && scheme == "http" && host in FAKE_SERVER_HOSTS
 }
 
 private fun sha256Of(asset: JSONObject): String? {

@@ -62,6 +62,8 @@ class GameActivity : Activity() {
     private val menu = MenuModel()
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var readout: TextView
+    /** What the readout shows, so the 100 ms refresh only sets (and relayouts) a changed text. */
+    private var readoutText = ""
     private lateinit var menuPanel: LinearLayout
     private lateinit var winPanel: LinearLayout
     private lateinit var backHint: TextView
@@ -341,7 +343,11 @@ class GameActivity : Activity() {
 
     private fun refresh() {
         val snap = view.snapshot ?: return
-        readout.text = if (snap.phase == RoundPhase.GROW) "" else "Explored ${snap.explored} \u00b7 ${formatTime(snap.elapsed)}"
+        val shown = if (snap.phase == RoundPhase.GROW) "" else "Explored ${snap.explored} \u00b7 ${formatTime(snap.elapsed)}"
+        if (shown != readoutText) {
+            readoutText = shown
+            readout.text = shown
+        }
         if (!snap.winScreen) winDismissed = false
         if (snap.winScreen && !winShown && !winDismissed && !menu.isOpen) {
             winShown = true

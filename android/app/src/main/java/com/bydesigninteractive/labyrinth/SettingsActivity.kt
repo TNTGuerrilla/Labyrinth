@@ -147,7 +147,7 @@ class SettingsActivity : Activity() {
         if (mode.game) playButton.requestFocus() else first?.requestFocus()
         if (intent?.getBooleanExtra(Updates.EXTRA_INSTALL_FAILED, false) == true) {
             intent.removeExtra(Updates.EXTRA_INSTALL_FAILED) // not again if the activity is recreated
-            showInstallFailed()
+            if (Updates.takeInstallReport()) showInstallFailed()
         }
     }
 
@@ -179,12 +179,13 @@ class SettingsActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.action == Intent.ACTION_MAIN) Session.controlsShown = false
-        if (intent.getBooleanExtra(Updates.EXTRA_INSTALL_FAILED, false)) showInstallFailed()
+        if (intent.getBooleanExtra(Updates.EXTRA_INSTALL_FAILED, false) && Updates.takeInstallReport()) showInstallFailed()
     }
 
     /**
      * InstallStatusActivity reports that the installer did not install the update. Any app
-     * could send this extra, so it only shows a message and offers Update again.
+     * could send this extra, so it is only honored while an install this process committed
+     * has not reported back yet, and even then it only shows a message and offers Update again.
      */
     private fun showInstallFailed() {
         installing = false

@@ -1,7 +1,9 @@
 package com.bydesigninteractive.labyrinth.update
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private val SHA = "ab".repeat(32)
@@ -47,6 +49,43 @@ class ReleasesTest {
             release("labyrinth-tv-v1.4.0", asset("LabyrinthTV.apk", sha = "AB".repeat(32))),
         )
         assertEquals(Release("1.4.0", "https://example.test/LabyrinthTV.apk", SHA), newestRelease(json, "1.0.0"))
+    }
+
+    @Test
+    fun downloadsComeOnlyFromGithubOverHttps() {
+        for (good in listOf(
+            "https://github.com/TNTGuerrilla/Labyrinth/releases/download/labyrinth-tv-v1.2.0/LabyrinthTV.apk",
+            "https://api.github.com/repos/TNTGuerrilla/Labyrinth/releases/assets/1",
+            "https://objects.githubusercontent.com/x/LabyrinthTV.apk",
+            "https://release-assets.githubusercontent.com/x",
+            "HTTPS://GitHub.com/x",
+        )) assertTrue(good, isAllowedDownloadUrl(good, debug = false))
+        for (bad in listOf(
+            "http://github.com/x",
+            "file:///sdcard/LabyrinthTV.apk",
+            "content://evil/LabyrinthTV.apk",
+            "ftp://github.com/x",
+            "https://example.test/LabyrinthTV.apk",
+            "https://github.com.evil.test/x",
+            "https://evilgithub.com/x",
+            "https://githubusercontent.com.evil.test/x",
+            "https://evilgithubusercontent.com/x",
+            "https://github.com@evil.test/x",
+            "http://10.0.2.2:8765/LabyrinthTV.apk",
+            "not a url",
+            "",
+        )) assertFalse(bad, isAllowedDownloadUrl(bad, debug = false))
+    }
+
+    @Test
+    fun debugBuildsAlsoAcceptTheLocalFakeServer() {
+        for (local in listOf("http://10.0.2.2:8765/LabyrinthTV.apk", "http://127.0.0.1:8765/a", "http://localhost:8765/a")) {
+            assertTrue(local, isAllowedDownloadUrl(local, debug = true))
+            assertFalse(local, isAllowedDownloadUrl(local, debug = false))
+        }
+        assertTrue(isAllowedDownloadUrl("https://github.com/x", debug = true))
+        assertFalse(isAllowedDownloadUrl("http://192.168.1.5:8765/a", debug = true))
+        assertFalse(isAllowedDownloadUrl("file:///data/local/tmp/a.apk", debug = true))
     }
 
     @Test

@@ -38,7 +38,7 @@ class InstallStatusActivity : Activity() {
                     reportFailure()
                 }
             }
-            PackageInstaller.STATUS_SUCCESS -> {} // Android replaces this app now.
+            PackageInstaller.STATUS_SUCCESS -> Updates.takeInstallReport() // Android replaces this app now.
             else -> reportFailure()
         }
     }

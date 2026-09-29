@@ -18,6 +18,15 @@ class UpdateStateTest {
     }
 
     @Test
+    fun aRecentSuccessfulCheckAnswersFromStoredState() {
+        assertFalse(checkedRecently(null, 5))
+        assertTrue(checkedRecently(1000, 1000))
+        assertTrue(checkedRecently(1000, 1000 + RECHECK_INTERVAL_MS - 1))
+        assertFalse(checkedRecently(1000, 1000 + RECHECK_INTERVAL_MS))
+        assertFalse(checkedRecently(1000, 500)) // the clock went back: ask again
+    }
+
+    @Test
     fun offersOnlyNewerUndismissedReleases() {
         assertEquals(REL, visibleUpdate(UpdateState(found = REL), "1.1.0"))
         assertNull(visibleUpdate(UpdateState(found = REL, dismissed = "1.2.0"), "1.1.0"))
