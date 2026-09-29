@@ -254,11 +254,21 @@ def test_update_row_appears_without_moving_the_selection():
     assert names(m).index("update") == names(m).index("check_now") + 1
 
 
+def test_grid_strength_row_follows_show_grid():
+    m = model()
+    row = m.rows()[row_index(m, "grid_strength")]
+    assert (row.label, row.lo, row.hi, row.step) == ("Grid strength (%)", 10, 100, 10)
+    assert names(m).index("grid_strength") == names(m).index("show_grid") + 1
+    m.select(row_index(m, "grid_strength"))
+    m.handle("right")
+    assert m.draft.grid_strength == 30 and isinstance(m.draft.grid_strength, int)
+
+
 def test_screen_coverage_row_steps_by_five():
     m = model()
     row = m.rows()[row_index(m, "coverage")]
     assert (row.label, row.lo, row.hi, row.step) == ("Screen coverage (%)", 50, 100, 5)
-    assert names(m).index("coverage") == names(m).index("show_grid") + 1
+    assert names(m).index("coverage") == names(m).index("grid_strength") + 1
     m.select(row_index(m, "coverage"))
     m.handle("left")
     assert m.draft.coverage == 95 and isinstance(m.draft.coverage, int)

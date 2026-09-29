@@ -115,12 +115,29 @@ def test_grid_lines_on_cell_corners():
     settle(renderer, screen, PLAY, r, camera)
     x, y, w, h = camera.cell_rect((0, 0))
     assert w >= game_render.GRID_MIN_PX
-    assert tuple(screen.get_at((x, PLAY.y + y)))[:3] == game_render.GRID_COLOR
+    assert tuple(screen.get_at((x, PLAY.y + y)))[:3] == game_render.grid_color(20)
 
     renderer.show_grid = False
     renderer.invalidate()
     settle(renderer, screen, PLAY, r, camera)
     assert tuple(screen.get_at((x, PLAY.y + y)))[:3] == (0, 0, 0)
+
+
+def test_grid_color_scales_with_strength():
+    assert game_render.grid_color(20) == (30, 32, 40)
+    assert game_render.grid_color(10) == (15, 16, 20)
+    assert game_render.grid_color(100) == (150, 160, 200)
+    assert game_render.grid_color(35) == (52, 56, 70)
+
+
+def test_grid_lines_use_the_strength():
+    r = grown()
+    camera, renderer, screen = setup(r)
+    renderer.grid_strength = 100
+    renderer.invalidate()
+    settle(renderer, screen, PLAY, r, camera)
+    x, y, w, h = camera.cell_rect((0, 0))
+    assert tuple(screen.get_at((x, PLAY.y + y)))[:3] == (150, 160, 200)
 
 
 def test_no_grid_on_tiny_cells():
@@ -129,7 +146,7 @@ def test_no_grid_on_tiny_cells():
     assert camera.cell_px < game_render.LOW_DETAIL_PX
     settle(renderer, screen, PLAY, r, camera)
     x, y, w, h = camera.cell_rect((0, 0))
-    assert tuple(screen.get_at((x, PLAY.y + y)))[:3] != game_render.GRID_COLOR
+    assert tuple(screen.get_at((x, PLAY.y + y)))[:3] != game_render.grid_color(20)
 
 
 def test_overlays_never_touch_the_layer():

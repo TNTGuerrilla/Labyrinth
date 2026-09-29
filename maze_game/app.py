@@ -115,6 +115,7 @@ class Game:
         self.running = True
         self.renderer = GameRenderer(self.play_rect.size)
         self.renderer.show_grid = self.settings.show_grid
+        self.renderer.grid_strength = self.settings.grid_strength
         self.new_round()
         self._dialog_below: Optional[Dialog] = None  # the dialog a What's new panel covers
         shown = updater.start_whats_new() if updater is not None else None
@@ -534,6 +535,7 @@ class Game:
             r.multicolor = self.settings.multicolor
             r.gen_speed = self.settings.gen_speed
             self.renderer.show_grid = self.settings.show_grid
+            self.renderer.grid_strength = self.settings.grid_strength
             self.renderer.invalidate(clear=False)
             self._close_dialog()
         elif outcome == "benchmark":
@@ -605,6 +607,7 @@ class Game:
         camera = Camera(cols, rows, pr.w, pr.h, self.settings.coverage)
         renderer = GameRenderer(pr.size)
         renderer.show_grid = self.settings.show_grid
+        renderer.grid_strength = self.settings.grid_strength
         times: list[float] = []
         self._bench_events()
         last = time.perf_counter()

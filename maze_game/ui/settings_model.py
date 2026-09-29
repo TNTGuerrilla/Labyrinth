@@ -48,6 +48,7 @@ GAMEPLAY_ROWS = (
     header("Display"),
     Row("bool", "Multi-color", "multicolor"),
     Row("bool", "Show grid", "show_grid"),
+    Row("number", "Grid strength (%)", "grid_strength", 10, 100, 10),
     Row("number", "Screen coverage (%)", "coverage", 50, 100, 5),
     header("Maze growth"),
     Row("choice", "Maze generation", "animated",

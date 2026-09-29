@@ -26,6 +26,7 @@ data class GameSettings(
     val customMax: Int = 40,
     val zoomSteps: Int = 0,
     val coverage: Int = 100,
+    val gridStrength: Int = 20,
 )
 
 enum class Kind { TOGGLE, NUMBER, CHOICE }
@@ -72,6 +73,8 @@ enum class GameField(
         { bit(it.multicolor) }, { s, v -> s.copy(multicolor = v != 0.0) }),
     SHOW_GRID("Grid", Kind.TOGGLE, 0.0, 1.0, 1.0, true,
         { bit(it.showGrid) }, { s, v -> s.copy(showGrid = v != 0.0) }),
+    GRID_STRENGTH("Grid strength (%)", Kind.NUMBER, 10.0, 100.0, 10.0, true,
+        { it.gridStrength.toDouble() }, { s, v -> s.copy(gridStrength = v.toInt()) }),
     COVERAGE("Screen coverage (%)", Kind.NUMBER, 50.0, 100.0, 5.0, true,
         { it.coverage.toDouble() }, { s, v -> s.copy(coverage = v.toInt()) }),
     ZOOM("Zoom", Kind.NUMBER, 0.0, 12.0, 1.0, true,

@@ -171,10 +171,20 @@ class MenuTest {
     }
 
     @Test
-    fun lookOffersColorsGridCoverageAndZoom() {
+    fun lookOffersColorsGridStrengthCoverageAndZoom() {
+        assertEquals(
+            listOf(
+                GameField.MULTICOLOR, GameField.SHOW_GRID, GameField.GRID_STRENGTH, GameField.COVERAGE, GameField.ZOOM,
+            ).map { Row.Setting(it) },
+            rows(Tab.LOOK, S),
+        )
+    }
+
+    @Test
+    fun lookHidesGridStrengthWhileTheGridIsOff() {
         assertEquals(
             listOf(GameField.MULTICOLOR, GameField.SHOW_GRID, GameField.COVERAGE, GameField.ZOOM).map { Row.Setting(it) },
-            rows(Tab.LOOK, S),
+            rows(Tab.LOOK, S.copy(showGrid = false)),
         )
     }
 

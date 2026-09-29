@@ -92,6 +92,14 @@ def test_check_updates_must_be_a_bool():
     assert from_dict({"check_updates": "no"}).check_updates is True
 
 
+def test_grid_strength_defaults_to_20_and_validates():
+    assert GameSettings().grid_strength == 20
+    assert from_dict({"grid_strength": 10}).grid_strength == 10
+    assert from_dict({"grid_strength": 100}).grid_strength == 100
+    for bad in (9, 101, 55.5, "50", True):
+        assert from_dict({"grid_strength": bad}).grid_strength == 20
+
+
 def test_coverage_defaults_to_100_and_validates():
     assert GameSettings().coverage == 100
     assert from_dict({"coverage": 75}).coverage == 75

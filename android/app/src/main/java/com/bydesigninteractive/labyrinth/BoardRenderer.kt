@@ -17,6 +17,7 @@ import com.bydesigninteractive.labyrinth.maze.Geometry
 import com.bydesigninteractive.labyrinth.maze.N
 import com.bydesigninteractive.labyrinth.maze.S
 import com.bydesigninteractive.labyrinth.maze.W
+import com.bydesigninteractive.labyrinth.game.gridColor
 import com.bydesigninteractive.labyrinth.maze.edgeKey
 import kotlin.math.roundToInt
 
@@ -25,7 +26,6 @@ val END_COLOR = Color.rgb(235, 64, 64)
 val TRAIL_COLOR = Color.rgb(255, 240, 205)
 private val TRAIL_DIM_COLOR = Color.rgb(80, 80, 80)
 private val WELD_COLOR = Color.rgb(255, 255, 255)
-private val GRID_COLOR = Color.rgb(30, 32, 40)
 
 private const val PIPE_WIDTH = 0.40 // fraction of the cell size
 private const val STRIPE_RATIO = 1.0 / 3 // fraction of the pipe width
@@ -59,7 +59,7 @@ class BoardRenderer {
      */
     fun apply(
         canvas: Canvas, board: CellSource, geo: Geometry?, changes: Changes,
-        drawDot: Boolean = true, gridLines: Boolean = false,
+        drawDot: Boolean = true, gridLines: Boolean = false, gridColor: Int = gridColor(20),
     ): List<Rect> {
         if (changes.clear) {
             canvas.drawColor(Color.BLACK)
@@ -71,19 +71,20 @@ class BoardRenderer {
         return changes.cells.map { c ->
             val left = geo.cellLeft(c)
             val top = geo.cellTop(c)
-            drawCell(canvas, board, c, left, top, geo.cell, drawDot, grid)
+            drawCell(canvas, board, c, left, top, geo.cell, drawDot, grid, gridColor)
             Rect(left, top, left + geo.cell, top + geo.cell)
         }
     }
 
     private fun drawCell(
         canvas: Canvas, board: CellSource, c: Cell, left: Int, top: Int, size: Int, drawDot: Boolean, grid: Geometry?,
+        gridColor: Int,
     ) {
         canvas.save()
         canvas.clipRect(left, top, left + size, top + size)
         rectPaint.color = Color.BLACK
         canvas.drawRect(left.toFloat(), top.toFloat(), (left + size).toFloat(), (top + size).toFloat(), rectPaint)
-        if (grid != null) drawGridLines(canvas, c, left, top, size, grid)
+        if (grid != null) drawGridLines(canvas, c, left, top, size, grid, gridColor)
         val region = board.regionOf[c]
         if (region != null) {
             val palette = palettes.getOrPut(board.hues[region]) { Palette(board.hues[region]) }
@@ -95,8 +96,8 @@ class BoardRenderer {
     }
 
     /** 1 px lines along the cell's top and left, plus the right and bottom on the last column and row. */
-    private fun drawGridLines(canvas: Canvas, c: Cell, left: Int, top: Int, size: Int, grid: Geometry) {
-        rectPaint.color = GRID_COLOR
+    private fun drawGridLines(canvas: Canvas, c: Cell, left: Int, top: Int, size: Int, grid: Geometry, color: Int) {
+        rectPaint.color = color
         val l = left.toFloat()
         val t = top.toFloat()
         val r = (left + size).toFloat()

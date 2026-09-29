@@ -33,6 +33,7 @@ import com.bydesigninteractive.labyrinth.game.RemoteProfile
 import com.bydesigninteractive.labyrinth.game.Round
 import com.bydesigninteractive.labyrinth.game.RoundPhase
 import com.bydesigninteractive.labyrinth.game.WIN_PULSE_SECONDS
+import com.bydesigninteractive.labyrinth.game.gridColor
 import com.bydesigninteractive.labyrinth.game.gridSize
 import com.bydesigninteractive.labyrinth.game.pickShort
 import com.bydesigninteractive.labyrinth.maze.Cell
@@ -246,7 +247,7 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
             round.multicolor = s.multicolor
             redrawAll()
         }
-        if (old.showGrid != s.showGrid) redrawAll()
+        if (old.showGrid != s.showGrid || old.gridStrength != s.gridStrength) redrawAll()
         // While the maze grows the new zoom is only stored; it is applied when play starts.
         if (old.zoomSteps != s.zoomSteps && round.phase != RoundPhase.GROW) {
             zoomPending = false
@@ -351,17 +352,18 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
         val r = round
         val geo = Geometry(r.grid.cols, r.grid.rows, texCell, 0, 0)
         val grid = settings.showGrid
+        val gridTint = gridColor(settings.gridStrength)
         val drawn = ArrayList<Rect>()
         if (changed.isNotEmpty()) {
             val changes = Changes()
             changes.cells.addAll(changed)
-            drawn += cellRenderer.apply(c, r, geo, changes, drawDot = false, gridLines = grid)
+            drawn += cellRenderer.apply(c, r, geo, changes, drawDot = false, gridLines = grid, gridColor = gridTint)
         }
         val deadline = System.nanoTime() + REDRAW_BUDGET_NANOS
         while (redraw.isNotEmpty() && System.nanoTime() < deadline) {
             val chunk = Changes()
             repeat(REDRAW_CHUNK) { redraw.removeFirstOrNull()?.let { chunk.cells.add(it) } }
-            drawn += cellRenderer.apply(c, r, geo, chunk, drawDot = false, gridLines = grid)
+            drawn += cellRenderer.apply(c, r, geo, chunk, drawDot = false, gridLines = grid, gridColor = gridTint)
         }
         if (drawn.size > MAX_CELL_UPLOADS) {
             uploader.upload(bmp, Rect(drawn[0]).apply { drawn.forEach { union(it) } })

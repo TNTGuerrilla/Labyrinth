@@ -25,7 +25,14 @@ from .round import FLASH_SECONDS, HINT_SECONDS, WIN_PULSE_SECONDS
 REDRAW_BUDGET = 0.008  # seconds of cell drawing per frame
 CHECK_EVERY = 32  # cells drawn between clock checks
 LOW_DETAIL_PX = 4
-GRID_COLOR = (30, 32, 40)
+GRID_FULL = (150, 160, 200)  # the grid line color at 100% strength
+
+
+def grid_color(strength: int) -> tuple:
+    """The grid line color at a strength in percent; 20 gives (30, 32, 40)."""
+    return tuple(ch * strength // 100 for ch in GRID_FULL)
+
+
 GRID_MIN_PX = 6
 MIN_MARKER_PX = 3
 HINT_COLOR = (120, 200, 255)
@@ -82,6 +89,7 @@ class GameRenderer:
         self._queued: set = set()
         self._sweep: Optional[Iterator[Cell]] = None
         self.show_grid = True
+        self.grid_strength = 20
 
     @property
     def pending(self) -> bool:
@@ -161,14 +169,15 @@ class GameRenderer:
         cols, rows = board.grid.cols, board.grid.rows
         last_col = c[0] == cols - 1
         last_row = c[1] == rows - 1
+        color = grid_color(self.grid_strength)
 
         def underlay(surface: pygame.Surface, rect: pygame.Rect) -> None:
-            surface.fill(GRID_COLOR, (rect.left, rect.top, rect.w, 1))
-            surface.fill(GRID_COLOR, (rect.left, rect.top, 1, rect.h))
+            surface.fill(color, (rect.left, rect.top, rect.w, 1))
+            surface.fill(color, (rect.left, rect.top, 1, rect.h))
             if last_col:
-                surface.fill(GRID_COLOR, (rect.right - 1, rect.top, 1, rect.h))
+                surface.fill(color, (rect.right - 1, rect.top, 1, rect.h))
             if last_row:
-                surface.fill(GRID_COLOR, (rect.left, rect.bottom - 1, rect.w, 1))
+                surface.fill(color, (rect.left, rect.bottom - 1, rect.w, 1))
 
         return underlay
 

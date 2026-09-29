@@ -59,8 +59,12 @@ fun rows(tab: Tab, s: GameSettings): List<Row> = when (tab) {
         Row.Action(MenuAction.TEST_REMOTE),
         Row.Text(LAG_NOTE),
     )
-    Tab.LOOK -> listOf(
-        Row.Setting(GameField.MULTICOLOR), Row.Setting(GameField.SHOW_GRID), Row.Setting(GameField.COVERAGE), Row.Setting(GameField.ZOOM),
+    Tab.LOOK -> listOfNotNull(
+        Row.Setting(GameField.MULTICOLOR),
+        Row.Setting(GameField.SHOW_GRID),
+        if (s.showGrid) Row.Setting(GameField.GRID_STRENGTH) else null,
+        Row.Setting(GameField.COVERAGE),
+        Row.Setting(GameField.ZOOM),
     )
 }
 

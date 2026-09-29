@@ -35,6 +35,24 @@ class GameSettingsTest {
     }
 
     @Test
+    fun gridStrengthIsAWholePercentFrom10To100InTens() {
+        val f = GameField.GRID_STRENGTH
+        assertEquals("Grid strength (%)", f.label)
+        assertEquals(Kind.NUMBER, f.kind)
+        assertEquals(10.0, f.low, 0.0)
+        assertEquals(100.0, f.high, 0.0)
+        assertEquals(10.0, f.increment, 0.0)
+        assertTrue(f.isInt)
+        assertEquals(20, GameSettings().gridStrength)
+        assertNull(f.validate(5.0))
+        assertNull(f.validate(110.0))
+        assertNull(f.validate(35.5))
+        assertEquals(40, gameSettingsFrom(mapOf(f to 40.0)).gridStrength)
+        assertEquals(30, adjust(GameSettings(), f, 1, 0).gridStrength)
+        assertEquals("20", f.format(20.0))
+    }
+
+    @Test
     fun everyDefaultIsValid() {
         val s = GameSettings()
         for (f in GameField.entries) assertEquals(f.get(s), f.validate(f.get(s)))
