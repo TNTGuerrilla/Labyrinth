@@ -13,6 +13,7 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.net.ConnectivityManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings.Secure
 import android.util.TypedValue
@@ -389,10 +390,16 @@ class SettingsActivity : Activity() {
             DIM_TEXT,
         )
         val ip = tvAddress()
+        // TCL's firmware stops background apps, screensavers included, that lack its own
+        // AUTO_START permission. Its Auto Launch switch is hard to find, so grant it here.
+        val tcl = Build.MANUFACTURER.equals("TCL", ignoreCase = true)
         code(
-            "\$adb = \"\$env:LOCALAPPDATA\\Android\\Sdk\\platform-tools\\adb.exe\"",
-            "& \$adb connect ${ip ?: "<TV IP address>"}:5555",
-            "& \$adb shell settings put secure screensaver_components $component",
+            *listOfNotNull(
+                "\$adb = \"\$env:LOCALAPPDATA\\Android\\Sdk\\platform-tools\\adb.exe\"",
+                "& \$adb connect ${ip ?: "<TV IP address>"}:5555",
+                "& \$adb shell settings put secure screensaver_components $component",
+                if (tcl) "& \$adb shell appops set $packageName AUTO_START allow" else null,
+            ).toTypedArray(),
         )
         paragraph(
             buildString {
@@ -401,7 +408,9 @@ class SettingsActivity : Activity() {
             },
             DIM_TEXT,
         )
-        paragraph("On TCL TVs, also allow Auto Launch for this app so it can start when the TV is idle.", DIM_TEXT)
+        if (tcl) {
+            paragraph("The last command is for TCL TVs, which block screensavers from starting unless the app may launch itself.", DIM_TEXT)
+        }
         paragraph("You only need a PC and adb once, for this setup. After that, Labyrinth updates itself from this screen.", DIM_TEXT)
         paragraph("Full setup guide: $GUIDE_URL", DIM_TEXT)
     }

@@ -172,9 +172,16 @@ Select it once:
 & $adb shell settings get secure screensaver_components
 ```
 
-The second command should print `com.bydesigninteractive.labyrinth/.LabyrinthDreamService`. Then, on the TV:
+The second command should print `com.bydesigninteractive.labyrinth/.LabyrinthDreamService`.
 
-- **TCL TVs:** allow **Auto Launch** for Labyrinth (under **Settings, Apps, Special app access**, or TCL's app permission settings). Without it, TCL's firmware stops the screensaver from starting in the background.
+**TCL TVs** also need this. TCL's firmware blocks screensavers from starting unless the app is allowed to launch itself (TCL's Auto Launch setting, which is hard to find), and this grants it:
+
+```powershell
+& $adb shell appops set com.bydesigninteractive.labyrinth AUTO_START allow
+```
+
+Then, on the TV:
+
 - Open **Labyrinth** from the app list. The bottom of the screen should say it is the current screensaver, and **Preview screensaver** shows it right away.
 
 The screensaver starts after the TV's normal screensaver timeout; any remote button ends it. If it never starts on its own, idle screensavers may be switched off on that TV. Check with `& $adb shell settings get secure screensaver_activate_on_sleep`, and if it prints `0`, turn them on:
