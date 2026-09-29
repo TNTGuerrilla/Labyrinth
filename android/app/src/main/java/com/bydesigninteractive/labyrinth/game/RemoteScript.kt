@@ -35,7 +35,7 @@ val ARROW_LAG_BLOCKS = listOf(RemoteKey.UP, RemoteKey.RIGHT, RemoteKey.DOWN, Rem
 
 val OK_LAG_BLOCKS = listOf(Block(Stage.OK_LAG, listOf(RemoteKey.OK), 1000.0, 2, 4, "Press OK on each beat"))
 
-private val COOLDOWN_TEMPOS = listOf(2, 3, 4, 6, 8)
+private val COOLDOWN_TEMPOS = listOf(2, 3, 4)
 
 val COOLDOWN_BLOCKS = listOf(
     Triple(Stage.COOLDOWN_REPEAT, listOf(RemoteKey.RIGHT), "Press Right on every beat"),

@@ -42,7 +42,8 @@ private val STEPS = listOf(
         "move it until it lands exactly on the bounce, then press OK.",
     "Step 2 of 5: Arrows" to "A dot travels into the box on a steady beat, and the box flashes as it arrives. " +
         "Press the arrow the dot is moving in, in time with the beat. Follow the rhythm rather than " +
-        "waiting to see the dot arrive. Each arrow starts with two practice beats.",
+        "waiting to see the dot arrive. Each arrow starts with two practice beats. " +
+        "Gray dots are practice beats and don't count; the scored beats are green.",
     "Step 3 of 5: OK" to "The same, with the OK button.",
     "Step 4 of 5: Quick presses" to "The beat gets faster. Keep pressing on every beat for as long as you can. " +
         "Missing some at the fastest speeds is expected.",
@@ -83,6 +84,7 @@ class RemoteTestActivity : Activity() {
         bodyView = text(20f, DIM_TEXT)
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
             setPadding(dp(96), dp(48), dp(96), 0)
             addView(titleView)
             addView(bodyView)
@@ -168,7 +170,7 @@ class RemoteTestActivity : Activity() {
         val r = BlockRun(block, (SystemClock.uptimeMillis() + BLOCK_START_MS).toDouble())
         run = r
         testView.showRun(r)
-        show(STEPS[step].first, block.prompt)
+        show(STEPS[step].first, "${block.prompt}\n\nGray dots are practice beats and don't count.")
         for (b in r.allBeats) handler.postAtTime({ click.play() }, token, b.toLong() - soundDelayMs)
         handler.postAtTime({
             runs.add(r)
@@ -284,6 +286,7 @@ class RemoteTestActivity : Activity() {
     private fun text(sizeSp: Float, color: Int) = TextView(this).apply {
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
         setTextColor(color)
+        gravity = Gravity.CENTER
         setPadding(0, 0, 0, dp(12))
     }
 

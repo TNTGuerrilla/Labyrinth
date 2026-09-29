@@ -64,21 +64,22 @@ class RemoteAnalysisTest {
 
     @Test
     fun aCooldownShowsAsAFloorUnderTheGaps() {
-        val runs = listOf(2, 3, 4, 6, 8).map { perSecond ->
+        val runs = listOf(2, 3, 4).map { perSecond ->
             val interval = 1000.0 / perSecond
             val b = beats(8, interval)
-            TempoRun(interval, b, throughCooldown(b.map { it + 100 }, 250.0))
+            TempoRun(interval, b, throughCooldown(b.map { it + 100 }, 400.0))
         }
-        assertEquals(250, cooldownMs(runs))
+        // The 3 and 4 per second blocks drop presses; their smallest registered gaps are 666.7 and 500 ms.
+        assertEquals(500, cooldownMs(runs))
     }
 
     @Test
     fun randomMissesWithoutAFloorAreNotACooldown() {
-        val runs = listOf(2, 3, 4, 6, 8).map { perSecond ->
+        val runs = listOf(2, 3, 4).map { perSecond ->
             val interval = 1000.0 / perSecond
             val b = beats(8, interval)
-            // Misses half the beats at the fast tempos, but pairs of neighbors still land one interval apart.
-            val presses = b.filterIndexed { i, _ -> perSecond < 6 || i % 4 < 2 }.map { it + 100 }
+            // Misses half the beats at 3 and 4 per second, but pairs of neighbors still land one interval apart.
+            val presses = b.filterIndexed { i, _ -> perSecond < 3 || i % 4 < 2 }.map { it + 100 }
             TempoRun(interval, b, presses)
         }
         assertEquals(0, cooldownMs(runs))
@@ -86,12 +87,12 @@ class RemoteAnalysisTest {
 
     @Test
     fun oneDroppingBlockIsNotEnough() {
-        val runs = listOf(2, 3, 4, 6, 8).map { perSecond ->
+        val runs = listOf(2, 3, 4).map { perSecond ->
             val interval = 1000.0 / perSecond
             val b = beats(8, interval)
-            TempoRun(interval, b, throughCooldown(b.map { it + 100 }, 140.0))
+            TempoRun(interval, b, throughCooldown(b.map { it + 100 }, 300.0))
         }
-        assertEquals(0, cooldownMs(runs)) // only the 8-per-second block loses presses
+        assertEquals(0, cooldownMs(runs)) // only the 4-per-second block loses presses
     }
 
     @Test

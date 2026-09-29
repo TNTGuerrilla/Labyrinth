@@ -18,9 +18,9 @@ class RemoteScriptTest {
     }
 
     @Test
-    fun cooldownCoversThreePatternsAtFiveTempos() {
-        assertEquals(15, COOLDOWN_BLOCKS.size)
-        assertEquals(listOf(500.0, 1000.0 / 3, 250.0, 1000.0 / 6, 125.0),
+    fun cooldownCoversThreePatternsAtThreeTempos() {
+        assertEquals(9, COOLDOWN_BLOCKS.size)
+        assertEquals(listOf(500.0, 1000.0 / 3, 250.0),
             COOLDOWN_BLOCKS.filter { it.stage == Stage.COOLDOWN_REPEAT }.map { it.intervalMs })
         assertTrue(COOLDOWN_BLOCKS.all { it.beats == 8 })
     }
