@@ -22,6 +22,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.bydesigninteractive.labyrinth.ACCENT
+import com.bydesigninteractive.labyrinth.BACKGROUND
 import com.bydesigninteractive.labyrinth.DIM_TEXT
 import com.bydesigninteractive.labyrinth.FOCUSED
 import com.bydesigninteractive.labyrinth.TEXT
@@ -98,10 +99,19 @@ class GameActivity : Activity() {
             visibility = View.GONE
         }
         val root = FrameLayout(this)
-        root.addView(view)
-        root.addView(readout, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP or Gravity.END).apply {
-            setMargins(0, dp(16), dp(24), 0)
-        })
+        // A thin top bar for the readout; the maze's screen coverage applies to the play area below it.
+        val topBar = FrameLayout(this).apply {
+            setBackgroundColor(BACKGROUND)
+            addView(readout, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.END or Gravity.CENTER_VERTICAL).apply {
+                marginEnd = dp(24)
+            })
+        }
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(topBar, LinearLayout.LayoutParams(MATCH, dp(40)))
+            addView(view, LinearLayout.LayoutParams(MATCH, 0, 1f))
+        }
+        root.addView(column, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         root.addView(menuPanel, FrameLayout.LayoutParams(dp(640), WRAP, Gravity.CENTER))
         root.addView(winPanel, FrameLayout.LayoutParams(dp(420), WRAP, Gravity.CENTER))
         root.addView(backHint, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {

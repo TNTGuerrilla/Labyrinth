@@ -249,6 +249,7 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
         if (old.showGrid != s.showGrid) redrawAll()
         // While the maze grows the new zoom is only stored; it is applied when play starts.
         if (old.zoomSteps != s.zoomSteps && round.phase != RoundPhase.GROW) {
+            zoomPending = false
             camera?.let {
                 it.resetZoom()
                 it.zoomBy(s.zoomSteps, round.mover.position())
