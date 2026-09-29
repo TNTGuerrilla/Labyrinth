@@ -16,8 +16,14 @@ class DifficultyTest {
 
     @Test
     fun ceilingIs80PercentOfTheShortSide() {
-        assertEquals(832, ceiling(1920, 1040))
-        assertEquals(4, ceiling(3, 3))
+        assertEquals(832, ceiling(1920, 1040, coverage = 80))
+        assertEquals(4, ceiling(3, 3, coverage = 80))
+    }
+
+    @Test
+    fun ceilingFollowsTheCoverage() {
+        assertEquals(1040, ceiling(1920, 1040))
+        assertEquals(520, ceiling(1920, 1040, 50))
     }
 
     @Test
@@ -32,7 +38,7 @@ class DifficultyTest {
     @Test
     fun pickShortCoversTheRange() {
         val rng = Random(1)
-        val values = (0 until 300).map { pickShort("small", 0, 0, 1920, 1040, rng) }.toSet()
+        val values = (0 until 300).map { pickShort("small", 0, 0, 1920, 1040, rng, coverage = 80) }.toSet()
         assertEquals((8..12).toSet(), values)
     }
 
@@ -44,7 +50,24 @@ class DifficultyTest {
 
     @Test
     fun gridSizeFillsTheAspectRatio() {
-        assertEquals(44 to 24, gridSize(24, 1920, 1040))
-        assertEquals(10 to 20, gridSize(10, 500, 1000))
+        assertEquals(44 to 24, gridSize(24, 1920, 1040, coverage = 80))
+        assertEquals(10 to 20, gridSize(10, 500, 1000, coverage = 80))
+    }
+
+    @Test
+    fun gridAtTheCeilingHasAtLeastOnePixelPerCell() {
+        val w = 1920
+        val h = 1040
+        for (coverage in listOf(50, 80, 100)) {
+            val (cols, rows) = gridSize(ceiling(w, h, coverage), w, h, coverage)
+            assertTrue(cols <= w * coverage / 100 && rows <= h * coverage / 100)
+        }
+    }
+
+    @Test
+    fun pickShortIsCappedByTheCoverage() {
+        val rng = Random(1)
+        assertEquals(setOf(100), (0 until 5).map { pickShort("custom", 100, 100, 200, 200, rng, coverage = 50) }.toSet())
+        assertEquals(setOf(100), (0 until 5).map { pickShort("custom", 180, 180, 200, 200, rng, coverage = 50) }.toSet())
     }
 }

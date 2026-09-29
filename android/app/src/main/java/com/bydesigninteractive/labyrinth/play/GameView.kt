@@ -183,6 +183,8 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
     private val uploader = TextureUploader()
     private var started = false
     private var camera: Camera? = null
+    /** A new maze grows at 100% zoom; the zoom setting is applied when play starts. */
+    private var zoomPending = false
     private var bitmap: Bitmap? = null
     private var canvas: Canvas? = null
     private var texCell = 1
@@ -207,13 +209,13 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
 
     fun newRound() {
         val s = settings
-        val short = pickShort(s.size, s.customMin, s.customMax, width, height, rng)
-        val (cols, rows) = gridSize(short, width, height)
+        val short = pickShort(s.size, s.customMin, s.customMax, width, height, rng, s.coverage)
+        val (cols, rows) = gridSize(short, width, height, s.coverage)
         val r = Round.create(cols, rows, s, rng)
         controller.start(r)
-        val cam = Camera(cols, rows, width, height)
-        cam.zoomBy(s.zoomSteps, (r.start.x + 0.5) to (r.start.y + 0.5))
+        val cam = Camera(cols, rows, width, height, s.coverage)
         camera = cam
+        zoomPending = true
         texCell = max(1, min(cam.maxPx, min(MAX_TEXTURE, maxTextureSize) / max(cols, rows)))
         bitmap?.recycle()
         val bmp = Bitmap.createBitmap(cols * texCell, rows * texCell, Bitmap.Config.ARGB_8888)
@@ -227,6 +229,7 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
     fun replay() {
         if (!started) return
         controller.replay()
+        zoomPending = false
         camera?.let {
             it.resetZoom()
             it.zoomBy(settings.zoomSteps, round.mover.position())
@@ -244,7 +247,8 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
             redrawAll()
         }
         if (old.showGrid != s.showGrid) redrawAll()
-        if (old.zoomSteps != s.zoomSteps) {
+        // While the maze grows the new zoom is only stored; it is applied when play starts.
+        if (old.zoomSteps != s.zoomSteps && round.phase != RoundPhase.GROW) {
             camera?.let {
                 it.resetZoom()
                 it.zoomBy(s.zoomSteps, round.mover.position())
@@ -323,6 +327,10 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
             !paused -> controller.frame(dt)
             round.phase != RoundPhase.GROW -> round.update(0.0)
             else -> emptySet()
+        }
+        if (zoomPending && round.phase != RoundPhase.GROW) {
+            zoomPending = false
+            cam.zoomBy(settings.zoomSteps, round.mover.position())
         }
         if (!paused) cam.follow(round.mover.position(), dt)
         drawCells(bmp, changed)

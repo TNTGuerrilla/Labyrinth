@@ -6,13 +6,12 @@ package com.bydesigninteractive.labyrinth.game
 
 import kotlin.math.roundToInt
 
-const val CAMERA_FILL = 0.8 // 100% zoom fits the maze into 80% of the screen
 const val MAX_CELL_PX = 96 // twice the desktop's 48: a TV is watched from the couch
 const val ZOOM_STEP = 1.25
-const val FOLLOW_ZONE = 0.4 // the dot stays inside the central 40% of the view
 const val FOLLOW_RATE = 8.0 // how quickly the camera catches up, per second
 
-class Camera(val cols: Int, val rows: Int, viewW: Int, viewH: Int) {
+/** At 100% zoom the maze fits into [coverage] percent of the screen. */
+class Camera(val cols: Int, val rows: Int, viewW: Int, viewH: Int, val coverage: Int = 100) {
     var viewW = 1
         private set
     var viewH = 1
@@ -35,7 +34,7 @@ class Camera(val cols: Int, val rows: Int, viewW: Int, viewH: Int) {
         val ratio = cellPx.toDouble() / fitPx
         viewW = maxOf(1, w)
         viewH = maxOf(1, h)
-        fitPx = maxOf(1, minOf(viewW * CAMERA_FILL / cols, viewH * CAMERA_FILL / rows).toInt())
+        fitPx = maxOf(1, minOf(viewW * coverage / 100.0 / cols, viewH * coverage / 100.0 / rows).toInt())
         cellPx = clampPx((fitPx * ratio).roundToInt())
         clampCenter()
     }
@@ -76,16 +75,12 @@ class Camera(val cols: Int, val rows: Int, viewW: Int, viewH: Int) {
         clampCenter()
     }
 
-    /** Ease the view so [pos] stays inside the central zone. Fixed at 100% zoom. */
+    /** Ease the view toward [pos], clamped to the maze. Fixed at 100% zoom. */
     fun follow(pos: Pair<Double, Double>, dt: Double) {
         if (!zoomed) return
-        val hw = viewW * FOLLOW_ZONE / 2 / cellPx
-        val hh = viewH * FOLLOW_ZONE / 2 / cellPx
-        val tx = minOf(maxOf(cx, pos.first - hw), pos.first + hw)
-        val ty = minOf(maxOf(cy, pos.second - hh), pos.second + hh)
         val k = minOf(1.0, dt * FOLLOW_RATE)
-        cx += (tx - cx) * k
-        cy += (ty - cy) * k
+        cx += (pos.first - cx) * k
+        cy += (pos.second - cy) * k
         clampCenter()
     }
 

@@ -3,6 +3,7 @@ package com.bydesigninteractive.labyrinth.game
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GameSettingsTest {
@@ -13,6 +14,24 @@ class GameSettingsTest {
         assertEquals(0.2, s.turnPause, 0.0)
         assertEquals("medium", s.size)
         assertEquals(0, s.zoomSteps)
+        assertEquals(100, s.coverage)
+    }
+
+    @Test
+    fun coverageIsAWholePercentFrom50To100() {
+        val f = GameField.COVERAGE
+        assertEquals("Screen coverage (%)", f.label)
+        assertEquals(Kind.NUMBER, f.kind)
+        assertEquals(50.0, f.low, 0.0)
+        assertEquals(100.0, f.high, 0.0)
+        assertEquals(5.0, f.increment, 0.0)
+        assertTrue(f.isInt)
+        assertNull(f.validate(45.0))
+        assertNull(f.validate(101.0))
+        assertNull(f.validate(72.5))
+        assertEquals(75, gameSettingsFrom(mapOf(f to 75.0)).coverage)
+        assertEquals(95, adjust(GameSettings(), f, -1, 0).coverage)
+        assertEquals("80", f.format(80.0))
     }
 
     @Test

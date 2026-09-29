@@ -161,11 +161,21 @@ class MenuTest {
     }
 
     @Test
-    fun onlySizeChangesNeedANewMaze() {
+    fun sizeAndCoverageChangesNeedANewMaze() {
         assertTrue(needsNewMaze(S, S.copy(size = "large")))
         assertFalse(needsNewMaze(S, S.copy(customMin = 30)))
         assertTrue(needsNewMaze(S.copy(size = "custom"), S.copy(size = "custom", customMax = 50)))
         assertFalse(needsNewMaze(S, S.copy(glideSpeed = 9.0, maxLeads = 3)))
+        assertTrue(needsNewMaze(S, S.copy(coverage = 75)))
+        assertFalse(needsNewMaze(S, S.copy(zoomSteps = 3)))
+    }
+
+    @Test
+    fun lookOffersColorsGridCoverageAndZoom() {
+        assertEquals(
+            listOf(GameField.MULTICOLOR, GameField.SHOW_GRID, GameField.COVERAGE, GameField.ZOOM).map { Row.Setting(it) },
+            rows(Tab.LOOK, S),
+        )
     }
 
     @Test

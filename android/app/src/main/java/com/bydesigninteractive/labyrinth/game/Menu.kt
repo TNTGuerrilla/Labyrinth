@@ -59,7 +59,9 @@ fun rows(tab: Tab, s: GameSettings): List<Row> = when (tab) {
         Row.Action(MenuAction.TEST_REMOTE),
         Row.Text(LAG_NOTE),
     )
-    Tab.LOOK -> listOf(Row.Setting(GameField.MULTICOLOR), Row.Setting(GameField.SHOW_GRID), Row.Setting(GameField.ZOOM))
+    Tab.LOOK -> listOf(
+        Row.Setting(GameField.MULTICOLOR), Row.Setting(GameField.SHOW_GRID), Row.Setting(GameField.COVERAGE), Row.Setting(GameField.ZOOM),
+    )
 }
 
 const val MENU_RESET_SECONDS = 60.0
@@ -74,9 +76,12 @@ sealed interface MenuEffect {
     data class Changed(val settings: GameSettings) : MenuEffect
 }
 
-/** A size change starts a new maze when the menu closes; other Maze rows wait for the next one. */
+/**
+ * A size or screen coverage change starts a new maze when the menu closes; other Maze rows
+ * wait for the next one.
+ */
 fun needsNewMaze(before: GameSettings, after: GameSettings): Boolean =
-    before.size != after.size ||
+    before.size != after.size || before.coverage != after.coverage ||
         (after.size == "custom" && (before.customMin != after.customMin || before.customMax != after.customMax))
 
 class MenuModel {
