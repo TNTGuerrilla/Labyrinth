@@ -31,6 +31,7 @@ import com.bydesigninteractive.labyrinth.maze.Field
 import com.bydesigninteractive.labyrinth.maze.Settings
 import com.bydesigninteractive.labyrinth.play.GameActivity
 import com.bydesigninteractive.labyrinth.play.GameStore
+import com.bydesigninteractive.labyrinth.play.RemoteTestActivity
 import com.bydesigninteractive.labyrinth.play.Session
 import com.bydesigninteractive.labyrinth.update.Release
 import com.bydesigninteractive.labyrinth.update.UpdateFailure
@@ -93,7 +94,7 @@ class SettingsActivity : Activity() {
             showNotes(news)
             UpdateStore.markWhatsNewSeen(this, current) // shown once: it counts as seen
         }
-        playButton = button("Play") { startActivity(Intent(this, GameActivity::class.java)) }
+        playButton = button("Play") { play() }
         column.addView(playButton)
         column.addView(modeRow())
         var first: View? = null
@@ -421,6 +422,15 @@ class SettingsActivity : Activity() {
 
     private fun refresh() {
         for ((field, view) in valueViews) view.text = "<  ${field.format(field.get(settings))}  >"
+    }
+
+    /** The first Play tests the remote, then starts the game; after that, straight into a game. */
+    private fun play() {
+        if (GameStore.loadRemote(this) == null) {
+            startActivity(Intent(this, RemoteTestActivity::class.java).putExtra(RemoteTestActivity.EXTRA_THEN_PLAY, true))
+        } else {
+            startActivity(Intent(this, GameActivity::class.java))
+        }
     }
 
     private fun button(label: String, onClick: () -> Unit): TextView =

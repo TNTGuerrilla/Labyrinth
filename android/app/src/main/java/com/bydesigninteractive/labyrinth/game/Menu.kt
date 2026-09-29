@@ -7,7 +7,7 @@ enum class Tab(val title: String) {
 }
 
 enum class MenuAction(val label: String) {
-    RESUME("Resume"), HINT("Hint"), AUTO_SOLVE("Auto-solve"), FLASH("Flash finish"), REPLAY("Replay"), NEW_MAZE("New maze"),
+    RESUME("Resume"), HINT("Hint"), AUTO_SOLVE("Auto-solve"), FLASH("Flash finish"), REPLAY("Replay"), NEW_MAZE("New maze"), TEST_REMOTE("Test remote"),
 }
 
 sealed interface Row {
@@ -28,9 +28,16 @@ val CONTROLS_TEXT = listOf(
     "On a number, OK starts editing: left and right change it, and OK or Back finishes.",
 )
 
+val PLAY_ACTIONS = listOf(
+    MenuAction.RESUME, MenuAction.HINT, MenuAction.AUTO_SOLVE, MenuAction.FLASH, MenuAction.REPLAY, MenuAction.NEW_MAZE,
+)
+
+const val LAG_NOTE = "Your remote's lag is added to the pause at forks, and a turn pressed up to that late " +
+    "still counts. Test again if you change remotes or the TV's picture mode."
+
 fun rows(tab: Tab, s: GameSettings): List<Row> = when (tab) {
     Tab.CONTROLS -> CONTROLS_TEXT.map { Row.Text(it) }
-    Tab.PLAY -> MenuAction.entries.map { Row.Action(it) }
+    Tab.PLAY -> PLAY_ACTIONS.map { Row.Action(it) }
     Tab.MAZE -> listOfNotNull(
         Row.Setting(GameField.SIZE),
         if (s.size == "custom") Row.Setting(GameField.CUSTOM_MIN) else null,
@@ -46,7 +53,12 @@ fun rows(tab: Tab, s: GameSettings): List<Row> = when (tab) {
         Row.Setting(GameField.HINT_LENGTH),
         Row.Setting(GameField.SOLVE_SPEED),
     )
-    Tab.MOVEMENT -> listOf(Row.Setting(GameField.GLIDE_SPEED), Row.Setting(GameField.TURN_PAUSE))
+    Tab.MOVEMENT -> listOf(
+        Row.Setting(GameField.GLIDE_SPEED),
+        Row.Setting(GameField.TURN_PAUSE),
+        Row.Action(MenuAction.TEST_REMOTE),
+        Row.Text(LAG_NOTE),
+    )
     Tab.LOOK -> listOf(Row.Setting(GameField.MULTICOLOR), Row.Setting(GameField.SHOW_GRID), Row.Setting(GameField.ZOOM))
 }
 

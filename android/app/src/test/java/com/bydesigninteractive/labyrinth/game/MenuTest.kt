@@ -167,4 +167,30 @@ class MenuTest {
         assertTrue(needsNewMaze(S.copy(size = "custom"), S.copy(size = "custom", customMax = 50)))
         assertFalse(needsNewMaze(S, S.copy(glideSpeed = 9.0, maxLeads = 3)))
     }
+
+    @Test
+    fun movementOffersTheRemoteTestAndExplainsTheLag() {
+        val rows = rows(Tab.MOVEMENT, S)
+        assertEquals(Row.Action(MenuAction.TEST_REMOTE), rows[2])
+        assertEquals(Row.Text(LAG_NOTE), rows[3])
+        assertEquals(
+            "Your remote's lag is added to the pause at forks, and a turn pressed up to that late still counts. " +
+                "Test again if you change remotes or the TV's picture mode.",
+            LAG_NOTE,
+        )
+    }
+
+    @Test
+    fun playDoesNotListTheRemoteTest() {
+        assertFalse(rows(Tab.PLAY, S).contains(Row.Action(MenuAction.TEST_REMOTE)))
+        assertEquals(PLAY_ACTIONS.map { Row.Action(it) }, rows(Tab.PLAY, S))
+    }
+
+    @Test
+    fun theRemoteTestRowRunsLikeAnAction() {
+        val m = MenuModel()
+        m.open(0.0, first = Tab.MOVEMENT)
+        m.press(MenuKey.DOWN, MenuKey.DOWN)
+        assertEquals(MenuEffect.Run(MenuAction.TEST_REMOTE), m.press(MenuKey.OK))
+    }
 }

@@ -5,6 +5,7 @@
 package com.bydesigninteractive.labyrinth.play
 
 import android.app.Activity
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -54,6 +55,8 @@ fun formatTime(seconds: Double): String {
 class GameActivity : Activity() {
     private lateinit var view: GameView
     private lateinit var settings: GameSettings
+    private lateinit var remote: RemoteProfile
+    private var testing = false
     private val input = GameInput()
     private val menu = MenuModel()
     private val handler = Handler(Looper.getMainLooper())
@@ -81,7 +84,8 @@ class GameActivity : Activity() {
         settings = GameStore.load(this)
         val firstOfSession = !Session.controlsShown
         Session.controlsShown = true
-        view = GameView(this, settings, GameStore.loadRemote(this) ?: RemoteProfile(), startPaused = firstOfSession)
+        remote = GameStore.loadRemote(this) ?: RemoteProfile()
+        view = GameView(this, settings, remote, startPaused = firstOfSession)
         view.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
 
@@ -112,7 +116,7 @@ class GameActivity : Activity() {
     override fun onResume() {
         super.onResume()
         view.onResume()
-        if (away) {
+        if (away && !testing) {
             away = false
             view.send { clearKeys() }
             if (!menu.isOpen) {
@@ -204,8 +208,28 @@ class GameActivity : Activity() {
                 renderMenu()
             }
             MenuEffect.Closed -> closeMenu(null)
-            is MenuEffect.Run -> closeMenu(effect.action)
+            is MenuEffect.Run ->
+                if (effect.action == MenuAction.TEST_REMOTE) startTest() else closeMenu(effect.action)
         }
+    }
+
+    /** The game stays paused behind the test; the menu comes back on Movement afterwards. */
+    private fun startTest() {
+        testing = true
+        menuPanel.visibility = View.GONE
+        startActivityForResult(Intent(this, RemoteTestActivity::class.java), REQUEST_TEST)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_TEST) return
+        testing = false
+        away = false
+        remote = GameStore.loadRemote(this) ?: remote
+        val r = remote
+        view.send { setRemote(r) }
+        menu.open(now()) // closed moments ago, so it reopens where it was: Movement
+        renderMenu()
     }
 
     private fun closeMenu(action: MenuAction?) {
@@ -221,7 +245,7 @@ class GameActivity : Activity() {
                 MenuAction.AUTO_SOLVE -> toggleAuto()
                 MenuAction.FLASH -> flash()
                 MenuAction.REPLAY -> replay()
-                MenuAction.RESUME, MenuAction.NEW_MAZE, null -> {}
+                MenuAction.RESUME, MenuAction.NEW_MAZE, MenuAction.TEST_REMOTE, null -> {}
             }
         }
         if (newMaze || action == MenuAction.REPLAY) {
@@ -270,7 +294,10 @@ class GameActivity : Activity() {
 
     private fun rowView(row: Row, selected: Boolean): View {
         if (row is Row.Text) {
-            return text(row.text, 17f, TEXT).apply { setPadding(dp(12), dp(4), dp(12), dp(4)) }
+            val note = menu.tab != Tab.CONTROLS
+            return text(row.text, if (note) 15f else 17f, if (note) DIM_TEXT else TEXT).apply {
+                setPadding(dp(12), if (note) dp(12) else dp(4), dp(12), dp(4))
+            }
         }
         val line = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -279,7 +306,10 @@ class GameActivity : Activity() {
             if (selected) background = rounded(FOCUSED)
         }
         when (row) {
-            is Row.Action -> line.addView(text(row.action.label, 19f, TEXT))
+            is Row.Action -> line.addView(text(
+                if (row.action == MenuAction.TEST_REMOTE) "Test remote (${remote.arrowLagMs} ms)" else row.action.label,
+                19f, TEXT,
+            ))
             is Row.Setting -> {
                 val f = row.field
                 line.addView(text(f.label, 19f, TEXT), LinearLayout.LayoutParams(0, WRAP, 1f))
@@ -390,6 +420,7 @@ class GameActivity : Activity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private companion object {
+        const val REQUEST_TEST = 1
         const val WRAP = LinearLayout.LayoutParams.WRAP_CONTENT
         const val MATCH = LinearLayout.LayoutParams.MATCH_PARENT
     }
