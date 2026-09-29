@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 
 from labyrinth_update import APPLY_FLAG, install
-from labyrinth_update.install import (STAGED_NAME, apply_update, can_write, cleanup_old,
-                                      extract_linux_binary, install_game, install_screensaver,
-                                      new_path, relaunch, swap)
+from labyrinth_update.install import (STAGED_NAME, apply_update, authorize_apply, can_write,
+                                      cleanup_old, extract_linux_binary, install_game,
+                                      install_screensaver, new_path, relaunch, swap)
 from labyrinth_update.net import UpdateError
 from labyrinth_update.releases import Release
 
@@ -275,14 +275,72 @@ def test_relaunch_starts_an_independent_process_without_nuitka_variables(tmp_pat
     assert out.read_text() == "unset"
 
 
-def test_screensaver_main_runs_the_apply_step(tmp_path):
+def published(version, digest):
+    """A GitHub release list holding one screensaver release."""
+    return [{"tag_name": f"labyrinth-screensaver-v{version}", "draft": False,
+             "prerelease": False,
+             "assets": [{"name": "Labyrinth.scr", "digest": f"sha256:{digest}",
+                         "browser_download_url": "https://example.invalid/Labyrinth.scr"}]}]
+
+
+def running_saver(monkeypatch, target, version="1.0.0"):
+    """Make the apply step believe `target` is the running screensaver at `version`."""
+    from labyrinth_update import version as version_module
+    monkeypatch.setattr(version_module, "current_binary", lambda: target.resolve())
+    monkeypatch.setattr(version_module, "running_version", lambda key: version)
+
+
+def test_screensaver_main_runs_the_apply_step(tmp_path, monkeypatch):
     from maze_saver.__main__ import main
     staged = program(tmp_path, "staged.exe", b"new")
     target = program(tmp_path, "Labyrinth.scr")
+    running_saver(monkeypatch, target)
+    monkeypatch.setattr(install, "fetch_releases", lambda: published("2.0.0", sha(b"new")))
     with pytest.raises(SystemExit) as exit_info:
         main([APPLY_FLAG, str(staged), str(target), sha(b"new")])
     assert exit_info.value.code == 0
     assert target.read_bytes() == b"new"
+
+
+def test_screensaver_main_refuses_to_replace_another_screensaver(tmp_path, monkeypatch):
+    from maze_saver.__main__ import main
+    staged = program(tmp_path, "staged.exe", b"new")
+    target = program(tmp_path, "scrnsave.scr")
+    running_saver(monkeypatch, program(tmp_path, "Labyrinth.scr"))
+    monkeypatch.setattr(install, "fetch_releases", lambda: published("2.0.0", sha(b"new")))
+    with pytest.raises(SystemExit) as exit_info:
+        main([APPLY_FLAG, str(staged), str(target), sha(b"new")])
+    assert exit_info.value.code == 4
+    assert target.read_bytes() == b"old"
+
+
+def test_authorize_apply_requires_the_running_program(tmp_path):
+    target = program(tmp_path, "Labyrinth.scr")
+    other = program(tmp_path, "Other.scr")
+    releases = lambda: published("2.0.0", sha(b"new"))
+    assert authorize_apply(target, sha(b"new"), target.resolve(), "1.0.0", releases) == 0
+    assert authorize_apply(target, sha(b"new"), other.resolve(), "1.0.0", releases) == 4
+    assert authorize_apply(target, sha(b"new"), None, "1.0.0", releases) == 4
+
+
+def test_authorize_apply_requires_a_published_newer_hash(tmp_path):
+    target = program(tmp_path, "Labyrinth.scr")
+    running = target.resolve()
+    good = sha(b"new")
+    assert authorize_apply(target, good.upper(), running, "1.0.0",
+                           lambda: published("2.0.0", good)) == 0
+    assert authorize_apply(target, sha(b"evil"), running, "1.0.0",
+                           lambda: published("2.0.0", good)) == 5
+    # The published hash belongs to the running version or an older one.
+    assert authorize_apply(target, good, running, "2.0.0",
+                           lambda: published("2.0.0", good)) == 5
+    assert authorize_apply(target, good, running, None,
+                           lambda: published("2.0.0", good)) == 5
+
+    def offline():
+        raise UpdateError("Could not read the list of releases.")
+
+    assert authorize_apply(target, good, running, "1.0.0", offline) == 5
 
 
 def test_apply_update_hashes_the_copy_in_the_target_folder(tmp_path, monkeypatch):

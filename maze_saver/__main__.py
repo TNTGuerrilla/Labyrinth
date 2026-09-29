@@ -69,9 +69,12 @@ def _run(argv: Sequence[str]) -> None:
     if command.mode == "none":
         return
     if command.mode == "apply":
-        from labyrinth_update.install import apply_update
+        from labyrinth_update import version
+        from labyrinth_update.install import apply_update, authorize_apply
         staged, target, sha256 = command.update_args
-        sys.exit(apply_update(Path(staged), Path(target), sha256))
+        code = authorize_apply(Path(target), sha256, version.current_binary(),
+                               version.running_version("screensaver"))
+        sys.exit(code or apply_update(Path(staged), Path(target), sha256))
     if command.mode == "config":
         from .settings_dialog import run_dialog
         run_dialog(command.hwnd, updater=_updater(config.load()))

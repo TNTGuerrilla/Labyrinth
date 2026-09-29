@@ -9,11 +9,11 @@ import sys
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import Callable, Optional, Sequence
+from typing import Any, Callable, Optional, Sequence
 
 from . import APPLY_FLAG
 from .net import Progress, UpdateError, download, file_sha256
-from .releases import Release
+from .releases import SCREENSAVER, Release, fetch_releases, newest
 
 MAX_OLD = 10
 LINUX_BINARY = "Labyrinth"
@@ -174,6 +174,24 @@ def install_screensaver(release: Release, target: Path, staging: Path,
         raise UpdateError(f"The update could not be installed: {exc.strerror or exc}") from exc
     finally:
         _remove(staged)
+
+
+def authorize_apply(target: Path, sha256: str, running: Optional[Path],
+                    current: Optional[str], fetch: Optional[Callable[[], Any]] = None) -> int:
+    """Whether the elevated half may go ahead: 0 if so, otherwise a process exit code. Any
+    program running as the user can start it with administrator rights, so its arguments
+    are not trusted. It only replaces the screensaver that is running (4 otherwise), and
+    only with the file of the newest screensaver release on GitHub (5 otherwise)."""
+    if running is None or os.path.normcase(str(target.resolve())) != os.path.normcase(
+            str(running)):
+        return 4
+    try:
+        release = newest((fetch or fetch_releases)(), SCREENSAVER, current or "")
+    except UpdateError:
+        return 5
+    if release is None or release.sha256 != sha256.lower():
+        return 5
+    return 0
 
 
 def apply_update(staged: Path, target: Path, sha256: str) -> int:
