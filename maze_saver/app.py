@@ -1,6 +1,7 @@
 """Windows, the main loop, and the run modes (screensaver, preview, debug window)."""
 from __future__ import annotations
 
+import itertools
 import os
 import random
 import time
@@ -15,6 +16,7 @@ from .config import Settings
 from .icon import load_icon, set_display_icon
 from .input_watch import ExitWatcher
 from .layout import Layout, Monitor, Rect, plan_layout, scale_to_fit
+from .preview import claim_name, is_superseded, make_token, preview_should_run
 from .render import BLACK, BoardRenderer
 from .watermark import Watermark, primary_index
 from .whats_new import SaverWhatsNew, SectionClock
@@ -273,26 +275,73 @@ def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Option
         monitors.release_handle(mutex)
 
 
-def run_preview(hwnd: int, settings: Settings) -> None:
-    """Render one board into the Screen Saver Settings preview box until it closes."""
+class PreviewClaim:
+    """Marks this preview as the newest one for a Screen Saver Settings preview window.
+    Windows starts a fresh `/p <hwnd>` for the same window every time a screensaver is
+    picked; each claim overwrites a shared slot named after that window, so older
+    Labyrinth previews see someone else's token there and stop."""
+
+    _serials = itertools.count(1)
+
+    def __init__(self, parent_hwnd: int) -> None:
+        self.token = make_token(os.getpid(), next(self._serials))
+        self._slot = monitors.SharedSlot(claim_name(parent_hwnd))
+        self._slot.value = self.token
+
+    def superseded(self) -> bool:
+        return is_superseded(self.token, self._slot.value)
+
+    def close(self) -> None:
+        self._slot.close()
+
+
+def run_preview(hwnd: int, settings: Settings, max_frames: Optional[int] = None,
+                on_frame: Optional[Callable[[int, int], None]] = None) -> int:
+    """Render one board into the Screen Saver Settings preview box until it closes.
+
+    Draws into a child window of our own inside the preview box, like any screensaver,
+    and stops when Windows destroys that child or the box, when a newer Labyrinth preview
+    claims the box, or after `max_frames` frames. `on_frame(frame, child_hwnd)` runs after
+    each frame (tests). Returns the number of frames drawn."""
     if not monitors.is_window(hwnd):
-        return
+        return 0
     monitors.enable_dpi_awareness()
-    os.environ["SDL_WINDOWID"] = str(hwnd)
+    claim = PreviewClaim(hwnd)
+    child = monitors.create_preview_child(hwnd)
+    if not child:
+        claim.close()
+        return 0
+    previous_window_id = os.environ.get("SDL_WINDOWID")
+    os.environ["SDL_WINDOWID"] = str(child)
+    frames = 0
     pygame.display.init()
     try:
-        w, h = monitors.client_size(hwnd)
+        w, h = monitors.client_size(child)
         w, h = max(1, w), max(1, h)
         surface = pygame.display.set_mode((w, h))
         stage = Stage(make_slots(surface, [Rect(0, 0, w, h)], settings, random.Random(), False),
                       PREVIEW_FPS)
         clock = pygame.time.Clock()
-        while monitors.is_window(hwnd):
+        while max_frames is None or frames < max_frames:
             dt = clock.tick(stage.fps) / 1000.0
-            pygame.event.get()
+            closed = any(e.type in (pygame.QUIT, pygame.WINDOWCLOSE) for e in pygame.event.get())
+            if not preview_should_run(parent_alive=monitors.is_window(hwnd),
+                                      child_alive=monitors.is_window(child) and not closed,
+                                      superseded=claim.superseded()):
+                break
             stage.frame(dt)
+            frames += 1
+            if on_frame is not None:
+                on_frame(frames, child)
     finally:
         pygame.quit()
+        if previous_window_id is None:
+            os.environ.pop("SDL_WINDOWID", None)
+        else:
+            os.environ["SDL_WINDOWID"] = previous_window_id
+        monitors.destroy_window(child)
+        claim.close()
+    return frames
 
 
 def run_debug_window(settings: Settings, leads: Optional[int] = None) -> None:

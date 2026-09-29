@@ -29,6 +29,13 @@ SM_YVIRTUALSCREEN = 77
 SM_CXVIRTUALSCREEN = 78
 SM_CYVIRTUALSCREEN = 79
 SM_CMONITORS = 80
+WS_CHILD = 0x40000000
+WS_VISIBLE = 0x10000000
+ERROR_CLASS_ALREADY_EXISTS = 1410
+PREVIEW_CHILD_CLASS = "LabyrinthPreviewChild"
+INVALID_HANDLE_VALUE = wintypes.HANDLE(-1)
+PAGE_READWRITE = 0x04
+FILE_MAP_ALL_ACCESS = 0x000F001F
 
 
 class MONITORINFOEXW(ctypes.Structure):
@@ -77,6 +84,23 @@ class DEVMODEW(ctypes.Structure):
     ]
 
 
+class WNDCLASSEXW(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.UINT),
+        ("style", wintypes.UINT),
+        ("lpfnWndProc", ctypes.c_void_p),
+        ("cbClsExtra", ctypes.c_int),
+        ("cbWndExtra", ctypes.c_int),
+        ("hInstance", wintypes.HINSTANCE),
+        ("hIcon", wintypes.HICON),
+        ("hCursor", wintypes.HANDLE),
+        ("hbrBackground", wintypes.HBRUSH),
+        ("lpszMenuName", wintypes.LPCWSTR),
+        ("lpszClassName", wintypes.LPCWSTR),
+        ("hIconSm", wintypes.HICON),
+    ]
+
+
 MONITORENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HMONITOR, wintypes.HDC,
                                      ctypes.POINTER(wintypes.RECT), wintypes.LPARAM)
 
@@ -104,6 +128,26 @@ user32.GetSystemMetrics.argtypes = [ctypes.c_int]
 user32.GetSystemMetrics.restype = ctypes.c_int
 user32.GetParent.argtypes = [wintypes.HWND]
 user32.GetParent.restype = wintypes.HWND
+user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+user32.DefWindowProcW.restype = ctypes.c_ssize_t
+user32.RegisterClassExW.argtypes = [ctypes.POINTER(WNDCLASSEXW)]
+user32.RegisterClassExW.restype = wintypes.ATOM
+user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+                                   ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.HWND,
+                                   wintypes.HMENU, wintypes.HINSTANCE, ctypes.c_void_p]
+user32.CreateWindowExW.restype = wintypes.HWND
+user32.DestroyWindow.argtypes = [wintypes.HWND]
+user32.DestroyWindow.restype = wintypes.BOOL
+kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+kernel32.CreateFileMappingW.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD,
+                                        wintypes.DWORD, wintypes.LPCWSTR]
+kernel32.CreateFileMappingW.restype = wintypes.HANDLE
+kernel32.MapViewOfFile.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD,
+                                   ctypes.c_size_t]
+kernel32.MapViewOfFile.restype = ctypes.c_void_p
+kernel32.UnmapViewOfFile.argtypes = [ctypes.c_void_p]
+kernel32.UnmapViewOfFile.restype = wintypes.BOOL
 kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
 kernel32.CreateMutexW.restype = wintypes.HANDLE
 kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
@@ -221,6 +265,74 @@ def client_size(hwnd: int) -> tuple[int, int]:
     if not user32.GetClientRect(hwnd, ctypes.byref(rect)):
         return (0, 0)
     return (rect.right - rect.left, rect.bottom - rect.top)
+
+
+_preview_class_registered = False
+
+
+def _register_preview_class() -> bool:
+    """Registers the preview child's window class once. Its window procedure is
+    DefWindowProcW itself, so there is no Python callback to keep alive, and it has no
+    background brush, so the window never paints over what SDL draws."""
+    global _preview_class_registered
+    if _preview_class_registered:
+        return True
+    wc = WNDCLASSEXW()
+    wc.cbSize = ctypes.sizeof(WNDCLASSEXW)
+    wc.lpfnWndProc = ctypes.cast(user32.DefWindowProcW, ctypes.c_void_p).value
+    wc.hInstance = kernel32.GetModuleHandleW(None)
+    wc.lpszClassName = PREVIEW_CHILD_CLASS
+    ctypes.set_last_error(0)
+    if not user32.RegisterClassExW(ctypes.byref(wc)) and ctypes.get_last_error() != ERROR_CLASS_ALREADY_EXISTS:
+        return False
+    _preview_class_registered = True
+    return True
+
+
+def create_preview_child(parent_hwnd: int) -> int:
+    """Creates our own visible child window filling the parent's client area, the way a
+    screensaver draws its preview. Returns the child hwnd, or 0 on failure."""
+    if not is_window(parent_hwnd) or not _register_preview_class():
+        return 0
+    w, h = client_size(parent_hwnd)
+    return user32.CreateWindowExW(0, PREVIEW_CHILD_CLASS, "Labyrinth preview", WS_CHILD | WS_VISIBLE,
+                                  0, 0, max(1, w), max(1, h), parent_hwnd, None,
+                                  kernel32.GetModuleHandleW(None), None) or 0
+
+
+def destroy_window(hwnd: int) -> None:
+    """Destroys a window this thread created, if it still exists."""
+    if is_window(hwnd):
+        user32.DestroyWindow(hwnd)
+
+
+class SharedSlot:
+    """One 64-bit value in a named, pagefile-backed file mapping, shared by every process
+    in the session that opens the same name. It lives while any process holds it open.
+    A process that cannot open it gets value 0 and writes that go nowhere."""
+
+    def __init__(self, name: str) -> None:
+        self._handle = kernel32.CreateFileMappingW(INVALID_HANDLE_VALUE, None, PAGE_READWRITE, 0, 8, name)
+        self._view = kernel32.MapViewOfFile(self._handle, FILE_MAP_ALL_ACCESS, 0, 0, 8) if self._handle else None
+        self._cell = ctypes.c_uint64.from_address(self._view) if self._view else None
+
+    @property
+    def value(self) -> int:
+        return int(self._cell.value) if self._cell is not None else 0
+
+    @value.setter
+    def value(self, new: int) -> None:
+        if self._cell is not None:
+            self._cell.value = new
+
+    def close(self) -> None:
+        self._cell = None
+        if self._view:
+            kernel32.UnmapViewOfFile(self._view)
+            self._view = None
+        if self._handle:
+            kernel32.CloseHandle(self._handle)
+            self._handle = None
 
 
 def acquire_single_instance(name: str) -> Optional[int]:
