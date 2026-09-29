@@ -82,7 +82,7 @@ class MazeTest {
 
     @Test
     fun chooseGeneratorUsesBothStyles() {
-        val counts = (0 until 200).map { chooseGenerator(Grid(30, 30), Random(it)).first }
+        val counts = (0 until 200).map { chooseGenerator(Grid(20, 20), Random(it)).first }
         assertTrue(counts.any { it == 1 })
         assertTrue(counts.any { it > 1 })
     }
@@ -92,7 +92,7 @@ class MazeTest {
         // 1000 cells: upper bound is 4 + 1000 / 250 = 8.
         val counts = (0 until 400).map { chooseGenerator(Grid(40, 25), Random(it)).first }
         assertEquals(8, counts.max())
-        assertEquals(1, counts.min())
+        assertEquals(2, counts.min()) // 1000 cells: the tier minimum is 2
     }
 
     @Test
@@ -100,5 +100,34 @@ class MazeTest {
         assertEquals(1, chooseGenerator(Grid(10, 10), Random(0), forcedHeads = 1).first)
         assertEquals(6, chooseGenerator(Grid(10, 10), Random(0), forcedHeads = 6).first)
         assertEquals(4, chooseGenerator(Grid(2, 2), Random(0), forcedHeads = 9).first)
+    }
+
+    @Test
+    fun minLeadsTiers() {
+        assertEquals(
+            listOf(1, 1, 2, 2, 4, 4, 8, 8),
+            listOf(1, 499, 500, 1999, 2000, 7999, 8000, 50000).map { minLeads(it) },
+        )
+    }
+
+    @Test
+    fun largeMazesNeverGrowFromOneLead() {
+        for (seed in 0 until 200) {
+            val count = chooseGenerator(Grid(50, 50), Random(seed), 12).first
+            assertTrue(count >= 4)
+        }
+    }
+
+    @Test
+    fun theMinimumIsCappedAtMaxLeads() {
+        for (seed in 0 until 100) {
+            assertEquals(3, chooseGenerator(Grid(100, 100), Random(seed), 3).first)
+        }
+    }
+
+    @Test
+    fun smallMazesStillSometimesUseOneLead() {
+        val counts = (0 until 200).map { chooseGenerator(Grid(10, 10), Random(it), 12).first }.toSet()
+        assertTrue(1 in counts && counts.max() >= 2)
     }
 }

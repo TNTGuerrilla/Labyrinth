@@ -9,6 +9,12 @@ import kotlin.random.Random
 const val CELLS_PER_EXTRA_LEAD = 250
 const val BASE_MAX_LEADS = 4
 
+/** (cells at or above, minimum leads). */
+val LEAD_TIERS = listOf(8000 to 8, 2000 to 4, 500 to 2)
+
+/** The fewest leads a maze of this many cells grows from, before the Max leads cap. */
+fun minLeads(cells: Int): Int = LEAD_TIERS.firstOrNull { cells >= it.first }?.second ?: 1
+
 const val N = 1
 const val E = 2
 const val S = 4
@@ -166,8 +172,9 @@ private fun weldRegions(grid: Grid, rng: Random, regionOf: Map<Cell, Int>, count
 /**
  * Pick a growth style. Returns (region count, event iterator).
  *
- * Without forcedHeads, style is a 50/50 coin flip; the multi-snake head count scales with
- * board size, from 2 up to maxHeads. With forcedHeads, that style and count are used
+ * Without forcedHeads, the head count scales with board size between a minimum from
+ * LEAD_TIERS (capped at maxHeads) and maxHeads; only when that minimum is 1 is a single
+ * snake possible, on a 50/50 coin flip. With forcedHeads, that style and count are used
  * directly: 1 forces a single snake, 2+ forces multi snake with that many heads, clamped
  * to the cell count.
  */
@@ -180,8 +187,10 @@ fun chooseGenerator(
         val heads = minOf(forcedHeads, cells)
         return heads to multiSnake(grid, rng, heads)
     }
-    if (rng.nextDouble() < 0.5) return 1 to singleSnake(grid, rng)
-    val upper = maxOf(2, minOf(maxHeads, BASE_MAX_LEADS + cells / CELLS_PER_EXTRA_LEAD))
-    val heads = minOf(rng.nextInt(2, upper + 1), cells)
+    var lowest = minOf(minLeads(cells), maxHeads)
+    if (lowest <= 1 && rng.nextDouble() < 0.5) return 1 to singleSnake(grid, rng)
+    lowest = maxOf(2, lowest)
+    val upper = maxOf(lowest, minOf(maxHeads, BASE_MAX_LEADS + cells / CELLS_PER_EXTRA_LEAD))
+    val heads = minOf(rng.nextInt(lowest, upper + 1), cells)
     return heads to multiSnake(grid, rng, heads)
 }

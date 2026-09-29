@@ -3,7 +3,7 @@ import random
 import pytest
 
 from maze_saver.maze import (E, N, W, Carve, Finish, Grid, Retreat, Start, Weld, choose_generator,
-                             direction, edge_key, multi_snake, single_snake)
+                             direction, edge_key, min_leads, multi_snake, single_snake)
 from tests.mazeutil import assert_perfect
 
 
@@ -113,7 +113,7 @@ def test_choose_generator_scales_leads_with_board_size(cols, rows, expected_uppe
             assert 2 <= regions <= expected_upper
         region_counts.add(regions)
     if cols * rows == 40 * 60:
-        assert 1 in region_counts
+        assert min(region_counts) >= 4  # 2400 cells: tier minimum is 4
         assert any(r >= 8 for r in region_counts)
 
 
@@ -155,3 +155,24 @@ def test_choose_generator_forced_heads_clamped_to_cell_count():
     assert regions == 4
     assert len(starts) == 4
     assert_perfect(g)
+
+
+def test_min_leads_tiers():
+    assert [min_leads(c) for c in (1, 499, 500, 1999, 2000, 7999, 8000, 50000)] == [1, 1, 2, 2, 4, 4, 8, 8]
+
+
+def test_large_mazes_never_grow_from_one_lead():
+    for seed in range(200):
+        count, _ = choose_generator(Grid(50, 50), random.Random(seed), 12)  # 2500 cells
+        assert count >= 4
+
+
+def test_the_minimum_is_capped_at_max_leads():
+    for seed in range(100):
+        count, _ = choose_generator(Grid(100, 100), random.Random(seed), 3)  # tier 8, cap 3
+        assert count == 3
+
+
+def test_small_mazes_still_sometimes_use_one_lead():
+    counts = {choose_generator(Grid(10, 10), random.Random(s), 12)[0] for s in range(200)}
+    assert 1 in counts and max(counts) >= 2

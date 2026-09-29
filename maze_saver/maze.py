@@ -13,6 +13,12 @@ Cell = tuple[int, int]
 
 CELLS_PER_EXTRA_LEAD = 250
 BASE_MAX_LEADS = 4
+LEAD_TIERS = ((8000, 8), (2000, 4), (500, 2))  # (cells at or above, minimum leads)
+
+
+def min_leads(cells: int) -> int:
+    """The fewest leads a maze of this many cells grows from, before the Max leads cap."""
+    return next((n for threshold, n in LEAD_TIERS if cells >= threshold), 1)
 
 N, E, S, W = 1, 2, 4, 8
 DELTAS: dict[int, tuple[int, int]] = {N: (0, -1), E: (1, 0), S: (0, 1), W: (-1, 0)}
@@ -198,8 +204,9 @@ def choose_generator(grid: Grid, rng: random.Random, max_heads: int = 12,
                      forced_heads: Optional[int] = None) -> tuple[int, Iterator[GenEvent]]:
     """Pick a growth style. Returns (region count, event iterator).
 
-    Without forced_heads, style is a 50/50 coin flip; the multi-snake head count scales
-    with board size, from 2 up to max_heads. With forced_heads, that style and count are
+    Without forced_heads, the head count scales with board size between a minimum from
+    LEAD_TIERS (capped at max_heads) and max_heads; only when that minimum is 1 is a single
+    snake possible, on a 50/50 coin flip. With forced_heads, that style and count are
     used directly (no coin flip, so forced runs are deterministic in style): 1 forces a
     single snake, 2+ forces multi snake with that many heads, clamped to the cell count.
     """
@@ -209,8 +216,10 @@ def choose_generator(grid: Grid, rng: random.Random, max_heads: int = 12,
             return 1, single_snake(grid, rng)
         heads = min(forced_heads, cells)
         return heads, multi_snake(grid, rng, heads)
-    if rng.random() < 0.5:
+    lowest = min(min_leads(cells), max_heads)
+    if lowest <= 1 and rng.random() < 0.5:
         return 1, single_snake(grid, rng)
-    upper = max(2, min(max_heads, BASE_MAX_LEADS + cells // CELLS_PER_EXTRA_LEAD))
-    heads = min(rng.randint(2, upper), cells)
+    lowest = max(2, lowest)
+    upper = max(lowest, min(max_heads, BASE_MAX_LEADS + cells // CELLS_PER_EXTRA_LEAD))
+    heads = min(rng.randint(lowest, upper), cells)
     return heads, multi_snake(grid, rng, heads)
