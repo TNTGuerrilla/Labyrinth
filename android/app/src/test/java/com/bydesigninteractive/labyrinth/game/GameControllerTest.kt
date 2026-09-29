@@ -1,0 +1,148 @@
+package com.bydesigninteractive.labyrinth.game
+
+import com.bydesigninteractive.labyrinth.maze.E
+import com.bydesigninteractive.labyrinth.maze.N
+import com.bydesigninteractive.labyrinth.maze.W
+import com.bydesigninteractive.labyrinth.maze.edgeKey
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import kotlin.random.Random
+
+private val TEST = GameSettings(glideSpeed = 10.0, turnPause = 0.2, lookahead = 0)
+
+private fun controller(settings: GameSettings = TEST, remote: RemoteProfile = RemoteProfile(), end: com.bydesigninteractive.labyrinth.maze.Cell = c(3, 1)) =
+    GameController(settings, remote).apply { start(Round.ofMaze(lineWithBranch(), c(0, 1), end, settings)) }
+
+private fun GameController.frames(n: Int, dt: Double = 0.02) = repeat(n) { frame(dt) }
+
+class GameControllerTest {
+    @Test
+    fun forkPauseAddsLagAndCooldown() {
+        val g = controller(remote = RemoteProfile(arrowLagMs = 100, arrowRepeatCooldownMs = 50))
+        assertEquals(0.35, g.forkPause, 1e-9)
+    }
+
+    @Test
+    fun theDotWaitsAtTheForkForTheWholePause() {
+        val g = controller(remote = RemoteProfile(arrowLagMs = 100, arrowRepeatCooldownMs = 50))
+        g.pressArrow(E)
+        g.frame(0.1) // one cell: arrives at the fork (1,1) and starts the 0.35 s pause
+        assertEquals(c(1, 1), g.round.mover.frm)
+        g.frames(3, 0.1)
+        assertFalse(g.dotMoving)
+        g.frame(0.1)
+        assertTrue(g.dotMoving)
+    }
+
+    @Test
+    fun aLatePressTurnsAtTheForkItJustPassed() {
+        val g = controller(settings = TEST.copy(turnPause = 0.0), remote = RemoteProfile(arrowLagMs = 200))
+        g.pressArrow(E)
+        repeat(200) { if (g.round.mover.to != c(2, 1)) g.frame(0.02) }
+        assertEquals(c(2, 1), g.round.mover.to) // just left the fork
+        g.frames(3) // about 0.3 of a cell further
+        g.pressArrow(N)
+        assertTrue(g.round.mover.returning)
+        g.frames(50)
+        assertEquals(c(1, 0), g.round.dot)
+        assertFalse(g.round.trail.containsKey(edgeKey(c(1, 1), c(2, 1))))
+        assertEquals(2, g.round.explored)
+    }
+
+    @Test
+    fun withoutLagThereIsNoLateTurn() {
+        val g = controller(settings = TEST.copy(turnPause = 0.0))
+        g.pressArrow(E)
+        repeat(200) { if (g.round.mover.to != c(2, 1)) g.frame(0.02) }
+        g.frames(3)
+        g.pressArrow(N)
+        assertFalse(g.round.mover.returning)
+    }
+
+    @Test
+    fun pressingTheOppositeWayReverses() {
+        val g = controller(settings = TEST.copy(turnPause = 0.0))
+        g.pressArrow(E)
+        g.frames(2)
+        g.pressArrow(W)
+        assertEquals(c(0, 1), g.round.mover.to)
+        assertNull(g.keys.request)
+    }
+
+    @Test
+    fun steadyHoldsReleaseAtOnce() {
+        val g = controller()
+        g.pressArrow(E)
+        g.releaseArrow(E)
+        assertNull(g.keys.wanted)
+    }
+
+    @Test
+    fun stutteringHoldsAreSmoothedOver() {
+        val g = controller(remote = RemoteProfile(arrowHoldGapMs = 100))
+        g.pressArrow(E)
+        g.keys.request = null
+        g.releaseArrow(E)
+        g.frame(0.1)
+        assertEquals(E, g.keys.wanted) // still held: the grace is 0.15 s
+        g.pressArrow(E) // the stutter's next "press" continues the hold
+        assertNull(g.keys.request)
+        g.releaseArrow(E)
+        g.frame(0.1)
+        assertEquals(E, g.keys.wanted)
+        g.frame(0.1)
+        assertNull(g.keys.wanted) // 0.2 s without a press: really released
+    }
+
+    @Test
+    fun anArrowDuringGrowthSkipsItWithoutSteering() {
+        val g = GameController(TEST, RemoteProfile())
+        g.start(Round.create(20, 12, TEST, Random(3)))
+        g.pressArrow(E)
+        assertTrue(g.round.fastForward)
+        assertNull(g.keys.wanted)
+    }
+
+    @Test
+    fun autoSolveDrivesTheShortestRouteAndStops() {
+        val g = controller(end = c(3, 1))
+        g.toggleAuto()
+        assertTrue(g.autoSolving)
+        repeat(500) { if (g.round.phase == RoundPhase.PLAY) g.frame(0.02) }
+        assertEquals(RoundPhase.WON, g.round.phase)
+        assertEquals(3, g.round.autoExplored)
+        assertEquals(0, g.round.explored)
+        assertFalse(g.autoSolving)
+    }
+
+    @Test
+    fun anArrowStopsAutoSolve() {
+        val g = controller()
+        g.toggleAuto()
+        g.frames(2)
+        g.pressArrow(E)
+        assertFalse(g.autoSolving)
+    }
+
+    @Test
+    fun replayStopsAutoSolveAndDropsTheRequest() {
+        val g = controller()
+        g.toggleAuto()
+        repeat(500) { if (g.round.phase == RoundPhase.PLAY) g.frame(0.02) }
+        g.replay()
+        assertEquals(RoundPhase.PLAY, g.round.phase)
+        assertFalse(g.autoSolving)
+        assertNull(g.keys.request)
+    }
+
+    @Test
+    fun theTimerRuns() {
+        val g = controller()
+        g.pressArrow(E)
+        g.frames(10)
+        assertTrue(g.round.elapsed > 0)
+    }
+}
