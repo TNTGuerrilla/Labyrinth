@@ -81,6 +81,7 @@ class Stage:
         if self.watermark is None and self.slots:
             surface = self.slots[self.primary].renderer.surface
             self.watermark = Watermark(message, surface.get_size(), now)
+            self.slots[self.primary].board.set_notice(True)
 
     def show_section(self, section: WhatsNewSection, on_done: Callable[[], None]) -> None:
         """Lay the primary maze out beside the section from its next maze on (the board is
@@ -111,7 +112,10 @@ class Stage:
                 done, self._section_done = self._section_done, None
                 if done is not None:
                     done()
-        if self.watermark is not None:
+        board = slot.board
+        if self.watermark is not None and (board.maze_notice or board.geometry is None):
+            # Only beside a maze laid out with the notice cap (or on black), so the
+            # watermark never covers a maze that fills the whole screen.
             rects += self.watermark.update(surface, now, changes.clear, _maze_area(slot.board))
         return rects
 

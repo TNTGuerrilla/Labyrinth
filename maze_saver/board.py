@@ -15,7 +15,7 @@ from .maze import (Carve, Cell, Finish, GenEvent, Grid, Retreat, Start, Weld, ch
                    edge_key)
 from .solver import Advance, Solved, SolveEvent, solve
 
-FILL_NUM, FILL_DEN = 4, 5  # boards fill 80% of the monitor
+NOTICE_COVERAGE = 85  # percent; the most a maze covers while the update notice shows
 MIN_CELL_PX = 4
 MAX_STEPS_PER_FRAME = 500
 MAX_ENDPOINT_TRIES = 1000
@@ -28,9 +28,9 @@ WELD_FLASH_SECONDS = 0.3
 Edge = tuple[Cell, Cell]
 
 
-def fill(px: int) -> int:
-    """80% of a pixel length, rounded down (integer math avoids float error)."""
-    return px * FILL_NUM // FILL_DEN
+def fill(px: int, coverage: int = 100) -> int:
+    """`coverage`% of a pixel length, rounded down (integer math avoids float error)."""
+    return px * coverage // 100
 
 
 @dataclass(frozen=True)
@@ -54,10 +54,11 @@ class Geometry:
 
 
 def compute_geometry(width: int, height: int, min_cells: int, max_cells: int,
-                     rng: random.Random) -> Geometry:
-    """Square cells; short side fills 80%; long side random from square up to 80%."""
-    short_fill = fill(min(width, height))
-    long_fill = fill(max(width, height))
+                     rng: random.Random, coverage: int = 100) -> Geometry:
+    """Square cells; short side fills `coverage`%; long side random from square up to
+    `coverage`%."""
+    short_fill = fill(min(width, height), coverage)
+    long_fill = fill(max(width, height), coverage)
     n_short = rng.randint(min_cells, max_cells)
     n_short = max(2, min(n_short, short_fill // MIN_CELL_PX))
     cell = max(1, short_fill // n_short)
@@ -131,6 +132,10 @@ class Board:
         # The area the maze on screen (or the last one) was laid out in: `area` as it was
         # when that maze started. Overlays that must avoid the maze follow this one.
         self.maze_area: Optional[tuple[int, int, int, int]] = None
+        # Whether an update notice shows (read when a maze starts, like `area`), and whether
+        # the maze on screen (or the last one) was laid out with the notice cap.
+        self._notice = False
+        self.maze_notice = False
         self.mazes_solved = 0  # hold phases entered; the screensaver closes What's new on one
         self._reset()
         self._enter_black(initial_delay)
@@ -138,6 +143,11 @@ class Board:
     def set_area(self, area: Optional[tuple[int, int, int, int]]) -> None:
         """Lay out mazes in `area` from the next maze on (None: the whole surface)."""
         self.area = area
+
+    def set_notice(self, on: bool) -> None:
+        """Keep mazes within NOTICE_COVERAGE from the next maze on, leaving a margin for
+        the update notice."""
+        self._notice = on
 
     def _reset(self) -> None:
         self.geometry: Optional[Geometry] = None
@@ -204,8 +214,10 @@ class Board:
     def _enter_dots(self, changes: Changes) -> None:
         s = self.settings
         self.maze_area = self.area
+        self.maze_notice = self._notice
+        coverage = min(s.coverage, NOTICE_COVERAGE) if self._notice else s.coverage
         x, y, w, h = self.area or (0, 0, self.width, self.height)
-        g = compute_geometry(w, h, s.min_cells, s.max_cells, self.rng)
+        g = compute_geometry(w, h, s.min_cells, s.max_cells, self.rng, coverage)
         self.geometry = replace(g, x=g.x + x, y=g.y + y)
         self.grid = Grid(self.geometry.cols, self.geometry.rows)
         self.start, self.end = choose_endpoints(self.geometry.cols, self.geometry.rows, self.rng)

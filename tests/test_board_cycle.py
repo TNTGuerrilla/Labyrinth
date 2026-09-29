@@ -214,3 +214,39 @@ def test_maze_area_is_the_area_the_maze_on_screen_used():
     run_until(board, Phase.BLACK)
     run_until(board, Phase.DOTS)
     assert board.maze_area is None
+
+
+def _within(board, coverage):
+    g = board.geometry
+    return (min(g.width, g.height) <= min(board.width, board.height) * coverage // 100
+            and max(g.width, g.height) <= max(board.width, board.height) * coverage // 100)
+
+
+def test_coverage_setting_sizes_the_maze():
+    b = Board(1600, 900, Settings(min_cells=12, max_cells=12, coverage=50), random.Random(4))
+    run_until(b, Phase.DOTS)
+    assert b.geometry.height == 900 * 50 // 100 // 12 * 12 and _within(b, 50)
+
+
+def test_the_notice_caps_coverage_from_the_next_maze():
+    from maze_saver.board import NOTICE_COVERAGE
+    assert NOTICE_COVERAGE == 85
+    settings = Settings(min_cells=12, max_cells=12, gen_speed=1000, solve_speed=500,
+                        hold_seconds=0.5, coverage=100)
+    b = Board(1600, 900, settings, random.Random(6))
+    run_until(b, Phase.DOTS)
+    assert b.maze_notice is False and b.geometry.height == 900 // 12 * 12
+    b.set_notice(True)
+    assert b.maze_notice is False  # the maze on screen was laid out without the cap
+    run_until(b, Phase.BLACK)
+    assert b.maze_notice is False
+    run_until(b, Phase.DOTS)
+    assert b.maze_notice is True
+    assert b.geometry.height == 900 * 85 // 100 // 12 * 12 and _within(b, 85)
+
+
+def test_the_notice_leaves_a_smaller_coverage_alone():
+    b = Board(1600, 900, Settings(min_cells=12, max_cells=12, coverage=60), random.Random(7))
+    b.set_notice(True)
+    run_until(b, Phase.DOTS)
+    assert b.maze_notice is True and b.geometry.height == 900 * 60 // 100 // 12 * 12

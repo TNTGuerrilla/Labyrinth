@@ -20,6 +20,7 @@ class Settings:
     lookahead: int = 4
     hold_seconds: float = 4.0
     max_leads: int = 12
+    coverage: int = 100  # percent of each monitor side a maze may cover
     fps_cap: FpsCap = "auto"
     check_updates: bool = True
 
@@ -33,6 +34,7 @@ NUMERIC_RANGES = {
     "lookahead": (0, 12, True),
     "hold_seconds": (0, 30, False),
     "max_leads": (2, 16, True),
+    "coverage": (50, 100, True),
 }
 FPS_CAP_CHOICES = ("auto", 60, 120)
 

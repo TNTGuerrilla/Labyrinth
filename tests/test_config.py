@@ -139,3 +139,19 @@ def test_check_updates_setting(tmp_path):
     path = tmp_path / "config.json"
     save(Settings(check_updates=False), path)
     assert load(path).check_updates is False
+
+
+def test_coverage_defaults_to_100():
+    assert Settings().coverage == 100
+    assert from_dict({}).coverage == 100
+
+
+def test_coverage_accepts_its_bounds_and_any_whole_percent_between():
+    assert from_dict({"coverage": 50}).coverage == 50
+    assert from_dict({"coverage": 100}).coverage == 100
+    assert from_dict({"coverage": 83}).coverage == 83
+
+
+def test_coverage_bad_values_fall_back_to_default():
+    for bad in (45, 105, "x", 72.5, True):
+        assert from_dict({"coverage": bad}).coverage == 100

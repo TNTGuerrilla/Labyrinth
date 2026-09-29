@@ -168,3 +168,38 @@ def test_the_watermark_follows_the_area_of_the_maze_on_screen():
     while board.geometry is None or board.phase is Phase.HOLD:
         step()
     assert board.maze_area is None and stage.watermark.area is None
+
+
+def test_the_watermark_waits_for_a_maze_laid_out_with_the_notice_cap():
+    from types import SimpleNamespace
+
+    from maze_saver.board import NOTICE_COVERAGE
+
+    surface = pygame.Surface((1600, 900))
+    quick = Settings(min_cells=12, max_cells=12, gen_speed=1000, solve_speed=500,
+                     hold_seconds=0.5, coverage=100)
+    slot = make_slots(surface, [Rect(0, 0, 1600, 900)], quick, random.Random(3), False)[0]
+    slot.window = SimpleNamespace(flip=lambda: None)
+    stage = Stage([slot], 60)
+    board = slot.board
+    t = 0.0
+
+    def step():
+        nonlocal t
+        t += 1 / 60
+        stage.frame(1 / 60, now=t)
+
+    while board.geometry is None:
+        step()
+    stage.show_notice("Labyrinth Screensaver 9.9.10 is available.", t)
+    # The full-size maze on screen was laid out without the cap: no watermark over it.
+    while board.geometry is not None:
+        assert board.maze_notice is False and stage.watermark.corner is None
+        step()
+    step()  # black between mazes: the watermark shows
+    assert stage.watermark.corner is not None
+    while board.geometry is None:
+        step()
+    assert board.maze_notice is True
+    assert board.geometry.height <= 900 * NOTICE_COVERAGE // 100
+    assert stage.watermark.corner is not None

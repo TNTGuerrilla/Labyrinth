@@ -11,14 +11,15 @@ from maze_saver.settings_dialog import note_segments  # noqa: E402
 REL = Release("1.2.0", "https://example.test/Labyrinth.scr", "ab" * 32)
 
 VALID = {"min_cells": "10", "max_cells": "30", "gen_speed": "80", "solve_speed": "25",
-         "lookahead": "4", "hold_seconds": "2.5", "max_leads": "8"}
+         "lookahead": "4", "hold_seconds": "2.5", "max_leads": "8", "coverage": "90"}
 
 
 def test_valid_fields():
     settings, error = parse_fields(VALID, FPS_LABELS[120])
     assert error is None
     assert settings == Settings(min_cells=10, max_cells=30, gen_speed=80.0, solve_speed=25.0,
-                                lookahead=4, hold_seconds=2.5, max_leads=8, fps_cap=120)
+                                lookahead=4, hold_seconds=2.5, max_leads=8, fps_cap=120,
+                                coverage=90)
 
 
 def test_not_a_number():
@@ -49,6 +50,20 @@ def test_unknown_fps_label_means_auto():
 def test_max_leads_out_of_range():
     settings, error = parse_fields({**VALID, "max_leads": "17"}, FPS_LABELS["auto"])
     assert settings is None and "Maximum leads" in error
+
+
+def test_coverage_field_follows_maximum_leads_and_steps_by_5():
+    from maze_saver.settings_dialog import FIELDS, INCREMENTS
+    names = [name for name, _ in FIELDS]
+    assert names[names.index("max_leads") + 1] == "coverage"
+    assert dict(FIELDS)["coverage"] == "Screen coverage (%)"
+    assert INCREMENTS["coverage"] == 5
+
+
+def test_coverage_out_of_range():
+    for text in ("45", "105"):
+        settings, error = parse_fields({**VALID, "coverage": text}, FPS_LABELS["auto"])
+        assert settings is None and "Screen coverage (%) must be between 50 and 100" in error
 
 
 def test_lookahead_out_of_range():

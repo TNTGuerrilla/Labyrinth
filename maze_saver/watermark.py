@@ -1,6 +1,7 @@
 """The dim "update available" line the screensaver shows on the primary monitor. It sits in
-the margin the maze never uses (a board fills at most 80% of each side, see board.fill) and
-moves to the next corner every few minutes so it cannot burn in."""
+the margin the maze never uses (while it shows, a board fills at most
+board.NOTICE_COVERAGE percent of each side; the Stage draws it only beside such a maze or
+on black) and moves to the next corner every few minutes so it cannot burn in."""
 from __future__ import annotations
 
 from typing import Optional, Sequence
