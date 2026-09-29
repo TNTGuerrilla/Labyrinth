@@ -1,4 +1,4 @@
-"""Route finding for hints, the perfect step count and the win pulse."""
+"""Route finding for hints, the shortest route length and the win pulse."""
 from __future__ import annotations
 
 from collections import deque

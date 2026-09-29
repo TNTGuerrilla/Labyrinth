@@ -436,7 +436,7 @@ class Game:
         if r.win_overlay_visible:
             self.win_screen.draw(self.screen, pr, r, self.keymap)
         state = ToolbarState(self.settings.difficulty, self.auto is not None,
-                             self.settings.multicolor, r.steps, r.elapsed,
+                             self.settings.multicolor, r.explored, r.elapsed,
                              **self._update_fields())
         mouse = pygame.mouse.get_pos() if self.dialog is None else (-1, -1)
         self.toolbar.draw(self.screen, self.keymap, state, mouse)

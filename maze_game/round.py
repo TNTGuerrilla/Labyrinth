@@ -52,7 +52,7 @@ class Round:
         self._head_cells: set = set()
         self.welds: dict = {}
         self.time = 0.0
-        self.perfect = 0
+        self.shortest = 0
         self._toward_end: dict[Cell, Cell] = {}
         self.phase = Phase.GROW
         self.fast_forward = not settings.animated
@@ -83,6 +83,11 @@ class Round:
     @property
     def dot(self) -> Cell:
         return self.mover.cell
+
+    @property
+    def toward_end(self) -> dict:
+        """toward_end[c] is the neighbor one step closer to the end. Empty while growing."""
+        return self._toward_end
 
     # --- growth ---------------------------------------------------------------
 
@@ -150,7 +155,7 @@ class Round:
         self.heads.clear()
         self._head_cells.clear()
         self._toward_end = toward_end(self.grid, self.end)
-        self.perfect = self._steps_to_end(self.start)
+        self.shortest = self._steps_to_end(self.start)
         self.phase = Phase.PLAY
 
     def _steps_to_end(self, cell: Cell) -> int:
@@ -198,8 +203,9 @@ class Round:
     def _reset_play(self) -> None:
         self.mover = Mover(self.start)
         self.path = Trail(self.start)
-        self.steps = 0
-        self.auto_steps = 0
+        self.explored = 0
+        self.auto_explored = 0
+        self._visited: set = {self.start}
         self.hints = 0
         self.elapsed = 0.0
         self.timer_running = False
@@ -216,10 +222,12 @@ class Round:
             return changed
         for a, b in self.mover.advance(distance, choose):
             self.path.move(a, b)
-            if assisted:
-                self.auto_steps += 1
-            else:
-                self.steps += 1
+            if b not in self._visited:
+                self._visited.add(b)
+                if assisted:
+                    self.auto_explored += 1
+                else:
+                    self.explored += 1
             self.timer_running = True
             changed.update((a, b))
             if b == self.end:
@@ -264,8 +272,8 @@ class Round:
 
     @property
     def efficiency(self) -> int:
-        total = self.steps + self.auto_steps
-        return round(100 * self.perfect / total) if total else 0
+        total = self.explored + self.auto_explored
+        return round(100 * self.shortest / total) if total else 0
 
     @property
     def hint_active(self) -> bool:

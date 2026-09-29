@@ -17,8 +17,8 @@ def _pygame():
 
 
 def result(**kw):
-    values = dict(steps=40, perfect=30, efficiency=75, elapsed=65.0, hints=2, assisted=False,
-                  auto_steps=0)
+    values = dict(explored=40, shortest=30, efficiency=75, elapsed=65.0, hints=2,
+                  assisted=False, auto_explored=0)
     values.update(kw)
     return SimpleNamespace(**values)
 
@@ -61,15 +61,16 @@ def test_toolbar_tooltip_draws_below_the_bar():
 
 
 def test_win_lines():
-    assert win_lines(result()) == [("Steps", "40"), ("Perfect", "30"), ("Efficiency", "75%"),
-                                   ("Time", "1:05"), ("Hints used", "2")]
-    assert win_lines(result(assisted=True, auto_steps=12))[-1] == ("Auto-solve steps", "12")
+    assert win_lines(result()) == [("Cells explored", "40"), ("Shortest route", "30"),
+                                   ("Efficiency", "75%"), ("Time", "1:05"),
+                                   ("Hints used", "2")]
+    assert win_lines(result(assisted=True, auto_explored=12))[-1] == ("Auto-solved cells", "12")
 
 
 def test_win_screen_buttons():
     surface = pygame.Surface((1000, 700))
     screen = WinScreen()
-    screen.draw(surface, pygame.Rect(0, 40, 1000, 660), result(assisted=True, auto_steps=3),
+    screen.draw(surface, pygame.Rect(0, 40, 1000, 660), result(assisted=True, auto_explored=3),
                 Keymap())
     assert screen.click(screen.hits.rect_for("replay").center) == "replay"
     assert screen.click(screen.hits.rect_for("new").center) == "new"

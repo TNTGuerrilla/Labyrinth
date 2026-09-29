@@ -45,7 +45,7 @@ class ToolbarState:
     difficulty: str
     autosolve: bool
     multicolor: bool
-    steps: int
+    explored: int
     elapsed: float
     update_label: Optional[str] = None  # None hides the update button
     update_short: str = ""  # the label when the window is too narrow for update_label
@@ -80,7 +80,7 @@ class Toolbar:
             if hovered:
                 tip = action
             x = rect.right + 6
-        stats = f"Steps {state.steps}     Time {format_time(state.elapsed)}"
+        stats = f"Explored {state.explored}     Time {format_time(state.elapsed)}"
         if state.update_label is None:
             text(surface, stats, (width - 12, TOOLBAR_H // 2), 15, anchor="midright")
         else:
@@ -96,7 +96,7 @@ class Toolbar:
         left and (when this version can be hidden) x on the right. A narrow window gets the
         short label, then compact counters, then no counters. Returns the hovered action."""
         width = surface.get_width()
-        compact = f"{state.steps}   {format_time(state.elapsed)}"
+        compact = f"{state.explored}   {format_time(state.elapsed)}"
         choices = ((state.update_label, stats), (state.update_short, stats),
                    (state.update_short, compact), (state.update_short, ""))
         for label, info in choices:

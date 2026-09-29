@@ -10,11 +10,11 @@ from .widgets import MUTED, WARN, Hits, button_rect, draw_button, draw_panel, fo
 
 
 def win_lines(r) -> list[tuple[str, str]]:
-    lines = [("Steps", str(r.steps)), ("Perfect", str(r.perfect)),
+    lines = [("Cells explored", str(r.explored)), ("Shortest route", str(r.shortest)),
              ("Efficiency", f"{r.efficiency}%"), ("Time", format_time(r.elapsed)),
              ("Hints used", str(r.hints))]
     if r.assisted:
-        lines.append(("Auto-solve steps", str(r.auto_steps)))
+        lines.append(("Auto-solved cells", str(r.auto_explored)))
     return lines
 
 

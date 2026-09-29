@@ -92,7 +92,7 @@ def test_keyboard_moves_the_dot(game):
     frames(game, 10)
     release(game, KEY_FOR_DIR[d])
     frames(game, 10)
-    assert r.steps >= 1 and not r.mover.moving
+    assert r.explored >= 1 and not r.mover.moving
 
 
 def test_reverse_clears_the_turn_request(game):
@@ -135,7 +135,7 @@ def test_leftover_press_during_grow_is_dropped_before_play_begins(tmp_path):
         press(g, pygame.K_SPACE)
         until_play(g)
         frames(g, 30)
-        assert g.round.steps == 0
+        assert g.round.explored == 0
         assert g.round.timer_running is False
     finally:
         pygame.quit()
@@ -156,7 +156,7 @@ def test_leftover_press_on_the_win_screen_is_dropped_by_replay(game):
     release(game, KEY_FOR_DIR[d])
     game.do("replay")
     frames(game, 30)
-    assert r.steps == 0
+    assert r.explored == 0
     assert r.timer_running is False
 
 
@@ -207,11 +207,11 @@ def test_autosolve_wins_then_replay_resets(game):
             break
         game.frame(1 / 60)
     r = game.round
-    assert r.phase is Phase.WON and r.assisted and r.auto_steps > 0 and r.steps == 0
+    assert r.phase is Phase.WON and r.assisted and r.auto_explored > 0 and r.explored == 0
     frames(game, 70)
     assert r.win_overlay_visible
     game.do("replay")
-    assert r.phase is Phase.PLAY and r.auto_steps == 0 and game.auto is None
+    assert r.phase is Phase.PLAY and r.auto_explored == 0 and game.auto is None
 
 
 def test_autosolve_forgets_keyboard_steering_position(game):
@@ -351,13 +351,13 @@ def test_minimized_pauses_movement(game):
     r = game.round
     game.handle(pygame.event.Event(pygame.WINDOWMINIMIZED))
     assert r.phase is Phase.PLAY and game.auto is not None
-    steps_before, auto_steps_before = r.steps, r.auto_steps
+    explored_before, auto_before = r.explored, r.auto_explored
     frames(game, 30)
-    assert r.steps == steps_before
-    assert r.auto_steps == auto_steps_before
+    assert r.explored == explored_before
+    assert r.auto_explored == auto_before
     game.handle(pygame.event.Event(pygame.WINDOWMAXIMIZED))
     frames(game, 30)
-    assert r.steps > steps_before or r.auto_steps > auto_steps_before
+    assert r.explored > explored_before or r.auto_explored > auto_before
 
 
 class _FakeAuto:
