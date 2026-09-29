@@ -311,6 +311,8 @@ def test_colors_toggle(game):
 
 
 def test_zoom_and_reset(game):
+    # A large maze: a small one at 100% coverage can already fill cells up to the zoom limit.
+    game.new_round("large")
     until_play(game)
     game.do("zoom_in")
     assert game.camera.zoomed
