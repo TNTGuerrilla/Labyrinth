@@ -34,7 +34,6 @@ import com.bydesigninteractive.labyrinth.update.Updates
 import com.bydesigninteractive.labyrinth.update.WhatsNew
 import com.bydesigninteractive.labyrinth.update.countdownSeconds
 import com.bydesigninteractive.labyrinth.update.splitScreen
-import com.bydesigninteractive.labyrinth.update.visibleUpdate
 import kotlin.math.ceil
 
 private const val CORNER_MS = 3L * 60 * 1000
@@ -54,6 +53,8 @@ class LabyrinthDreamService : DreamService(), MazeListener {
     private var split: Split? = null
     private var restorePending = false
     private var notice: TextView? = null
+    /** An update this dream's own check found: its notice shows once the board goes black. */
+    private var pendingRelease: Release? = null
     private var footerWords: TextView? = null
     private var footerNumber: TextView? = null
 
@@ -65,9 +66,11 @@ class LabyrinthDreamService : DreamService(), MazeListener {
         val root = FrameLayout(this)
         val current = Updates.currentVersion(this)
         // Decided now, from what earlier checks found, so the first maze already leaves the
-        // notice its margin. An update found by this dream's own check shows from the next dream.
-        val noticeShows = UpdateStore.enabled(this) && visibleUpdate(UpdateStore.load(this), current) != null
+        // notice its margin. An update found by this dream's own check caps the mazes from the
+        // next one on, and its notice shows once the board goes black (onMazeCleared).
+        val noticeShows = Updates.pendingNotice(this) != null
         val maze = MazeView(this, SettingsStore.load(this), notice = noticeShows)
+        maze.listener = this
         val news = UpdateStore.startWhatsNew(this, current)
         if (news != null) {
             // Counted first: any remote button ends the dream, and an interrupted run must count.
@@ -81,7 +84,6 @@ class LabyrinthDreamService : DreamService(), MazeListener {
                 leftMargin = s.board.x
                 topMargin = s.board.y
             })
-            maze.listener = this
             val view = sectionView(news, s.section.h)
             root.addView(view, FrameLayout.LayoutParams(s.section.w, s.section.h).apply {
                 leftMargin = s.section.x
@@ -98,7 +100,13 @@ class LabyrinthDreamService : DreamService(), MazeListener {
         setContentView(root)
         attached = true
         Updates.check(this, force = false) { release ->
-            if (attached && noticeShows && release != null) showNotice(root, release)
+            if (!attached || release == null || notice != null) return@check
+            if (noticeShows) {
+                showNotice(root, release)
+            } else {
+                maze.setNotice(true)
+                pendingRelease = release
+            }
         }
     }
 
@@ -110,6 +118,7 @@ class LabyrinthDreamService : DreamService(), MazeListener {
         section = null
         clock = null
         restorePending = false
+        pendingRelease = null
         super.onDetachedFromWindow()
     }
 
@@ -219,11 +228,15 @@ class LabyrinthDreamService : DreamService(), MazeListener {
 
     override fun onMazeCleared() {
         if (!attached) return
+        pendingRelease?.let { release ->
+            // The next maze is laid out with the notice cap, so the line never covers it.
+            pendingRelease = null
+            root?.let { showNotice(it, release) }
+        }
         if (!restorePending) return
         restorePending = false
         // The board just went black for its next maze: give the view the whole screen. Its
         // surface grows, and MazeRenderer starts a full-size board with no extra delay.
-        maze?.listener = null
         maze?.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
     }
 

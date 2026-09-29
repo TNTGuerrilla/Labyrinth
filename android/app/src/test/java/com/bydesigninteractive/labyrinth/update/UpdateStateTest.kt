@@ -25,4 +25,12 @@ class UpdateStateTest {
         assertNull(visibleUpdate(UpdateState(found = REL), "1.2.0"))
         assertNull(visibleUpdate(UpdateState(), "1.1.0"))
     }
+
+    @Test
+    fun pendingNoticeNeedsChecksOnAndAVisibleUpdate() {
+        assertEquals(REL, pendingNotice(true, UpdateState(found = REL), "1.1.0"))
+        assertNull(pendingNotice(false, UpdateState(found = REL), "1.1.0"))
+        assertNull(pendingNotice(true, UpdateState(found = REL, dismissed = "1.2.0"), "1.1.0"))
+        assertNull(pendingNotice(true, UpdateState(), "1.1.0"))
+    }
 }

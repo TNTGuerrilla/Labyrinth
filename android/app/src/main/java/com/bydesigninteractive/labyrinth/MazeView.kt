@@ -48,6 +48,11 @@ class MazeView(context: Context, settings: Settings, notice: Boolean = false) : 
         get() = mazeRenderer.listener
         set(value) { mazeRenderer.listener = value }
 
+    /** Keeps mazes within NOTICE_COVERAGE (or not) from the next maze on. */
+    fun setNotice(on: Boolean) {
+        queueEvent { mazeRenderer.setNotice(on) }
+    }
+
     init {
         setEGLContextClientVersion(2)
         setEGLConfigChooser(8, 8, 8, 0, 0, 0)
@@ -77,7 +82,7 @@ private val FRAGMENT_SHADER = """
     }
 """.trimIndent()
 
-private class MazeRenderer(private val settings: Settings, private val notice: Boolean) : GLSurfaceView.Renderer {
+private class MazeRenderer(private val settings: Settings, private var notice: Boolean) : GLSurfaceView.Renderer {
     private val rng = Random.Default
     private val renderer = BoardRenderer()
     private var board: Board? = null
@@ -99,6 +104,12 @@ private class MazeRenderer(private val settings: Settings, private val notice: B
     private val main = Handler(Looper.getMainLooper())
     private var seenSolved = 0
     private var seenCleared = 0
+
+    /** On the render thread: the current board and any created later. */
+    fun setNotice(on: Boolean) {
+        notice = on
+        board?.notice = on
+    }
 
     private val quad: FloatBuffer = ByteBuffer.allocateDirect(8 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
         .apply { put(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f)).position(0) }

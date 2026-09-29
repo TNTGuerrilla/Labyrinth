@@ -33,6 +33,12 @@ object Updates {
     fun currentVersion(context: Context): String =
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
 
+    /** The update to offer from what earlier checks found, without any network access. */
+    fun pendingNotice(context: Context): Release? {
+        val app = context.applicationContext
+        return pendingNotice(UpdateStore.enabled(app), UpdateStore.load(app), currentVersion(app))
+    }
+
     /**
      * Calls [onDone] on the main thread with the update to offer, if any. Asks GitHub first
      * when checks are on and a week has passed, or when [force] is set (the settings screen
