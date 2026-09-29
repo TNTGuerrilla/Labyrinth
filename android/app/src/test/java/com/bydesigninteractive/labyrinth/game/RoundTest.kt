@@ -254,4 +254,21 @@ class RoundTest {
     fun lateTurnWithNoWindowIsRefused() {
         assertFalse(pastTheFork(0.6).lateTurn(N, 0.0))
     }
+
+    @Test
+    fun endWeldFlashesClearsLiveWeldsAndReportsTheirCells() {
+        for (seed in 1..60) {
+            val r = Round.create(20, 12, FAST.copy(maxLeads = 8), Random(seed))
+            var steps = 0
+            while (r.welds.isEmpty() && r.phase == RoundPhase.GROW && steps++ < 20000) r.update(1.0 / 60)
+            if (r.welds.isEmpty()) continue
+            val cells = HashSet<com.bydesigninteractive.labyrinth.maze.Cell>()
+            for (edge in r.welds.keys) { cells.add(edge.a); cells.add(edge.b) }
+            r.endWeldFlashes()
+            assertTrue(r.welds.isEmpty())
+            assertTrue(r.update(0.0).containsAll(cells))
+            return
+        }
+        org.junit.Assert.fail("no seed produced a weld")
+    }
 }

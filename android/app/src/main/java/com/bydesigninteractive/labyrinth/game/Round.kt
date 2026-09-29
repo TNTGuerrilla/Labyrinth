@@ -168,6 +168,12 @@ class Round private constructor(
         return changed
     }
 
+    /** Ends every weld flash now (the game is pausing). The cells are reported by the next update(). */
+    fun endWeldFlashes() {
+        for (edge in welds.keys) { pendingChanged.add(edge.a); pendingChanged.add(edge.b) }
+        welds.clear()
+    }
+
     fun skipGrowth() {
         if (phase == RoundPhase.GROW) fastForward = true
     }

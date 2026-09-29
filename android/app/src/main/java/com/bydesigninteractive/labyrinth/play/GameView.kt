@@ -173,6 +173,7 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
         set(value) {
             field = value
             lastFrameNanos = 0L
+            if (value && started) controller.round.endWeldFlashes()
         }
     @Volatile var snapshot: Snapshot? = null
         private set
@@ -318,7 +319,11 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
         val dt = if (lastFrameNanos == 0L) 0.0 else ((now - lastFrameNanos) / 1e9).coerceIn(0.0, MAX_FRAME_SECONDS)
         lastFrameNanos = now
         val cam = camera!!
-        val changed = if (paused) emptySet() else controller.frame(dt)
+        val changed = when {
+            !paused -> controller.frame(dt)
+            round.phase != RoundPhase.GROW -> round.update(0.0)
+            else -> emptySet()
+        }
         if (!paused) cam.follow(round.mover.position(), dt)
         drawCells(bmp, changed)
         GLES20.glClearColor(0f, 0f, 0f, 1f)
