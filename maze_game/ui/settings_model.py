@@ -155,7 +155,8 @@ class SettingsModel:
 
     def bench_text(self) -> str:
         d = self.draft
-        if d.bench_size is not None and d.bench_resolution == self.resolution:
+        if (d.bench_size is not None and d.bench_resolution == self.resolution
+                and d.bench_coverage == d.coverage):
             return f"Recommended max: {d.bench_size}"
         return "Not run for this screen size"
 

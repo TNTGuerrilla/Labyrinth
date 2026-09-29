@@ -75,7 +75,7 @@ def _defaults_json():
 @pytest.mark.parametrize("raw", [
     None,
     [],
-    {"up": ["w"]},
+    {"up": "w"},
     dict(_defaults_json(), hint=[]),
     dict(_defaults_json(), hint=["w"]),
     dict(_defaults_json(), hint=[5]),
@@ -89,6 +89,58 @@ def test_unknown_key_name_gives_defaults():
     raw = _defaults_json()
     raw["hint"] = ["nope"]
     assert Keymap.from_json(raw, valid_key=lambda n: n != "nope") == Keymap()
+
+
+def test_empty_key_name_is_refused():
+    k = Keymap()
+    assert not k.set_key("hint", 0, "")
+    assert not k.set_key("up", 1, "")
+    assert k == Keymap()
+
+
+def _custom_json():
+    raw = _defaults_json()
+    raw["hint"] = ["h"]
+    raw["up"] = ["i", "up"]
+    return raw
+
+
+def test_a_missing_action_gets_its_default_and_the_rest_are_kept():
+    raw = _custom_json()
+    del raw["fullscreen"]
+    k = Keymap.from_json(raw)
+    assert k.keys_for("hint") == ("h",) and k.keys_for("up") == ("i", "up")
+    assert k.keys_for("fullscreen") == ("f11",)
+
+
+def test_a_bad_action_gets_its_default_and_the_rest_are_kept():
+    raw = _custom_json()
+    raw["flash"] = ["nope"]
+    k = Keymap.from_json(raw, valid_key=lambda n: n != "nope")
+    assert k.keys_for("hint") == ("h",) and k.keys_for("flash") == ("f",)
+
+
+def test_a_default_already_taken_by_a_kept_action_is_left_out():
+    raw = _custom_json()
+    raw["hint"] = ["d"]  # the default for "right" is ("d", "right")
+    del raw["right"]
+    k = Keymap.from_json(raw)
+    assert k.keys_for("hint") == ("d",) and k.keys_for("right") == ("right",)
+
+
+def test_actions_sharing_a_key_both_fall_back():
+    raw = _custom_json()
+    raw["flash"] = ["h"]
+    k = Keymap.from_json(raw)
+    assert k.keys_for("hint") == ("q",) and k.keys_for("flash") == ("f",)
+    assert k.keys_for("up") == ("i", "up")
+
+
+def test_an_action_left_with_no_key_gives_the_full_defaults():
+    raw = _custom_json()
+    raw["hint"] = ["f11"]
+    del raw["fullscreen"]
+    assert Keymap.from_json(raw) == Keymap()
 
 
 def test_key_label():

@@ -27,7 +27,7 @@ WIN_PULSE_SECONDS = 1.0
 WIN_OVERLAY_DELAY = 1.0
 FAST_FORWARD_BUDGET = 0.004  # seconds of growth work per frame while fast-forwarding
 FAST_FORWARD_CHUNK = 64  # events applied between clock checks
-BUILD_CHUNK = 20000  # events between on_chunk calls in build_until
+BUILD_CHUNK = 20000  # events between on_chunk calls in build_until and finish_growth_now
 
 
 class Phase(Enum):
@@ -127,11 +127,17 @@ class Round:
                 on_chunk()
         return len(self.region_of)
 
-    def finish_growth_now(self) -> None:
+    def finish_growth_now(self, on_chunk: Optional[Callable[[], None]] = None) -> None:
+        """Apply the rest of the growth synchronously. `on_chunk` runs every BUILD_CHUNK
+        events, so a caller can keep reading input (it may raise to stop early)."""
         scratch: set = set()
+        count = 0
         while self.phase is Phase.GROW:
             self._step_growth(scratch)
             scratch.clear()
+            count += 1
+            if on_chunk is not None and count % BUILD_CHUNK == 0:
+                on_chunk()
 
     def _fast_forward(self, changed: set) -> None:
         deadline = self._clock() + FAST_FORWARD_BUDGET

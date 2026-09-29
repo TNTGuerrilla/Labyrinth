@@ -7,10 +7,10 @@ import pytest
 from maze_saver.maze import E, N, S, W, Grid, direction, step
 from maze_game import benchmark, config
 from maze_game.__main__ import _valid_key
-from maze_game.app import Game, nav_for
+from maze_game.app import BenchmarkCancelled, Game, nav_for
 from maze_game.config import GameSettings
 from maze_game.keymap import Keymap
-from maze_game.round import SINGLE_HUE, Phase
+from maze_game.round import SINGLE_HUE, Phase, Round
 from maze_game.steering import KeyboardSteer
 from maze_game.trail import Trail
 from maze_game.ui.custom_dialog import CustomDialog
@@ -468,6 +468,40 @@ def test_run_benchmark_saves_the_result(game, monkeypatch, tmp_path):
     assert config.load(tmp_path / "config.json")[0].bench_size == size
 
 
+def test_run_benchmark_saves_the_coverage_it_ran_at(game, monkeypatch):
+    monkeypatch.setattr(game, "_bench_scene", lambda n, i: ([1 / 100] * 20, 1e-6))
+    game.settings = replace(game.settings, coverage=75)
+    game.run_benchmark()
+    assert game.settings.bench_coverage == 75
+
+
+def test_a_benchmark_at_another_coverage_is_not_recommended(game):
+    pr = game.play_rect
+    game.settings = replace(game.settings, bench_size=300, bench_rate=1e-6,
+                            bench_resolution=(pr.w, pr.h), bench_coverage=100)
+    assert game._bench_for_screen() == (300, 1e-6)
+    game.settings = replace(game.settings, coverage=60)
+    assert game._bench_for_screen() == (None, None)
+    press(game, pygame.K_5)
+    assert game.dialog.bench_size is None
+
+
+def test_escape_cancels_the_benchmark_while_growth_finishes(game, monkeypatch):
+    """After the rendered fast-forward, the rest of the growth still reads events."""
+    monkeypatch.setattr(benchmark, "FINISH_SECONDS", 0.0)
+    real = Round.finish_growth_now
+
+    def finish(scene, on_chunk=None):
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE, mod=0,
+                                             unicode="", scancode=0))
+        assert on_chunk is not None
+        on_chunk()
+        real(scene, on_chunk)
+    monkeypatch.setattr(Round, "finish_growth_now", finish)
+    with pytest.raises(BenchmarkCancelled):
+        game._bench_scene(40, 1)
+
+
 def test_escape_cancels_the_benchmark(game):
     pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE, mod=0, unicode="",
                                          scancode=0))
@@ -482,12 +516,21 @@ def test_benchmark_from_the_custom_dialog_updates_it(game, monkeypatch):
     assert game.dialog.bench_rate == 1e-6
 
 
+def test_benchmark_from_settings_updates_the_draft_coverage(game, monkeypatch):
+    monkeypatch.setattr(game, "_bench_scene", lambda n, i: ([1 / 100] * 20, 1e-6))
+    game.settings = replace(game.settings, coverage=80)
+    game._open_settings()
+    game._dialog_outcome("benchmark")
+    assert game.dialog.model.draft.bench_coverage == 80
+    assert game.dialog.model.bench_text().startswith("Recommended max")
+
+
 from labyrinth_update.releases import GAME_WINDOWS
 from labyrinth_update.updater import Updater
 from maze_game import app as game_app
 
 UPDATE_LIST = [{"tag_name": "labyrinth-v9.0.0", "assets": [{
-    "name": "Labyrinth.exe", "browser_download_url": "https://example.test/Labyrinth.exe",
+    "name": "Labyrinth.exe", "browser_download_url": "https://github.com/dl/Labyrinth.exe",
     "digest": "sha256:" + "ab" * 32}]}]
 
 

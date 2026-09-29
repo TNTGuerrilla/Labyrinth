@@ -1,4 +1,8 @@
 import json
+import os
+from pathlib import Path
+
+import pytest
 
 from maze_game.config import GameSettings, default_path, from_dict, load, save
 from maze_game.keymap import Keymap
@@ -58,7 +62,7 @@ def test_benchmark_fields_need_each_other():
 
 def test_bad_keymap_resets_only_the_keys(tmp_path):
     p = tmp_path / "config.json"
-    p.write_text(json.dumps({"settings": {"hint_length": 12}, "keys": {"up": ["w"]}}),
+    p.write_text(json.dumps({"settings": {"hint_length": 12}, "keys": {"up": "w"}}),
                  encoding="utf-8")
     s, k = load(p)
     assert s.hint_length == 12 and k == Keymap()
@@ -105,3 +109,68 @@ def test_coverage_defaults_to_100_and_validates():
     assert from_dict({"coverage": 75}).coverage == 75
     for bad in (49, 101, 80.5, "80", True):
         assert from_dict({"coverage": bad}).coverage == 100
+
+
+def test_an_oversized_integer_falls_back_for_that_field(tmp_path):
+    p = tmp_path / "config.json"
+    huge = "9" * 400
+    p.write_text('{"settings": {"grid_strength": %s, "glide_speed": %s, "hint_length": 12}}'
+                 % (huge, huge), encoding="utf-8")
+    s, k = load(p)
+    assert s == GameSettings(hint_length=12) and k == Keymap()
+
+
+def test_an_oversized_integer_in_the_benchmark_does_not_raise(tmp_path):
+    p = tmp_path / "config.json"
+    huge = "9" * 400
+    p.write_text('{"settings": {"bench_size": %s, "bench_rate": 1e-6, '
+                 '"bench_resolution": [800, 600], "coverage": 75}}' % huge, encoding="utf-8")
+    assert load(p)[0] == GameSettings(coverage=75)
+    p.write_text('{"settings": {"bench_size": 100, "bench_rate": 1e-6, '
+                 '"bench_resolution": [%s, 600]}}' % huge, encoding="utf-8")
+    assert load(p)[0].bench_resolution == (int(huge), 600)  # never matches a screen
+
+
+def test_deeply_nested_json_gives_defaults(tmp_path):
+    p = tmp_path / "config.json"
+    p.write_text("[" * 100_000 + "]" * 100_000, encoding="utf-8")
+    assert load(p) == (GameSettings(), Keymap())
+
+
+def test_save_replaces_the_file_through_a_temp_file(tmp_path, monkeypatch):
+    p = tmp_path / "config.json"
+    p.write_text("old", encoding="utf-8")
+    replaced = []
+    real = os.replace
+    monkeypatch.setattr(os, "replace", lambda a, b: (replaced.append((Path(a), Path(b))),
+                                                     real(a, b)))
+    save(GameSettings(hint_length=12), Keymap(), p)
+    assert load(p)[0].hint_length == 12
+    assert len(replaced) == 1 and replaced[0][1] == p and replaced[0][0].parent == tmp_path
+    assert sorted(f.name for f in tmp_path.iterdir()) == ["config.json"]
+
+
+def test_a_failed_replace_leaves_the_old_file_and_no_temp_file(tmp_path, monkeypatch):
+    p = tmp_path / "config.json"
+    p.write_text("old", encoding="utf-8")
+
+    def boom(a, b):
+        raise OSError("locked")
+    monkeypatch.setattr(os, "replace", boom)
+    with pytest.raises(OSError):
+        save(GameSettings(), Keymap(), p)
+    assert p.read_text(encoding="utf-8") == "old"
+    assert sorted(f.name for f in tmp_path.iterdir()) == ["config.json"]
+
+
+def test_benchmark_coverage_round_trips_and_validates(tmp_path):
+    p = tmp_path / "config.json"
+    s = GameSettings(coverage=75, bench_size=300, bench_rate=2e-6,
+                     bench_resolution=(1920, 1040), bench_coverage=75)
+    save(s, Keymap(), p)
+    assert load(p)[0] == s
+    bench = {"bench_size": 100, "bench_rate": 1e-6, "bench_resolution": [800, 600]}
+    assert from_dict(bench).bench_coverage == 100  # saved before coverage was stored
+    assert from_dict(dict(bench, bench_coverage=60)).bench_coverage == 60
+    for bad in (49, 101, 80.5, "80", True, None):
+        assert from_dict(dict(bench, bench_coverage=bad)).bench_size is None

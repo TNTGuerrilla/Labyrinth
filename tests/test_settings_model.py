@@ -125,6 +125,12 @@ def test_bench_text():
     assert done.bench_text() == "Recommended max: 300"
     other = model(bench_size=300, bench_rate=1e-6, bench_resolution=(800, 600))
     assert other.bench_text() == "Not run for this screen size"
+    covered = model(coverage=75, bench_size=300, bench_rate=1e-6,
+                    bench_resolution=(1920, 1040), bench_coverage=75)
+    assert covered.bench_text() == "Recommended max: 300"
+    stale = model(coverage=75, bench_size=300, bench_rate=1e-6,
+                  bench_resolution=(1920, 1040))
+    assert stale.bench_text() == "Not run for this screen size"
 
 
 def test_value_text():

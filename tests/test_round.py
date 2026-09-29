@@ -2,6 +2,7 @@ import itertools
 import random
 from dataclasses import replace
 
+from maze_game import round as round_module
 from maze_game.assist import route
 from maze_game.round import (HINT_SECONDS, SINGLE_HUE, WIN_OVERLAY_DELAY, Phase, Round)
 from maze_game.steering import PathSteer
@@ -184,6 +185,15 @@ def test_build_until_then_finish_now():
     assert r.phase is Phase.GROW
     r.finish_growth_now()
     assert r.phase is Phase.PLAY
+    assert_perfect(r.grid)
+
+
+def test_finish_growth_now_calls_back_between_chunks(monkeypatch):
+    monkeypatch.setattr(round_module, "BUILD_CHUNK", 10)
+    r = Round(20, 12, FAST, random.Random(8))
+    calls = []
+    r.finish_growth_now(on_chunk=lambda: calls.append(r.phase))
+    assert r.phase is Phase.PLAY and calls and set(calls) == {Phase.GROW}
     assert_perfect(r.grid)
 
 

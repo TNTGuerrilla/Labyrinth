@@ -6,6 +6,7 @@ the defaults.
 """
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any, Callable, Mapping, Optional, Sequence
 
 DEFAULTS: dict[str, tuple[str, ...]] = {
@@ -95,10 +96,13 @@ class Keymap:
     def set_key(self, action: str, slot: int, key: str) -> bool:
         """Bind `key` to `action`'s slot. If another slot holds `key`, that slot gets this
         slot's old key (a swap). Returns False and changes nothing if the swap would leave
-        an action with no key."""
+        an action with no key, or if `key` is empty (pygame has no name for it, and a
+        saved empty name would not load)."""
         mine = self._keys[action]
         if not 0 <= slot < SLOTS[action] or slot > len(mine):
             raise ValueError(f"bad slot {slot} for {action}")
+        if not key:
+            return False
         old = mine[slot] if slot < len(mine) else None
         found = self.owner(key)
         if found == (action, slot):
@@ -122,20 +126,28 @@ class Keymap:
 
     @classmethod
     def from_json(cls, raw: Any, valid_key: Optional[Callable[[str], bool]] = None) -> "Keymap":
-        """Bindings from untrusted data. Anything wrong (missing action, wrong slot count,
-        unknown or duplicate key) gives the full default keymap."""
+        """Bindings from untrusted data, checked per action. An action that is missing or
+        wrong (wrong slot count, unknown key, or a key another action also uses) gets its
+        default keys, less any a kept action already uses; so an action added in a later
+        release does not reset the user's other keys. If that leaves an action with no
+        key, the result is the full default keymap."""
         if not isinstance(raw, dict):
             return cls()
-        seen: set[str] = set()
-        bindings: dict[str, list[str]] = {}
+        wanted: dict[str, list[str]] = {}
         for action in ACTIONS:
             keys = raw.get(action)
-            if not isinstance(keys, list) or not 1 <= len(keys) <= SLOTS[action]:
+            if (isinstance(keys, list) and 1 <= len(keys) <= SLOTS[action]
+                    and all(isinstance(k, str) and k for k in keys)
+                    and len(set(keys)) == len(keys)
+                    and (valid_key is None or all(valid_key(k) for k in keys))):
+                wanted[action] = keys
+        uses = Counter(k for keys in wanted.values() for k in keys)
+        kept = {a: keys for a, keys in wanted.items() if all(uses[k] == 1 for k in keys)}
+        taken = {k for keys in kept.values() for k in keys}
+        bindings: dict[str, list[str]] = {}
+        for action in ACTIONS:
+            keys = kept.get(action) or [k for k in DEFAULTS[action] if k not in taken]
+            if not keys:
                 return cls()
-            for key in keys:
-                if (not isinstance(key, str) or not key or key in seen
-                        or (valid_key is not None and not valid_key(key))):
-                    return cls()
-                seen.add(key)
             bindings[action] = keys
         return cls(bindings)

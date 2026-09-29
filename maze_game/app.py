@@ -470,7 +470,8 @@ class Game:
     def _bench_for_screen(self) -> tuple[Optional[int], Optional[float]]:
         s = self.settings
         pr = self.play_rect
-        if s.bench_size is not None and s.bench_resolution == (pr.w, pr.h):
+        if (s.bench_size is not None and s.bench_resolution == (pr.w, pr.h)
+                and s.bench_coverage == s.coverage):
             return s.bench_size, s.bench_rate
         return None, None
 
@@ -547,7 +548,8 @@ class Game:
             else:
                 d.model.draft = replace(d.model.draft, bench_size=s.bench_size,
                                         bench_rate=s.bench_rate,
-                                        bench_resolution=s.bench_resolution)
+                                        bench_resolution=s.bench_resolution,
+                                        bench_coverage=s.bench_coverage)
         elif outcome in LINKS:
             open_browser(LINKS[outcome])
         elif outcome == "check_now":
@@ -585,7 +587,8 @@ class Game:
             return None
         self.settings = replace(self.settings, bench_size=size,
                                 bench_rate=benchmark.median(rates),
-                                bench_resolution=(pr.w, pr.h))
+                                bench_resolution=(pr.w, pr.h),
+                                bench_coverage=self.settings.coverage)
         self.save()
         return size
 
@@ -627,7 +630,7 @@ class Game:
                and last - phase_start < benchmark.FINISH_SECONDS):
             dt = times[-1] if times else 0.0
             show(scene.update(dt), 0.5 * (last - phase_start) / benchmark.FINISH_SECONDS)
-        scene.finish_growth_now()
+        scene.finish_growth_now(on_chunk=self._bench_events)  # Esc and QUIT still work
         steer = PathSteer(route(scene.grid, scene.start, scene.end)[1:])
         last = phase_start = time.perf_counter()
         while scene.phase is Phase.PLAY and last - phase_start < benchmark.RUN_SECONDS:

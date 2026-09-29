@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -33,6 +34,7 @@ class GameSettings:
     bench_size: Optional[int] = None
     bench_rate: Optional[float] = None  # seconds to build one cell
     bench_resolution: Optional[tuple[int, int]] = None
+    bench_coverage: int = 100  # the coverage the benchmark ran at
     check_updates: bool = True
     grid_strength: int = 20  # percent brightness of the grid lines
     coverage: int = 100  # percent of the screen the maze fills at 100% zoom
@@ -59,30 +61,36 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _whole(value: Any) -> bool:
+    """A number with no fraction. An int is never converted to float, since a huge one
+    (hundreds of digits) would overflow."""
+    return _is_number(value) and (isinstance(value, int) or value.is_integer())
+
+
 def _numeric(value: Any, low: float, high: float, is_int: bool) -> Optional[float]:
-    if not _is_number(value):
+    # The range check comes first: comparing a huge int is exact, converting it is not.
+    if (not _is_number(value) or (is_int and not _whole(value))
+            or not low <= value <= high):
         return None
-    if is_int:
-        if not float(value).is_integer():
-            return None
-        value = int(value)
-    else:
-        value = float(value)
-    return value if low <= value <= high else None
+    return int(value) if is_int else float(value)
 
 
 def _bench(raw: dict) -> dict:
-    """The three benchmark fields, only when all three are valid together."""
+    """The benchmark fields, only when all of them are valid together. A result saved
+    without its coverage counts as 100%: the default, and the only coverage before the
+    setting existed."""
     size = _numeric(raw.get("bench_size"), MIN_CUSTOM, MAX_CUSTOM, True)
     rate = raw.get("bench_rate")
     res = raw.get("bench_resolution")
-    if size is None or not _is_number(rate) or not 0 < rate < 1:
+    low, high, _ = NUMERIC_RANGES["coverage"]
+    coverage = _numeric(raw.get("bench_coverage", 100), low, high, True)
+    if size is None or coverage is None or not _is_number(rate) or not 0 < rate < 1:
         return {}
     if (not isinstance(res, (list, tuple)) or len(res) != 2
-            or not all(_is_number(v) and float(v).is_integer() and v >= 1 for v in res)):
+            or not all(_whole(v) and v >= 1 for v in res)):
         return {}
     return {"bench_size": size, "bench_rate": float(rate),
-            "bench_resolution": (int(res[0]), int(res[1]))}
+            "bench_resolution": (int(res[0]), int(res[1])), "bench_coverage": coverage}
 
 
 def from_dict(raw: Any) -> GameSettings:
@@ -121,7 +129,7 @@ def load(path: Optional[Path] = None,
         adopt_legacy(path, legacy_path())
     try:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):  # RecursionError: deeply nested JSON
         return GameSettings(), Keymap()
     if not isinstance(raw, dict):
         return GameSettings(), Keymap()
@@ -129,7 +137,15 @@ def load(path: Optional[Path] = None,
 
 
 def save(settings: GameSettings, keymap: Keymap, path: Optional[Path] = None) -> None:
+    """Write a temp file beside the target and swap it in, so a crash mid-write cannot
+    leave a half-written config.json. Raises OSError if the file cannot be written."""
     target = Path(path or default_path())
     target.parent.mkdir(parents=True, exist_ok=True)
     data = {"settings": asdict(settings), "keys": keymap.to_json()}
-    target.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+    try:
+        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        os.replace(tmp, target)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
