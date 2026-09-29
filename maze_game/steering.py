@@ -2,12 +2,10 @@
 from __future__ import annotations
 
 import math
-import random
 from collections import deque
-from typing import Iterable, Iterator, Optional
+from typing import Iterable, Optional
 
 from maze_saver.maze import Cell, Grid, direction, step
-from maze_saver.solver import SolveEvent, Solved, solve
 
 from .assist import dead_end_within
 
@@ -215,23 +213,17 @@ class PathSteer:
 
 
 class AutoSteer:
-    """Drives the screensaver's human-like solver from wherever the dot is."""
+    """Drives the dot along the shortest route from wherever it is to the end."""
 
-    def __init__(self, grid: Grid, end: Cell, rng: random.Random, lookahead: int):
-        self.grid = grid
+    def __init__(self, toward_end: dict, end: Cell):
+        self.toward_end = toward_end
         self.end = end
-        self.rng = rng
-        self.lookahead = lookahead
         self.done = False
-        self._events: Optional[Iterator[SolveEvent]] = None
 
     def choose(self, cell: Cell, came_from: Optional[Cell] = None) -> Optional[Cell]:
         if self.done:
             return None
-        if self._events is None:
-            self._events = solve(self.grid, cell, self.end, self.rng, lookahead=self.lookahead)
-        event = next(self._events, None)
-        if event is None or isinstance(event, Solved):
+        if cell == self.end:
             self.done = True
             return None
-        return event.b
+        return self.toward_end.get(cell)

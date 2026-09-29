@@ -1,8 +1,7 @@
-import random
-
 from maze_saver.maze import E, N, S, W, Grid
 from maze_game.steering import (AutoSteer, KeyboardSteer, PathSteer, dash_path, is_reverse,
                                 steer_toward)
+from maze_game.assist import route, toward_end
 from tests.gameutil import fork_grid
 
 
@@ -280,14 +279,30 @@ def test_path_steer_gives_up_when_not_adjacent():
     assert p.choose((0, 0)) is None and p.done
 
 
-def test_auto_steer_walks_open_passages_to_the_end():
+def test_auto_steer_follows_the_shortest_route():
     g = fork_grid()
-    a = AutoSteer(g, (2, 1), random.Random(1), 4)
-    cell = (0, 1)
+    end = (2, 1)
+    a = AutoSteer(toward_end(g, end), end)
+    cell, walked = (0, 1), []
     for _ in range(100):
         nxt = a.choose(cell)
         if nxt is None:
             break
-        assert nxt in g.open_neighbors(cell)
+        walked.append(nxt)
         cell = nxt
-    assert cell == (2, 1) and a.done
+    assert walked == route(g, (0, 1), end)[1:]
+    assert a.done
+
+
+def test_auto_steer_starts_from_a_dead_end():
+    g = fork_grid()
+    end = (2, 1)
+    a = AutoSteer(toward_end(g, end), end)
+    assert a.choose((1, 1)) == (1, 0)
+    assert a.choose((1, 0)) == (2, 0)
+
+
+def test_auto_steer_at_the_end_is_done():
+    g = fork_grid()
+    a = AutoSteer(toward_end(g, (2, 1)), (2, 1))
+    assert a.choose((2, 1)) is None and a.done

@@ -176,7 +176,7 @@ class Game:
         self.press = None
         self.dragging = False
         self.keys.forget_position()
-        self.auto = AutoSteer(r.grid, r.end, self.rng, self.settings.lookahead)
+        self.auto = AutoSteer(r.toward_end, r.end)
         r.assisted = True
 
     def do(self, action: str) -> None:
