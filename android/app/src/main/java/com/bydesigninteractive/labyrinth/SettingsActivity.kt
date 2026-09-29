@@ -402,6 +402,7 @@ class SettingsActivity : Activity() {
             DIM_TEXT,
         )
         paragraph("On TCL TVs, also allow Auto Launch for this app so it can start when the TV is idle.", DIM_TEXT)
+        paragraph("You only need a PC and adb once, for this setup. After that, Labyrinth updates itself from this screen.", DIM_TEXT)
         paragraph("Full setup guide: $GUIDE_URL", DIM_TEXT)
     }
 
