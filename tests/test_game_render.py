@@ -39,7 +39,7 @@ def big_round():
     return grown(80, 60, replace(FAST, animated=False))
 
 
-def setup(board, clock=None):
+def make_scene(board, clock=None):
     camera = Camera(board.grid.cols, board.grid.rows, PLAY.w, PLAY.h)
     renderer = GameRenderer(PLAY.size, clock=clock) if clock else GameRenderer(PLAY.size)
     return camera, renderer, pygame.Surface((400, 340))
@@ -47,7 +47,7 @@ def setup(board, clock=None):
 
 def test_first_render_draws_the_maze_and_the_dot():
     r = grown()
-    camera, renderer, screen = setup(r)
+    camera, renderer, screen = make_scene(r)
     renderer.render(screen, PLAY, r, camera, set())
     assert not renderer.pending
     x, y, w, h = camera.cell_rect(r.start)
@@ -56,7 +56,7 @@ def test_first_render_draws_the_maze_and_the_dot():
 
 def test_budget_spreads_a_big_redraw_over_frames():
     r = big_round()
-    camera, renderer, screen = setup(r, fake_clock())
+    camera, renderer, screen = make_scene(r, fake_clock())
     frames = 0
     while True:
         renderer.render(screen, PLAY, r, camera, set())
@@ -68,7 +68,7 @@ def test_budget_spreads_a_big_redraw_over_frames():
 
 def test_changed_cells_are_drawn_before_the_sweep(monkeypatch):
     r = big_round()
-    camera, renderer, screen = setup(r, fake_clock())
+    camera, renderer, screen = make_scene(r, fake_clock())
     calls = []
     real = game_render.draw_cell
     monkeypatch.setattr(game_render, "draw_cell",
@@ -79,7 +79,7 @@ def test_changed_cells_are_drawn_before_the_sweep(monkeypatch):
 
 def test_scrolling_redraws_only_the_exposed_strip(monkeypatch):
     r = big_round()
-    camera, renderer, screen = setup(r)
+    camera, renderer, screen = make_scene(r)
     camera.zoom_by(3, (40, 30))
     settle(renderer, screen, PLAY, r, camera)
     calls = []
@@ -93,7 +93,7 @@ def test_scrolling_redraws_only_the_exposed_strip(monkeypatch):
 
 def test_zoom_keeps_a_stretched_image_while_resweeping():
     r = big_round()
-    camera, renderer, screen = setup(r, fake_clock())
+    camera, renderer, screen = make_scene(r, fake_clock())
     settle(renderer, screen, PLAY, r, camera)
     camera.zoom_by(1, (40, 30))
     renderer.render(screen, PLAY, r, camera, set())
@@ -103,7 +103,7 @@ def test_zoom_keeps_a_stretched_image_while_resweeping():
 
 def test_low_detail_when_cells_are_tiny():
     r = grown(300, 200, replace(FAST, animated=False))
-    camera, renderer, screen = setup(r)
+    camera, renderer, screen = make_scene(r)
     assert camera.cell_px < game_render.LOW_DETAIL_PX
     settle(renderer, screen, PLAY, r, camera)
     assert pygame.transform.average_color(renderer.layer)[:3] != (0, 0, 0)
@@ -111,7 +111,7 @@ def test_low_detail_when_cells_are_tiny():
 
 def test_grid_lines_on_cell_corners():
     r = grown()
-    camera, renderer, screen = setup(r)
+    camera, renderer, screen = make_scene(r)
     settle(renderer, screen, PLAY, r, camera)
     x, y, w, h = camera.cell_rect((0, 0))
     assert w >= game_render.GRID_MIN_PX
@@ -132,7 +132,7 @@ def test_grid_color_scales_with_strength():
 
 def test_grid_lines_use_the_strength():
     r = grown()
-    camera, renderer, screen = setup(r)
+    camera, renderer, screen = make_scene(r)
     renderer.grid_strength = 100
     renderer.invalidate()
     settle(renderer, screen, PLAY, r, camera)
@@ -142,7 +142,7 @@ def test_grid_lines_use_the_strength():
 
 def test_no_grid_on_tiny_cells():
     r = grown(300, 200, replace(FAST, animated=False))
-    camera, renderer, screen = setup(r)
+    camera, renderer, screen = make_scene(r)
     assert camera.cell_px < game_render.LOW_DETAIL_PX
     settle(renderer, screen, PLAY, r, camera)
     x, y, w, h = camera.cell_rect((0, 0))
@@ -151,7 +151,7 @@ def test_no_grid_on_tiny_cells():
 
 def test_overlays_never_touch_the_layer():
     r = grown()
-    camera, renderer, screen = setup(r)
+    camera, renderer, screen = make_scene(r)
     settle(renderer, screen, PLAY, r, camera)
     before = pygame.image.tobytes(renderer.layer, "RGB")
     r.hint(5)
@@ -162,7 +162,7 @@ def test_overlays_never_touch_the_layer():
 
 def test_flash_arrow_when_the_finish_is_off_screen():
     r = big_round()
-    camera, renderer, screen = setup(r)
+    camera, renderer, screen = make_scene(r)
     camera.zoom_by(100, (r.start[0] + 0.5, r.start[1] + 0.5))
     r.flash()
     settle(renderer, screen, PLAY, r, camera)
@@ -170,7 +170,7 @@ def test_flash_arrow_when_the_finish_is_off_screen():
 
 def test_resize_keeps_drawing():
     r = grown()
-    camera, renderer, screen = setup(r)
+    camera, renderer, screen = make_scene(r)
     settle(renderer, screen, PLAY, r, camera)
     renderer.resize((500, 400))
     camera.resize(500, 400)
@@ -181,7 +181,7 @@ def test_resize_keeps_drawing():
 
 def test_two_resizes_before_a_render_keep_the_stretch_preview():
     r = big_round()
-    camera, renderer, screen = setup(r, fake_clock())
+    camera, renderer, screen = make_scene(r, fake_clock())
     settle(renderer, screen, PLAY, r, camera)
     camera.resize(500, 400)
     renderer.resize((500, 400))
@@ -194,7 +194,7 @@ def test_two_resizes_before_a_render_keep_the_stretch_preview():
 
 def test_win_pulse_skips_cells_outside_the_play_rect(monkeypatch):
     r = grown()
-    camera, renderer, screen = setup(r)
+    camera, renderer, screen = make_scene(r)
     r.move(1000.0, PathSteer(route(r.grid, r.start, r.end)[1:]).choose)
     assert r.win_pulse_active
     camera.zoom_by(100, (r.end[0] + 0.5, r.end[1] + 0.5))
@@ -214,7 +214,7 @@ def test_win_pulse_skips_cells_outside_the_play_rect(monkeypatch):
 
 def test_changed_cells_are_drawn_before_scroll_strips(monkeypatch):
     r = big_round()
-    camera, renderer, screen = setup(r, fake_clock())
+    camera, renderer, screen = make_scene(r, fake_clock())
     camera.zoom_by(3, (40, 30))
     settle(renderer, screen, PLAY, r, camera)
     calls = []

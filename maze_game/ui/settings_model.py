@@ -228,8 +228,13 @@ class SettingsModel:
         return None
 
     def capture(self, key_name: str) -> None:
-        """The key pressed while a key row is waiting. Esc cancels."""
+        """The key pressed while a key row is waiting. Esc cancels. A key pygame has no
+        name for ("") cannot be saved, so the row keeps waiting for another key."""
+        if not key_name:
+            self.message = "That key cannot be used. Press another key."
+            return
         self.capturing = False
+        self.message = ""
         if key_name == "escape":
             return
         row = self.selected

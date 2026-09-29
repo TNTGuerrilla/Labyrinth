@@ -185,6 +185,18 @@ def test_escape_cancels_capture():
     assert not m.capturing and m.keys == Keymap()
 
 
+def test_capture_ignores_a_key_without_a_name():
+    m = model()
+    m.set_tab(2)
+    m.select(row_index(m, "hint"))
+    m.handle("confirm")
+    m.capture("")
+    assert m.capturing and m.keys == Keymap()
+    assert m.message
+    m.capture("h")
+    assert not m.capturing and m.keys.keys_for("hint")[0] == "h" and not m.message
+
+
 def test_reset_to_defaults():
     m = model()
     m.set_tab(2)
