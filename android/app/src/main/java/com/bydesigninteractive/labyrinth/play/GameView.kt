@@ -224,6 +224,7 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
     }
 
     fun replay() {
+        if (!started) return
         controller.replay()
         camera?.let {
             it.resetZoom()
@@ -254,15 +255,16 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
         controller.remote = p
     }
 
-    fun pressArrow(d: Int) = controller.pressArrow(d)
-    fun releaseArrow(d: Int) = controller.releaseArrow(d)
-    fun skipGrowth() = controller.skipGrowth()
-    fun hint() = controller.hint()
-    fun flash() = controller.flash()
-    fun toggleAuto() = controller.toggleAuto()
+    // Commands sent before the surface exists (no round yet) do nothing.
+    fun pressArrow(d: Int) { if (started) controller.pressArrow(d) }
+    fun releaseArrow(d: Int) { if (started) controller.releaseArrow(d) }
+    fun skipGrowth() { if (started) controller.skipGrowth() }
+    fun hint() { if (started) controller.hint() }
+    fun flash() { if (started) controller.flash() }
+    fun toggleAuto() { if (started) controller.toggleAuto() }
 
     /** Key-ups can be lost while the app is away, so held arrows are forgotten. */
-    fun clearKeys() = controller.keys.clear()
+    fun clearKeys() { if (started) controller.keys.clear() }
 
     private fun redrawAll() {
         redraw.clear()
