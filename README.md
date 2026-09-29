@@ -2,7 +2,7 @@
 
 <img src="maze_saver/assets/icon.png" alt="Labyrinth icon" width="96" align="right">
 
-Procedurally grown pipe mazes in three forms: a playable game for Windows and Linux, a Windows screensaver, and a Google TV screensaver. The look is inspired by the classic 3D Pipes screensaver that shipped with Windows from Windows NT 3.5 through Windows XP. Each maze is carved live by one or more snake-like leads (up to 16), each in its own color, that race across the screen and weld their regions together into a single perfect maze with exactly one route between any two cells. In the screensavers, a solver then traces that route the way a person would with a finger: it looks a few cells ahead, sometimes takes a wrong turn, backs out of dead ends, and leaves a bright trail behind its gliding dot. The game and the Windows screensaver are Python and pygame; the TV version is a Kotlin port that runs as a native Android screensaver.
+Procedurally grown pipe mazes in three forms: a playable game for Windows and Linux, a Windows screensaver, and a Google TV app that is both a screensaver and a game you play with the remote. The look is inspired by the classic 3D Pipes screensaver that shipped with Windows from Windows NT 3.5 through Windows XP. Each maze is carved live by one or more snake-like leads (up to 16), each in its own color, that race across the screen and weld their regions together into a single perfect maze with exactly one route between any two cells. In the screensavers, a solver then traces that route the way a person would with a finger: it looks a few cells ahead, sometimes takes a wrong turn, backs out of dead ends, and leaves a bright trail behind its gliding dot. The game and the Windows screensaver are Python and pygame; the TV version is a Kotlin port that runs as a native Android app and screensaver.
 
 ## Contents
 
@@ -12,7 +12,8 @@ Procedurally grown pipe mazes in three forms: a playable game for Windows and Li
   - [Difficulty](#difficulty)
   - [Install on Linux](#install-on-linux)
 - [Windows screensaver](#windows-screensaver)
-- [Google TV screensaver](#google-tv-screensaver)
+- [Google TV](#google-tv)
+  - [Playing on the TV](#playing-on-the-tv)
   - [1. Turn on debugging on the TV](#1-turn-on-debugging-on-the-tv)
   - [2. Connect and install](#2-connect-and-install)
   - [3. Make it the screensaver](#3-make-it-the-screensaver)
@@ -82,7 +83,7 @@ To avoid administrator prompts entirely, keep `Labyrinth.scr` in a folder you ow
 
 Guide a dot from the green start to the red finish. Each maze grows in front of you (or appears instantly), and if you get stuck, Hint lights up the next few cells and Auto-solve takes over from wherever you are.
 
-Run `Labyrinth.exe` (on Linux, see [Install on Linux](#install-on-linux)). Hold a direction to glide; the dot follows corridor bends on its own and stops at forks and dead ends. Walking back over your trail dims it, so the bright line is always your route from the start.
+Run `Labyrinth.exe` (on Linux, see [Install on Linux](#install-on-linux)). Hold a direction to glide; the dot follows corridor bends on its own and stops at forks and dead ends. Walking back over your trail dims it, so the bright line is always your route from the start. When zoomed in, the view follows the dot and keeps it centered. Settings > Display has Screen coverage (how much of the window below the toolbar the maze fills, 50 to 100%) and Grid strength.
 
 | Action | Default key |
 |---|---|
@@ -108,7 +109,7 @@ Every key can be changed in Settings, Controls tab.
 
 Small is 8-12 cells on the short side, Medium 13-24, Large 25-48 and XL 49-96; each new maze picks a size in its range. Custom (key 5) takes any size. Its Run benchmark button measures what your PC handles smoothly and estimates how long huge mazes take to build.
 
-The win screen compares your steps with the perfect route. Steps taken by Auto-solve are counted separately and mark the round Assisted.
+The win screen shows how many cells you explored against the shortest route: walking back over cells you have already visited costs nothing, so 100% efficiency means you never stepped off the route. Cells first reached by Auto-solve are counted separately and mark the round Assisted. Auto-solve always takes the shortest route from wherever the dot is.
 
 ### Install on Linux
 
@@ -129,17 +130,33 @@ The screensaver is Windows only. Linux desktops have no common screensaver syste
 The screensaver is a separate download from the game:
 
 1. Right-click `Labyrinth.scr` and choose **Install**.
-2. In Screen Saver Settings, pick **Labyrinth**. Its Settings button controls maze density, speeds, hold time and the frame rate cap.
+2. In Screen Saver Settings, pick **Labyrinth**. Its Settings button controls maze density, speeds, hold time and the frame rate cap. Screen coverage sets how much of the screen the maze fills, from 50% to edge to edge (the default); larger mazes always grow from several leads at once.
 
 If **Install** is missing from the right-click menu, another program has claimed `.scr` files (AutoCAD does this). Copy `Labyrinth.scr` into `C:\Windows\System32` instead, then pick it in Screen Saver Settings.
 
-## Google TV screensaver
+## Google TV
 
-Labyrinth TV runs as a real Android screensaver and adds a **Labyrinth** app to the TV's app list, with the same settings as the Windows version, a Preview button, and a status line showing whether it is the active screensaver.
+Labyrinth TV runs as a real Android screensaver and adds a **Labyrinth** app to the TV's app list, where you can play the game with the remote. The app also has the same settings as the Windows screensaver, a Preview button, and a status line showing whether it is the active screensaver. Screen coverage sets how much of the screen the maze fills, from 50% to edge to edge (the default); larger mazes always grow from several leads at once.
 
 It is tested on a TCL QM6K running Google TV (Android 14), and on Google's Google TV emulator. It should work on other Google TV and Android TV devices, but it has not been tested on them, and some manufacturers add their own limits on apps starting in the background (TCL does; see [Brand-specific setup](#brand-specific-setup)). If it does not start on your TV, please [report your model](https://github.com/TNTGuerrilla/Labyrinth/issues/new?template=tv-compatibility.yml).
 
 Google TV has no store listing for it and hides the screensaver picker, so setup is a one-time sideload from a PC. You need `adb`, from Google's [SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) (also included with Android Studio), and the TV on the same network as the PC.
+
+### Playing on the TV
+
+Open **Labyrinth** from the TV's app list and select **Play**. The first time, a one-minute remote test runs first: it lines up the TV's sound with the picture, then measures how late your remote's button presses arrive, whether the remote ignores quick repeated presses, and whether it reports a held button steadily. The game uses the results: the dot pauses a little longer at forks on a slow remote, and a turn pressed just after the dot passes a fork still counts.
+
+| Button | During play |
+|---|---|
+| Arrows | Steer the dot |
+| OK | Open the menu |
+| Back | Leave the game (press twice during a maze) |
+| Volume up, down | Zoom in, out (on TVs that pass these buttons to apps) |
+| Any other button while the maze grows | Skip to the finished maze |
+
+The menu has tabs: Controls, Play (Hint, Auto-solve, Flash finish, Replay, New maze), Maze (size and growth), Assists (bend assist, pause at forks, look-ahead, hint length, auto-solve speed), Movement (glide speed, turn pause, and Test remote to measure the remote again) and Look (colors, grid, grid strength, screen coverage, zoom). Left and right switch tabs, up and down pick a row, OK changes it, and Back closes the menu. A thin bar along the top shows the cells explored and the time. When zoomed in, the view follows the dot, keeping it centered; each maze grows at 100% and zooms back in when play starts.
+
+**Use as** on the settings screen chooses Game and screensaver, Game only, or Screensaver only. With Game only, Labyrinth leaves the TV's screensaver list; with Screensaver only, Play is hidden.
 
 ### 1. Turn on debugging on the TV
 
