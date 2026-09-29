@@ -6,8 +6,14 @@ from http.server import ThreadingHTTPServer
 
 import pytest
 
-from labyrinth_update.releases import GAME_WINDOWS, newest
+from labyrinth_update.releases import GAME_WINDOWS, URL_ENV, newest
 from tools.fake_release_server import base_url, make_handler, release_list
+
+
+@pytest.fixture(autouse=True)
+def pointed_at_the_fake_server(monkeypatch):
+    """Desktop builds only take links to this PC from the fake server while URL_ENV is set."""
+    monkeypatch.setenv(URL_ENV, "http://127.0.0.1:8765/releases")
 
 
 def test_release_list_looks_like_github(tmp_path):
@@ -54,8 +60,10 @@ def get(port, path, host):
 def test_listing_links_use_the_request_host(fake_server):
     status, kind, body = get(fake_server, "/releases?per_page=100", "10.0.2.2:8765")
     assert status == 200 and kind == "application/json"
-    found = newest(json.loads(body), GAME_WINDOWS, "1.0.0")
-    assert found.url == "http://10.0.2.2:8765/files/labyrinth-v9.9.9/Labyrinth.exe"
+    # 10.0.2.2 is how the TV emulator reaches this PC, so the TV's updater checks this link.
+    asset = json.loads(body)[0]["assets"][0]
+    assert asset["browser_download_url"] == (
+        "http://10.0.2.2:8765/files/labyrinth-v9.9.9/Labyrinth.exe")
     status, kind, body = get(fake_server, "/files/labyrinth-v9.9.9/Labyrinth.exe",
                              "10.0.2.2:8765")
     assert status == 200 and kind == "application/octet-stream" and body == b"new build"
