@@ -16,7 +16,8 @@ MAX_TYPED = 99999
 
 class CustomDialog:
     def __init__(self, cmin: int, cmax: int, ceiling: int, bench_size: Optional[int],
-                 bench_rate: Optional[float], view: tuple[int, int]):
+                 bench_rate: Optional[float], view: tuple[int, int], coverage: int = 100):
+        self.coverage = coverage
         self.ceiling = ceiling
         self.values = [self._clamp(cmin), self._clamp(cmax)]
         self.field = 0
@@ -79,7 +80,7 @@ class CustomDialog:
         lines = [(f"Recommended max: {self.bench_size}", MUTED)]
         if max(self.values) > self.bench_size:
             lines.append(("Above the recommended size. May run below 60 fps.", WARN))
-        cols, rows = grid_size(max(self.values), *self.view)
+        cols, rows = grid_size(max(self.values), *self.view, self.coverage)
         lines.append((build_text(build_seconds(cols * rows, self.bench_rate)), MUTED))
         return lines
 

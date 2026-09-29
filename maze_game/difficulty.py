@@ -13,14 +13,14 @@ LABELS = {"small": "Small", "medium": "Medium", "large": "Large", "xl": "XL", "c
 MIN_CUSTOM = 4
 
 
-def _fill(px: int) -> int:
-    """80% of a pixel length, rounded down."""
-    return px * 4 // 5
+def _fill(px: int, coverage: int = 100) -> int:
+    """`coverage` percent of a pixel length, rounded down."""
+    return px * coverage // 100
 
 
-def ceiling(view_w: int, view_h: int) -> int:
+def ceiling(view_w: int, view_h: int, coverage: int = 100) -> int:
     """Largest short side that still gives every cell at least 1 px at 100% zoom."""
-    return max(MIN_CUSTOM, _fill(min(view_w, view_h)))
+    return max(MIN_CUSTOM, _fill(min(view_w, view_h), coverage))
 
 
 def size_range(difficulty: str, custom_min: int, custom_max: int, cap: int) -> tuple[int, int]:
@@ -34,14 +34,14 @@ def size_range(difficulty: str, custom_min: int, custom_max: int, cap: int) -> t
 
 
 def pick_short(difficulty: str, custom_min: int, custom_max: int, view_w: int, view_h: int,
-               rng: random.Random) -> int:
-    lo, hi = size_range(difficulty, custom_min, custom_max, ceiling(view_w, view_h))
+               rng: random.Random, coverage: int = 100) -> int:
+    lo, hi = size_range(difficulty, custom_min, custom_max, ceiling(view_w, view_h, coverage))
     return rng.randint(lo, hi)
 
 
-def grid_size(short: int, view_w: int, view_h: int) -> tuple[int, int]:
+def grid_size(short: int, view_w: int, view_h: int, coverage: int = 100) -> tuple[int, int]:
     """(cols, rows) for a maze with `short` cells on its short side in this play area."""
-    short_fill = max(1, _fill(min(view_w, view_h)))
-    long_fill = _fill(max(view_w, view_h))
+    short_fill = max(1, _fill(min(view_w, view_h), coverage))
+    long_fill = _fill(max(view_w, view_h), coverage)
     long = max(short, long_fill * short // short_fill)
     return (long, short) if view_w >= view_h else (short, long)

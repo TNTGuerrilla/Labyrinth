@@ -142,10 +142,10 @@ class Game:
         pr = self.play_rect
         s = self.settings
         short = difficulty.pick_short(s.difficulty, s.custom_min, s.custom_max, pr.w, pr.h,
-                                      self.rng)
-        cols, rows = difficulty.grid_size(short, pr.w, pr.h)
+                                      self.rng, s.coverage)
+        cols, rows = difficulty.grid_size(short, pr.w, pr.h, s.coverage)
         self.round = Round(cols, rows, s, self.rng)
-        self.camera = Camera(cols, rows, pr.w, pr.h)
+        self.camera = Camera(cols, rows, pr.w, pr.h, s.coverage)
         self.renderer.invalidate()
         self._stop_assists()
         self.keys.reset_round()
@@ -493,14 +493,15 @@ class Game:
         pr = self.play_rect
         size, rate = self._bench_for_screen()
         self._open_dialog(CustomDialog(s.custom_min, s.custom_max,
-                                       difficulty.ceiling(pr.w, pr.h), size, rate,
-                                       (pr.w, pr.h)))
+                                       difficulty.ceiling(pr.w, pr.h, s.coverage), size, rate,
+                                       (pr.w, pr.h), s.coverage))
 
     def _open_settings(self) -> None:
         if self.updater is not None:
             self.updater.check(force=True)
         pr = self.play_rect
-        model = SettingsModel(self.settings, self.keymap, difficulty.ceiling(pr.w, pr.h),
+        model = SettingsModel(self.settings, self.keymap,
+                              difficulty.ceiling(pr.w, pr.h, self.settings.coverage),
                               (pr.w, pr.h), info=self._info_state())
         self._open_dialog(SettingsPanel(model))
 
@@ -575,7 +576,8 @@ class Game:
             return benchmark.score(times)
 
         try:
-            size = benchmark.find_recommended(measure, difficulty.ceiling(pr.w, pr.h),
+            size = benchmark.find_recommended(measure,
+                                              difficulty.ceiling(pr.w, pr.h, self.settings.coverage),
                                               on_step=tested.append)
         except BenchmarkCancelled:
             return None
@@ -589,7 +591,7 @@ class Game:
         """The benchmark scene for short side n at 100% zoom. Returns the frame times of
         the rendered part and the build rate in seconds per cell."""
         pr = self.play_rect
-        cols, rows = difficulty.grid_size(n, pr.w, pr.h)
+        cols, rows = difficulty.grid_size(n, pr.w, pr.h, self.settings.coverage)
         s = replace(self.settings, animated=True)
         rng = random.Random(n)
         label = f"Measuring performance: {n} cells (test {index})"
@@ -600,7 +602,7 @@ class Game:
         carved = scene.build_until(benchmark.BUILD_FRACTION, on_chunk=self._bench_events)
         rate = (time.perf_counter() - started) / max(1, carved)
         scene.skip_growth()
-        camera = Camera(cols, rows, pr.w, pr.h)
+        camera = Camera(cols, rows, pr.w, pr.h, self.settings.coverage)
         renderer = GameRenderer(pr.size)
         renderer.show_grid = self.settings.show_grid
         times: list[float] = []

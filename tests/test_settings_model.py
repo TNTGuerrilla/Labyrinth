@@ -252,3 +252,13 @@ def test_update_row_appears_without_moving_the_selection():
     m.set_info(InfoState("1.0.0", True, "Version 1.1.0 is available", True))
     assert m.selected.name == "whats_new"
     assert names(m).index("update") == names(m).index("check_now") + 1
+
+
+def test_screen_coverage_row_steps_by_five():
+    m = model()
+    row = m.rows()[row_index(m, "coverage")]
+    assert (row.label, row.lo, row.hi, row.step) == ("Screen coverage (%)", 50, 100, 5)
+    assert names(m).index("coverage") == names(m).index("show_grid") + 1
+    m.select(row_index(m, "coverage"))
+    m.handle("left")
+    assert m.draft.coverage == 95 and isinstance(m.draft.coverage, int)

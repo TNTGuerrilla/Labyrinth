@@ -34,6 +34,7 @@ class GameSettings:
     bench_rate: Optional[float] = None  # seconds to build one cell
     bench_resolution: Optional[tuple[int, int]] = None
     check_updates: bool = True
+    coverage: int = 100  # percent of the screen the maze fills at 100% zoom
 
 
 # name -> (low, high, is_int); both bounds inclusive.
@@ -45,6 +46,7 @@ NUMERIC_RANGES = {
     "gen_speed": (5, 1000, False),
     "max_leads": (2, 16, True),
     "hint_length": (2, 40, True),
+    "coverage": (50, 100, True),
     "custom_min": (MIN_CUSTOM, MAX_CUSTOM, True),
     "custom_max": (MIN_CUSTOM, MAX_CUSTOM, True),
 }

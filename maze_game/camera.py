@@ -10,15 +10,15 @@ from typing import Iterator
 
 from maze_saver.maze import Cell
 
-FILL = 0.8  # 100% zoom fits the maze into 80% of the play area
 MAX_CELL_PX = 48
 ZOOM_STEP = 1.25
-FOLLOW_ZONE = 0.4  # the dot stays inside the central 40% of the view
 FOLLOW_RATE = 8.0  # how quickly the camera catches up, per second
 
 
 class Camera:
-    def __init__(self, cols: int, rows: int, view_w: int, view_h: int):
+    def __init__(self, cols: int, rows: int, view_w: int, view_h: int,
+                 coverage: int = 100):
+        self.coverage = coverage
         self.cols, self.rows = cols, rows
         self.fit_px = self.cell_px = 1
         self.cx, self.cy = cols / 2, rows / 2
@@ -28,8 +28,8 @@ class Camera:
         """New play-area size; keeps the zoom ratio."""
         ratio = self.cell_px / self.fit_px
         self.view_w, self.view_h = max(1, view_w), max(1, view_h)
-        self.fit_px = max(1, int(min(self.view_w * FILL / self.cols,
-                                     self.view_h * FILL / self.rows)))
+        self.fit_px = max(1, int(min(self.view_w * self.coverage / 100 / self.cols,
+                                     self.view_h * self.coverage / 100 / self.rows)))
         self.cell_px = self._clamp_px(round(self.fit_px * ratio))
         self._clamp_center()
 
@@ -101,16 +101,12 @@ class Camera:
         self._clamp_center()
 
     def follow(self, pos: tuple[float, float], dt: float) -> None:
-        """Ease the view so `pos` stays inside the central zone. Fixed at 100% zoom."""
+        """Ease the view toward `pos`, clamped to the maze. Fixed at 100% zoom."""
         if not self.zoomed:
             return
-        hw = self.view_w * FOLLOW_ZONE / 2 / self.cell_px
-        hh = self.view_h * FOLLOW_ZONE / 2 / self.cell_px
-        tx = min(max(self.cx, pos[0] - hw), pos[0] + hw)
-        ty = min(max(self.cy, pos[1] - hh), pos[1] + hh)
         k = min(1.0, dt * FOLLOW_RATE)
-        self.cx += (tx - self.cx) * k
-        self.cy += (ty - self.cy) * k
+        self.cx += (pos[0] - self.cx) * k
+        self.cy += (pos[1] - self.cy) * k
         self._clamp_center()
 
     def _clamp_center(self) -> None:

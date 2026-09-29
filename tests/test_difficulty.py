@@ -11,8 +11,13 @@ def test_presets_are_the_spec_ranges():
 
 
 def test_ceiling_is_80_percent_of_the_short_side():
-    assert ceiling(1920, 1040) == 832
-    assert ceiling(3, 3) == 4
+    assert ceiling(1920, 1040, coverage=80) == 832
+    assert ceiling(3, 3, coverage=80) == 4
+
+
+def test_ceiling_follows_the_coverage():
+    assert ceiling(1920, 1040) == 1040
+    assert ceiling(1920, 1040, 50) == 520
 
 
 def test_size_range():
@@ -25,19 +30,28 @@ def test_size_range():
 
 def test_pick_short_covers_the_range():
     rng = random.Random(1)
-    values = {pick_short("small", 0, 0, 1920, 1040, rng) for _ in range(300)}
+    values = {pick_short("small", 0, 0, 1920, 1040, rng, coverage=80) for _ in range(300)}
     assert values == set(range(8, 13))
 
 
 def test_grid_size_landscape_fills_the_aspect_ratio():
-    assert grid_size(24, 1920, 1040) == (44, 24)
+    assert grid_size(24, 1920, 1040, coverage=80) == (44, 24)
 
 
 def test_grid_size_portrait():
-    assert grid_size(10, 500, 1000) == (10, 20)
+    assert grid_size(10, 500, 1000, coverage=80) == (10, 20)
 
 
 def test_grid_at_the_ceiling_has_at_least_one_pixel_per_cell():
     w, h = 1920, 1040
-    cols, rows = grid_size(ceiling(w, h), w, h)
-    assert cols <= w * 4 // 5 and rows <= h * 4 // 5
+    for coverage in (50, 80, 100):
+        cols, rows = grid_size(ceiling(w, h, coverage), w, h, coverage)
+        assert cols <= w * coverage // 100 and rows <= h * coverage // 100
+
+
+def test_pick_short_is_capped_by_the_coverage():
+    rng = random.Random(1)
+    assert {pick_short("custom", 500, 500, 1000, 1000, rng, coverage=50)
+            for _ in range(5)} == {500}
+    assert {pick_short("custom", 900, 900, 1000, 1000, rng, coverage=50)
+            for _ in range(5)} == {500}

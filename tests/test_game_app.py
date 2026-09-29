@@ -390,6 +390,8 @@ def test_auto_solve_clears_when_the_round_is_won(game):
 
 
 def test_replay_after_zoom_clears_the_stale_zoomed_margin(game):
+    game.settings = replace(game.settings, coverage=80)  # 100% leaves no margin to check
+    game.new_round()
     until_play(game)
     for _ in range(3):
         game.do("zoom_in")

@@ -90,3 +90,10 @@ def test_check_updates_round_trip(tmp_path):
 
 def test_check_updates_must_be_a_bool():
     assert from_dict({"check_updates": "no"}).check_updates is True
+
+
+def test_coverage_defaults_to_100_and_validates():
+    assert GameSettings().coverage == 100
+    assert from_dict({"coverage": 75}).coverage == 75
+    for bad in (49, 101, 80.5, "80", True):
+        assert from_dict({"coverage": bad}).coverage == 100
