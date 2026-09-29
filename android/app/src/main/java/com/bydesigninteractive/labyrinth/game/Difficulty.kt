@@ -13,9 +13,11 @@ val SIZES = listOf("small", "medium", "large", "xl", "custom")
 val SIZE_LABELS = mapOf("small" to "Small", "medium" to "Medium", "large" to "Large", "xl" to "XL", "custom" to "Custom")
 const val MIN_CUSTOM = 4
 const val MAX_CUSTOM = 200
+/** The game's maze covers 80% of the screen for now; its own setting comes later. */
+private const val GAME_COVERAGE = 80
 
 /** Largest short side that still gives every cell at least 1 px at 100% zoom. */
-fun ceiling(viewW: Int, viewH: Int): Int = maxOf(MIN_CUSTOM, fill(minOf(viewW, viewH)))
+fun ceiling(viewW: Int, viewH: Int): Int = maxOf(MIN_CUSTOM, fill(minOf(viewW, viewH), GAME_COVERAGE))
 
 fun sizeRange(size: String, customMin: Int, customMax: Int, cap: Int): Pair<Int, Int> {
     var (lo, hi) = if (size == "custom") minOf(customMin, customMax) to maxOf(customMin, customMax) else PRESETS.getValue(size)
@@ -31,8 +33,8 @@ fun pickShort(size: String, customMin: Int, customMax: Int, viewW: Int, viewH: I
 
 /** (cols, rows) for a maze with [short] cells on its short side on this screen. */
 fun gridSize(short: Int, viewW: Int, viewH: Int): Pair<Int, Int> {
-    val shortFill = maxOf(1, fill(minOf(viewW, viewH)))
-    val longFill = fill(maxOf(viewW, viewH))
+    val shortFill = maxOf(1, fill(minOf(viewW, viewH), GAME_COVERAGE))
+    val longFill = fill(maxOf(viewW, viewH), GAME_COVERAGE)
     val long = maxOf(short, longFill * short / shortFill)
     return if (viewW >= viewH) long to short else short to long
 }

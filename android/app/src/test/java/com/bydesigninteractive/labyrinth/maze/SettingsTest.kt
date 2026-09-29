@@ -34,6 +34,20 @@ class SettingsTest {
     }
 
     @Test
+    fun coverageDefaultsTo100AndStaysIn50To100() {
+        assertEquals(100, Settings().coverage)
+        assertEquals("Screen coverage (%)", Field.COVERAGE.label)
+        assertEquals(5.0, Field.COVERAGE.increment, 0.0)
+        assertEquals(Field.MAX_LEADS.ordinal + 1, Field.COVERAGE.ordinal)
+        assertEquals(50, settingsFrom(mapOf(Field.COVERAGE to 50.0)).coverage)
+        assertEquals(100, settingsFrom(mapOf(Field.COVERAGE to 100.0)).coverage)
+        for (bad in listOf(45.0, 105.0, 52.5)) {
+            assertEquals(null, Field.COVERAGE.validate(bad))
+            assertEquals(100, settingsFrom(mapOf(Field.COVERAGE to bad)).coverage)
+        }
+    }
+
+    @Test
     fun formatDropsTrailingZero() {
         assertEquals("60", Field.GEN_SPEED.format(60.0))
         assertEquals("4.5", Field.HOLD_SECONDS.format(4.5))

@@ -5,8 +5,7 @@ package com.bydesigninteractive.labyrinth.maze
 
 import kotlin.random.Random
 
-const val FILL_NUM = 4
-const val FILL_DEN = 5 // boards fill 80% of the screen
+const val NOTICE_COVERAGE = 85 // percent; the most a maze covers while the update notice shows
 const val MIN_CELL_PX = 4
 const val MAX_STEPS_PER_FRAME = 500
 const val MAX_ENDPOINT_TRIES = 1000
@@ -16,8 +15,8 @@ const val FIRST_DELAY_MAX = 2.0
 const val DOTS_SECONDS = 0.8
 const val WELD_FLASH_SECONDS = 0.3
 
-/** 80% of a pixel length, rounded down. */
-fun fill(px: Int): Int = px * FILL_NUM / FILL_DEN
+/** [coverage]% of a pixel length, rounded down. */
+fun fill(px: Int, coverage: Int = 100): Int = px * coverage / 100
 
 data class Geometry(val cols: Int, val rows: Int, val cell: Int, val x: Int, val y: Int) {
     val width: Int get() = cols * cell
@@ -27,10 +26,10 @@ data class Geometry(val cols: Int, val rows: Int, val cell: Int, val x: Int, val
     fun cellTop(c: Cell): Int = y + c.y * cell
 }
 
-/** Square cells; short side fills 80%; long side random from square up to 80%. */
-fun computeGeometry(width: Int, height: Int, minCells: Int, maxCells: Int, rng: Random): Geometry {
-    val shortFill = fill(minOf(width, height))
-    val longFill = fill(maxOf(width, height))
+/** Square cells; short side fills [coverage]%; long side random from square up to [coverage]%. */
+fun computeGeometry(width: Int, height: Int, minCells: Int, maxCells: Int, rng: Random, coverage: Int = 100): Geometry {
+    val shortFill = fill(minOf(width, height), coverage)
+    val longFill = fill(maxOf(width, height), coverage)
     var nShort = rng.nextInt(minCells, maxCells + 1)
     nShort = maxOf(2, minOf(nShort, shortFill / MIN_CELL_PX))
     val cell = maxOf(1, shortFill / nShort)
@@ -118,6 +117,8 @@ class Board(
     /** Times the board went black for its next maze: the dream restores the full screen on one. */
     var mazesCleared = 0
         private set
+    /** Whether the update notice shows: keeps mazes within NOTICE_COVERAGE, from the next maze on. */
+    @Volatile var notice = false
 
     private var genEvents: Iterator<GenEvent>? = null
     private var solveEvents: Iterator<SolveEvent>? = null
@@ -197,7 +198,8 @@ class Board(
 
     private fun enterDots(changes: Changes) {
         val s = settings
-        val geo = computeGeometry(width, height, s.minCells, s.maxCells, rng)
+        val coverage = if (notice) minOf(s.coverage, NOTICE_COVERAGE) else s.coverage
+        val geo = computeGeometry(width, height, s.minCells, s.maxCells, rng, coverage)
         geometry = geo
         val g = Grid(geo.cols, geo.rows)
         grid = g

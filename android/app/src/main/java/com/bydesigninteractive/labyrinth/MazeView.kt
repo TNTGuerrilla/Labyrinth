@@ -40,8 +40,9 @@ interface MazeListener {
     fun onMazeCleared()
 }
 
-class MazeView(context: Context, settings: Settings) : GLSurfaceView(context) {
-    private val mazeRenderer = MazeRenderer(settings)
+/** [notice]: the update notice shows, so every maze keeps within NOTICE_COVERAGE. */
+class MazeView(context: Context, settings: Settings, notice: Boolean = false) : GLSurfaceView(context) {
+    private val mazeRenderer = MazeRenderer(settings, notice)
 
     var listener: MazeListener?
         get() = mazeRenderer.listener
@@ -76,7 +77,7 @@ private val FRAGMENT_SHADER = """
     }
 """.trimIndent()
 
-private class MazeRenderer(private val settings: Settings) : GLSurfaceView.Renderer {
+private class MazeRenderer(private val settings: Settings, private val notice: Boolean) : GLSurfaceView.Renderer {
     private val rng = Random.Default
     private val renderer = BoardRenderer()
     private var board: Board? = null
@@ -135,7 +136,7 @@ private class MazeRenderer(private val settings: Settings) : GLSurfaceView.Rende
             // A resize replaces the board. The dream only resizes while the old board is black
             // for its next maze, so the new one starts at once rather than after a random delay.
             val delay = if (board == null) rng.nextDouble(0.0, FIRST_DELAY_MAX) else 0.0
-            board = Board(w, h, settings, rng, delay)
+            board = Board(w, h, settings, rng, delay).also { it.notice = notice }
             seenSolved = 0
             seenCleared = 0
         }

@@ -10,6 +10,7 @@ data class Settings(
     val lookahead: Int = 4,
     val holdSeconds: Double = 4.0,
     val maxLeads: Int = 12,
+    val coverage: Int = 100, // percent of each screen side a maze may cover
 )
 
 /** One adjustable setting: its range (inclusive), step size and how to read and write it. */
@@ -28,6 +29,8 @@ enum class Field(
         { it.maxCells.toDouble() }, { s, v -> s.copy(maxCells = v.toInt()) }),
     MAX_LEADS("Maximum leads", 2.0, 16.0, 1.0, true,
         { it.maxLeads.toDouble() }, { s, v -> s.copy(maxLeads = v.toInt()) }),
+    COVERAGE("Screen coverage (%)", 50.0, 100.0, 5.0, true,
+        { it.coverage.toDouble() }, { s, v -> s.copy(coverage = v.toInt()) }),
     GEN_SPEED("Growth speed per lead (steps per second)", 5.0, 1000.0, 5.0, false,
         { it.genSpeed }, { s, v -> s.copy(genSpeed = v) }),
     SOLVE_SPEED("Solve speed (steps per second)", 2.0, 500.0, 1.0, false,

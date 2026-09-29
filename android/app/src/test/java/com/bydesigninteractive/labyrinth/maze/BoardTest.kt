@@ -25,10 +25,10 @@ class BoardTest {
         for ((w, h) in sizes) {
             val rng = Random(w * 7 + h)
             repeat(200) {
-                val g = computeGeometry(w, h, 12, 40, rng)
+                val g = computeGeometry(w, h, 12, 40, rng, coverage = 80)
                 val (nShort, nLong) = if (w >= h) g.rows to g.cols else g.cols to g.rows
-                assertEquals(fill(minOf(w, h)) / nShort, g.cell)
-                assertTrue(nShort <= nLong && nLong * g.cell <= fill(maxOf(w, h)))
+                assertEquals(fill(minOf(w, h), 80) / nShort, g.cell)
+                assertTrue(nShort <= nLong && nLong * g.cell <= fill(maxOf(w, h), 80))
                 assertTrue(nShort in 12..40 && g.cell >= MIN_CELL_PX)
                 assertEquals((w - g.width) / 2, g.x)
                 assertEquals((h - g.height) / 2, g.y)
@@ -37,9 +37,52 @@ class BoardTest {
     }
 
     @Test
+    fun fillTakesThePercentRoundedDown() {
+        assertEquals(1080, fill(1080))
+        assertEquals(1080, fill(1080, 100))
+        assertEquals(540, fill(1080, 50))
+        assertEquals(864, fill(1080, 80))
+        assertEquals(49, fill(99, 50))
+    }
+
+    @Test
+    fun geometryFollowsCoverage() {
+        for (coverage in listOf(100, 50)) {
+            val rng = Random(coverage)
+            repeat(200) {
+                val g = computeGeometry(1920, 1080, 12, 40, rng, coverage)
+                assertEquals(fill(1080, coverage) / g.rows, g.cell)
+                assertTrue(g.rows <= g.cols && g.width <= fill(1920, coverage))
+                assertEquals((1920 - g.width) / 2, g.x)
+                assertEquals((1080 - g.height) / 2, g.y)
+            }
+        }
+        // Cell counts that divide the short side evenly fill it exactly at 100%.
+        assertEquals(1080, computeGeometry(1920, 1080, 4, 4, Random(0)).height)
+        assertEquals(540, computeGeometry(1920, 1080, 4, 4, Random(0), 50).height)
+    }
+
+    @Test
+    fun noticeKeepsTheMazeWithinTheNoticeCoverage() {
+        assertEquals(85, NOTICE_COVERAGE)
+        for (seed in 0 until 20) {
+            val free = Board(1920, 1080, FAST, Random(seed))
+            runUntil(free, Phase.DOTS)
+            assertEquals(1080, free.geometry!!.height)
+            val capped = Board(1920, 1080, FAST, Random(seed)).apply { notice = true }
+            runUntil(capped, Phase.DOTS)
+            val g = capped.geometry!!
+            assertTrue(g.height <= fill(1080, NOTICE_COVERAGE) && g.width <= fill(1920, NOTICE_COVERAGE))
+            val half = Board(1920, 1080, FAST.copy(coverage = 50), Random(seed)).apply { notice = true }
+            runUntil(half, Phase.DOTS)
+            assertEquals(540, half.geometry!!.height)
+        }
+    }
+
+    @Test
     fun tinyScreenStillValid() {
         for ((w, h) in listOf(10 to 10, 3 to 3, 40 to 12)) {
-            val g = computeGeometry(w, h, 12, 40, Random(0))
+            val g = computeGeometry(w, h, 12, 40, Random(0), coverage = 80)
             assertEquals(2, minOf(g.cols, g.rows))
             assertTrue(g.width <= w && g.height <= h)
         }

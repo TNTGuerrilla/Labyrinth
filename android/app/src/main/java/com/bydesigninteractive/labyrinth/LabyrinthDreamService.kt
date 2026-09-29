@@ -1,6 +1,7 @@
 // The screensaver itself. Android starts this when the TV goes idle; any remote button
 // press ends it, since the dream is not interactive. When an update is waiting, a dim line
-// sits in the margin the maze never uses and moves corner to corner so it cannot burn in.
+// sits in the margin the maze keeps while it shows (see NOTICE_COVERAGE) and moves corner
+// to corner so it cannot burn in.
 // After an update, What's new shows as a fixed-size card (a normal View) beside a MazeView
 // sized to the rest of the screen, counts down a minute, fades after the next solve, and the
 // maze gets the whole screen back when its board goes black for the next maze.
@@ -33,6 +34,7 @@ import com.bydesigninteractive.labyrinth.update.Updates
 import com.bydesigninteractive.labyrinth.update.WhatsNew
 import com.bydesigninteractive.labyrinth.update.countdownSeconds
 import com.bydesigninteractive.labyrinth.update.splitScreen
+import com.bydesigninteractive.labyrinth.update.visibleUpdate
 import kotlin.math.ceil
 
 private const val CORNER_MS = 3L * 60 * 1000
@@ -61,8 +63,11 @@ class LabyrinthDreamService : DreamService(), MazeListener {
         isFullscreen = true
         isScreenBright = true
         val root = FrameLayout(this)
-        val maze = MazeView(this, SettingsStore.load(this))
         val current = Updates.currentVersion(this)
+        // Decided now, from what earlier checks found, so the first maze already leaves the
+        // notice its margin. An update found by this dream's own check shows from the next dream.
+        val noticeShows = UpdateStore.enabled(this) && visibleUpdate(UpdateStore.load(this), current) != null
+        val maze = MazeView(this, SettingsStore.load(this), notice = noticeShows)
         val news = UpdateStore.startWhatsNew(this, current)
         if (news != null) {
             // Counted first: any remote button ends the dream, and an interrupted run must count.
@@ -92,7 +97,9 @@ class LabyrinthDreamService : DreamService(), MazeListener {
         this.maze = maze
         setContentView(root)
         attached = true
-        Updates.check(this, force = false) { release -> if (attached && release != null) showNotice(root, release) }
+        Updates.check(this, force = false) { release ->
+            if (attached && noticeShows && release != null) showNotice(root, release)
+        }
     }
 
     override fun onDetachedFromWindow() {
