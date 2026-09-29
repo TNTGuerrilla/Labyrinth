@@ -16,6 +16,7 @@ Procedurally grown pipe mazes in three forms: a playable game for Windows and Li
   - [1. Turn on debugging on the TV](#1-turn-on-debugging-on-the-tv)
   - [2. Connect and install](#2-connect-and-install)
   - [3. Make it the screensaver](#3-make-it-the-screensaver)
+  - [Brand-specific setup](#brand-specific-setup)
   - [Updating and cleanup](#updating-and-cleanup)
 - [Build from source](#build-from-source)
   - [Windows game and screensaver](#windows-game-and-screensaver)
@@ -134,7 +135,9 @@ If **Install** is missing from the right-click menu, another program has claimed
 
 ## Google TV screensaver
 
-Labyrinth TV runs as a real Android screensaver and adds a **Labyrinth** app to the TV's app list, with the same settings as the Windows version, a Preview button, and a status line showing whether it is the active screensaver. It is tested on a TCL 65QM6K Pro running Android 14.
+Labyrinth TV runs as a real Android screensaver and adds a **Labyrinth** app to the TV's app list, with the same settings as the Windows version, a Preview button, and a status line showing whether it is the active screensaver.
+
+It is tested on a TCL QM6K running Google TV (Android 14), and on Google's Google TV emulator. It should work on other Google TV and Android TV devices, but it has not been tested on them, and some manufacturers add their own limits on apps starting in the background (TCL does; see [Brand-specific setup](#brand-specific-setup)). If it does not start on your TV, please [report your model](https://github.com/TNTGuerrilla/Labyrinth/issues/new?template=tv-compatibility.yml).
 
 Google TV has no store listing for it and hides the screensaver picker, so setup is a one-time sideload from a PC. You need `adb`, from Google's [SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) (also included with Android Studio), and the TV on the same network as the PC.
 
@@ -172,13 +175,7 @@ Select it once:
 & $adb shell settings get secure screensaver_components
 ```
 
-The second command should print `com.bydesigninteractive.labyrinth/.LabyrinthDreamService`.
-
-**TCL TVs** also need this. TCL's firmware blocks screensavers from starting unless the app is allowed to launch itself (TCL's Auto Launch setting, which is hard to find), and this grants it:
-
-```powershell
-& $adb shell appops set com.bydesigninteractive.labyrinth AUTO_START allow
-```
+The second command should print `com.bydesigninteractive.labyrinth/.LabyrinthDreamService`. Some brands need one more step; check [Brand-specific setup](#brand-specific-setup) for yours.
 
 Then, on the TV:
 
@@ -189,6 +186,24 @@ The screensaver starts after the TV's normal screensaver timeout; any remote but
 ```powershell
 & $adb shell settings put secure screensaver_activate_on_sleep 1
 ```
+
+### Brand-specific setup
+
+Some manufacturers' firmware blocks apps, screensavers included, from starting in the background. Each entry lists the brands that share a fix and the models where it is confirmed. Run the commands after step 3, with `$adb` set up as in step 2.
+
+#### TCL
+
+Confirmed on: TCL QM6K (Google TV, Android 14).
+
+TCL's firmware only lets an app start in the background if it has TCL's Auto Launch permission, which is hard to find in the TV's settings. This grants it:
+
+```powershell
+& $adb shell appops set com.bydesigninteractive.labyrinth AUTO_START allow
+```
+
+#### Other brands
+
+Not tested yet. If the screensaver does not start after the idle timeout, try the TCL command above; on a brand without that permission it prints `Unknown operation string` and changes nothing. Whether it works or not, please [report your model](https://github.com/TNTGuerrilla/Labyrinth/issues/new?template=tv-compatibility.yml) so this list can grow.
 
 ### Updating and cleanup
 

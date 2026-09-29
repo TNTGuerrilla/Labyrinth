@@ -44,6 +44,7 @@ private val ACCENT = Color.rgb(60, 220, 90)
 private val CODE_BACKGROUND = Color.rgb(30, 34, 42)
 
 private const val GUIDE_URL = "github.com/TNTGuerrilla/Labyrinth"
+private const val BRANDS_URL = "github.com/TNTGuerrilla/Labyrinth#brand-specific-setup"
 private const val COPYRIGHT = "\u00a9 2026 ByDesign Interactive"
 private const val LICENSE_TEXT = "Licensed under Apache 2.0"
 private const val LICENSE_ADDRESS = "github.com/TNTGuerrilla/Labyrinth/blob/master/LICENSE"
@@ -410,6 +411,8 @@ class SettingsActivity : Activity() {
         )
         if (tcl) {
             paragraph("The last command is for TCL TVs, which block screensavers from starting unless the app may launch itself.", DIM_TEXT)
+        } else {
+            paragraph("If the screensaver does not start after the idle timeout, see the brand-specific steps: $BRANDS_URL", DIM_TEXT)
         }
         paragraph("You only need a PC and adb once, for this setup. After that, Labyrinth updates itself from this screen.", DIM_TEXT)
         paragraph("Full setup guide: $GUIDE_URL", DIM_TEXT)

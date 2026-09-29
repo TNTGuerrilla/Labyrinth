@@ -1,0 +1,65 @@
+name: TV compatibility report
+description: Tell us whether Labyrinth TV works on your TV, and what it took.
+title: "TV compatibility: <brand> <model>"
+labels: ["tv-compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing Labyrinth TV on your TV. Reports like this build the
+        [brand-specific setup](https://github.com/TNTGuerrilla/Labyrinth#brand-specific-setup) list.
+        Working and not-working reports are both useful.
+  - type: input
+    id: brand
+    attributes:
+      label: Brand
+      placeholder: "e.g. Hisense, Sony, Philips"
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: Usually under Settings, System, About.
+      placeholder: "e.g. 65U8N"
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android TV OS version
+      description: Settings, System, About, Android TV OS version.
+      placeholder: "e.g. 14"
+    validations:
+      required: true
+  - type: input
+    id: labyrinth
+    attributes:
+      label: Labyrinth TV version
+      description: Shown in the Info section of the Labyrinth app.
+      placeholder: "e.g. 1.1.1"
+  - type: dropdown
+    id: starts
+    attributes:
+      label: Does the screensaver start on its own after the idle timeout?
+      options:
+        - "Yes, with only the standard setup"
+        - "Yes, after an extra command (tell us which below)"
+        - "No"
+    validations:
+      required: true
+  - type: textarea
+    id: commands
+    attributes:
+      label: Extra commands you ran
+      description: For example the TCL command, or anything else that made it work.
+      render: powershell
+  - type: textarea
+    id: log
+    attributes:
+      label: Log (if it does not start)
+      description: |
+        Leave the TV idle until the screensaver should start (or press the screensaver shortcut if your TV has one), then run
+        `& $adb logcat -d | Select-String -Pattern "dream" -CaseSensitive:$false`
+        and paste the output here. Lines mentioning a blocked or failed bind are the most useful.
+      render: text
