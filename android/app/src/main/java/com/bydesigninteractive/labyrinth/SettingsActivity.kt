@@ -35,11 +35,6 @@ import java.io.IOException
 import java.net.Inet4Address
 import kotlin.concurrent.thread
 
-private val BACKGROUND = Color.rgb(16, 18, 22)
-private val FOCUSED = Color.rgb(52, 58, 70)
-private val TEXT = Color.rgb(230, 230, 230)
-private val DIM_TEXT = Color.rgb(150, 150, 150)
-private val ACCENT = Color.rgb(60, 220, 90)
 // Between BACKGROUND and FOCUSED, so the command box shows whether or not the help has focus.
 private val CODE_BACKGROUND = Color.rgb(30, 34, 42)
 

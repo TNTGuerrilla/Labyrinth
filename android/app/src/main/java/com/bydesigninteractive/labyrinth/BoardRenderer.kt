@@ -1,4 +1,4 @@
-// Draws a Board's changed cells onto a Canvas, ported from maze_saver/render.py.
+// Draws a CellSource's changed cells onto a Canvas, ported from maze_saver/render.py.
 //
 // Each cell is redrawn from scratch: half-pipes ("spokes") run from the cell's center to
 // the middle of each open side, so neighboring cells join seamlessly.
@@ -8,28 +8,31 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
-import com.bydesigninteractive.labyrinth.maze.Board
 import com.bydesigninteractive.labyrinth.maze.Cell
+import com.bydesigninteractive.labyrinth.maze.CellSource
 import com.bydesigninteractive.labyrinth.maze.Changes
 import com.bydesigninteractive.labyrinth.maze.DIRECTIONS
 import com.bydesigninteractive.labyrinth.maze.E
+import com.bydesigninteractive.labyrinth.maze.Geometry
 import com.bydesigninteractive.labyrinth.maze.N
 import com.bydesigninteractive.labyrinth.maze.S
 import com.bydesigninteractive.labyrinth.maze.W
 import com.bydesigninteractive.labyrinth.maze.edgeKey
 import kotlin.math.roundToInt
 
-private val START_COLOR = Color.rgb(60, 220, 90)
-private val END_COLOR = Color.rgb(235, 64, 64)
-private val TRAIL_COLOR = Color.rgb(255, 240, 205)
+val START_COLOR = Color.rgb(60, 220, 90)
+val END_COLOR = Color.rgb(235, 64, 64)
+val TRAIL_COLOR = Color.rgb(255, 240, 205)
 private val TRAIL_DIM_COLOR = Color.rgb(80, 80, 80)
 private val WELD_COLOR = Color.rgb(255, 255, 255)
+private val GRID_COLOR = Color.rgb(30, 32, 40)
 
 private const val PIPE_WIDTH = 0.40 // fraction of the cell size
 private const val STRIPE_RATIO = 1.0 / 3 // fraction of the pipe width
 private const val TRAIL_WIDTH = 0.15
-private const val MARKER_RADIUS = 0.275
-private const val DOT_AT_END_SCALE = 0.7
+const val MARKER_RADIUS = 0.275
+const val DOT_AT_END_SCALE = 0.7
+private const val GRID_MIN_PX = 6 // the game's grid lines only show on cells at least this big
 
 /** (outer pipe, center stripe, growing head) colors for a hue. */
 private class Palette(hue: Double) {
@@ -46,37 +49,62 @@ class BoardRenderer {
     private val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val scratch = Rect()
 
+    private var heads: Set<Cell> = emptySet()
+
     /**
      * Draws the changes and returns the rectangle of each redrawn cell. A clear blacks out
      * the whole canvas first; that area is not in the list, since changes.clear reports it.
+     * The game passes drawDot = false (it draws the dot as an overlay) and gridLines to
+     * draw the faint cell grid under the pipes.
      */
-    fun apply(canvas: Canvas, board: Board, changes: Changes): List<Rect> {
+    fun apply(
+        canvas: Canvas, board: CellSource, geo: Geometry?, changes: Changes,
+        drawDot: Boolean = true, gridLines: Boolean = false,
+    ): List<Rect> {
         if (changes.clear) {
             canvas.drawColor(Color.BLACK)
             palettes.clear()
         }
-        val geo = board.geometry ?: return emptyList()
+        if (geo == null) return emptyList()
+        heads = board.headCells
+        val grid = if (gridLines && geo.cell >= GRID_MIN_PX) geo else null
         return changes.cells.map { c ->
             val left = geo.cellLeft(c)
             val top = geo.cellTop(c)
-            drawCell(canvas, board, c, left, top, geo.cell)
+            drawCell(canvas, board, c, left, top, geo.cell, drawDot, grid)
             Rect(left, top, left + geo.cell, top + geo.cell)
         }
     }
 
-    private fun drawCell(canvas: Canvas, board: Board, c: Cell, left: Int, top: Int, size: Int) {
+    private fun drawCell(
+        canvas: Canvas, board: CellSource, c: Cell, left: Int, top: Int, size: Int, drawDot: Boolean, grid: Geometry?,
+    ) {
         canvas.save()
         canvas.clipRect(left, top, left + size, top + size)
         rectPaint.color = Color.BLACK
         canvas.drawRect(left.toFloat(), top.toFloat(), (left + size).toFloat(), (top + size).toFloat(), rectPaint)
+        if (grid != null) drawGridLines(canvas, c, left, top, size, grid)
         val region = board.regionOf[c]
         if (region != null) {
             val palette = palettes.getOrPut(board.hues[region]) { Palette(board.hues[region]) }
             drawPipe(canvas, board, c, left, top, size, palette)
         }
         drawTrail(canvas, board, c, left, top, size)
-        drawMarkers(canvas, board, c, left, top, size)
+        drawMarkers(canvas, board, c, left, top, size, drawDot)
         canvas.restore()
+    }
+
+    /** 1 px lines along the cell's top and left, plus the right and bottom on the last column and row. */
+    private fun drawGridLines(canvas: Canvas, c: Cell, left: Int, top: Int, size: Int, grid: Geometry) {
+        rectPaint.color = GRID_COLOR
+        val l = left.toFloat()
+        val t = top.toFloat()
+        val r = (left + size).toFloat()
+        val b = (top + size).toFloat()
+        canvas.drawRect(l, t, r, t + 1, rectPaint)
+        canvas.drawRect(l, t, l + 1, b, rectPaint)
+        if (c.x == grid.cols - 1) canvas.drawRect(r - 1, t, r, b, rectPaint)
+        if (c.y == grid.rows - 1) canvas.drawRect(l, b - 1, r, b, rectPaint)
     }
 
     /** The half-pipe from the cell's center toward side d, `width` pixels thick. */
@@ -126,7 +154,7 @@ class BoardRenderer {
         canvas.drawCircle(left + size / 2 + shift, top + size / 2 + shift, radius, circlePaint)
     }
 
-    private fun drawPipe(canvas: Canvas, board: Board, c: Cell, left: Int, top: Int, size: Int, colors: Palette) {
+    private fun drawPipe(canvas: Canvas, board: CellSource, c: Cell, left: Int, top: Int, size: Int, colors: Palette) {
         val pipeW = maxOf(2, (size * PIPE_WIDTH).roundToInt())
         val stripeW = maxOf(1, (pipeW * STRIPE_RATIO).roundToInt())
         val bits = board.grid!!.openDirs(c)
@@ -140,7 +168,7 @@ class BoardRenderer {
             if (d !in welding) fillSpoke(canvas, left, top, size, d, stripeW, colors.stripe)
         }
         centerCircle(canvas, left, top, size, maxOf(1, stripeW / 2).toFloat(), colors.stripe, stripeW)
-        if (c in board.heads.values) {
+        if (c in heads) {
             val r = maxOf(2, pipeW / 2 + maxOf(1, size / 20))
             centerCircle(canvas, left, top, size, r.toFloat(), colors.head, pipeW)
         }
@@ -148,7 +176,7 @@ class BoardRenderer {
 
     private fun trailColor(state: Boolean): Int = if (state) TRAIL_COLOR else TRAIL_DIM_COLOR
 
-    private fun drawTrail(canvas: Canvas, board: Board, c: Cell, left: Int, top: Int, size: Int) {
+    private fun drawTrail(canvas: Canvas, board: CellSource, c: Cell, left: Int, top: Int, size: Int) {
         val trailW = maxOf(1, (size * TRAIL_WIDTH).roundToInt())
         val glideFrom = board.glideFrom
         val moving = glideFrom?.let { edgeKey(it, board.dot!!) }
@@ -190,7 +218,7 @@ class BoardRenderer {
         }
     }
 
-    private fun drawMarkers(canvas: Canvas, board: Board, c: Cell, left: Int, top: Int, size: Int) {
+    private fun drawMarkers(canvas: Canvas, board: CellSource, c: Cell, left: Int, top: Int, size: Int, drawDot: Boolean) {
         val radius = maxOf(2, (size * MARKER_RADIUS).roundToInt())
         val glideFrom = board.glideFrom
         if (c == board.end) centerCircle(canvas, left, top, size, radius.toFloat(), END_COLOR, 1)
@@ -205,6 +233,7 @@ class BoardRenderer {
                 canvas.drawCircle(left + size / 2 + 0.5f, top + size / 2 + 0.5f, radius - ring / 2, circlePaint)
             }
         }
+        if (!drawDot) return
         val dot = board.dot ?: return
         // The gliding dot can straddle both cells, so each draws its part (the canvas is
         // clipped to the cell); at rest, the start marker stands in for the dot.

@@ -21,20 +21,15 @@ import android.os.Process
 import com.bydesigninteractive.labyrinth.maze.Board
 import com.bydesigninteractive.labyrinth.maze.FIRST_DELAY_MAX
 import com.bydesigninteractive.labyrinth.maze.Settings
-import java.nio.Buffer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
-import java.nio.IntBuffer
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.random.Random
 
 /** Longest step the board takes after a stall, so a paused thread does not jump ahead. */
 private const val MAX_FRAME_SECONDS = 0.25
-
-/** Rows per texture upload, which bounds the scratch pixel array. */
-private const val UPLOAD_ROWS = 64
 
 /** Past this many changed cells in one frame, one bounding-box upload is cheaper. */
 private const val MAX_CELL_UPLOADS = 64
@@ -96,8 +91,7 @@ private class MazeRenderer(private val settings: Settings) : GLSurfaceView.Rende
     private var textureWidth = 0
     private var textureHeight = 0
     private var needsFullUpload = true
-    private var pixels = IntArray(0)
-    private var pixelBuffer: IntBuffer = IntBuffer.wrap(pixels)
+    private val uploader = TextureUploader()
     private var lastFrameNanos = 0L
 
     @Volatile var listener: MazeListener? = null
@@ -113,7 +107,7 @@ private class MazeRenderer(private val settings: Settings) : GLSurfaceView.Rende
         // work on a busy TV does not preempt frames.
         Process.setThreadPriority(Process.THREAD_PRIORITY_DISPLAY)
         // A new context means any earlier program and texture are gone.
-        program = buildProgram()
+        program = buildProgram(VERTEX_SHADER, FRAGMENT_SHADER)
         val ids = IntArray(1)
         GLES20.glGenTextures(1, ids, 0)
         texture = ids[0]
@@ -171,19 +165,19 @@ private class MazeRenderer(private val settings: Settings) : GLSurfaceView.Rende
                 main.post { l.onMazeCleared() }
             }
         }
-        val drawn = renderer.apply(bufferCanvas!!, b, changes)
+        val drawn = renderer.apply(bufferCanvas!!, b, b.geometry, changes)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
         when {
             needsFullUpload -> {
-                upload(Rect(0, 0, width, height))
+                uploader.upload(buffer!!, Rect(0, 0, width, height))
                 needsFullUpload = false
             }
             changes.clear -> clearTexture()
         }
         if (drawn.size > MAX_CELL_UPLOADS) {
-            upload(Rect(drawn[0]).apply { drawn.forEach { union(it) } })
+            uploader.upload(buffer!!, Rect(drawn[0]).apply { drawn.forEach { union(it) } })
         } else {
-            drawn.forEach { upload(it) }
+            drawn.forEach { uploader.upload(buffer!!, it) }
         }
         drawQuad()
     }
@@ -197,51 +191,11 @@ private class MazeRenderer(private val settings: Settings) : GLSurfaceView.Rende
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
     }
 
-    /** Copies one rectangle of the bitmap into the texture, a band of rows at a time. */
-    private fun upload(area: Rect) {
-        val bmp = buffer ?: return
-        if (!area.intersect(0, 0, width, height)) return
-        val w = area.width()
-        if (pixels.size < w * UPLOAD_ROWS) {
-            pixels = IntArray(w * UPLOAD_ROWS)
-            pixelBuffer = IntBuffer.wrap(pixels)
-        }
-        var top = area.top
-        while (top < area.bottom) {
-            val rows = minOf(UPLOAD_ROWS, area.bottom - top)
-            bmp.getPixels(pixels, 0, w, area.left, top, w, rows)
-            GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, area.left, top, w, rows, GLES20.GL_RGBA,
-                GLES20.GL_UNSIGNED_BYTE, (pixelBuffer as Buffer).clear().limit(w * rows))
-            top += rows
-        }
-    }
-
     private fun drawQuad() {
         GLES20.glUseProgram(program)
         val pos = GLES20.glGetAttribLocation(program, "aPos")
         GLES20.glEnableVertexAttribArray(pos)
         GLES20.glVertexAttribPointer(pos, 2, GLES20.GL_FLOAT, false, 0, quad)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
-    }
-
-    private fun buildProgram(): Int {
-        val p = GLES20.glCreateProgram()
-        GLES20.glAttachShader(p, compile(GLES20.GL_VERTEX_SHADER, VERTEX_SHADER))
-        GLES20.glAttachShader(p, compile(GLES20.GL_FRAGMENT_SHADER, FRAGMENT_SHADER))
-        GLES20.glLinkProgram(p)
-        val ok = IntArray(1)
-        GLES20.glGetProgramiv(p, GLES20.GL_LINK_STATUS, ok, 0)
-        check(ok[0] != 0) { "shader link failed: ${GLES20.glGetProgramInfoLog(p)}" }
-        return p
-    }
-
-    private fun compile(type: Int, source: String): Int {
-        val s = GLES20.glCreateShader(type)
-        GLES20.glShaderSource(s, source)
-        GLES20.glCompileShader(s)
-        val ok = IntArray(1)
-        GLES20.glGetShaderiv(s, GLES20.GL_COMPILE_STATUS, ok, 0)
-        check(ok[0] != 0) { "shader compile failed: ${GLES20.glGetShaderInfoLog(s)}" }
-        return s
     }
 }
