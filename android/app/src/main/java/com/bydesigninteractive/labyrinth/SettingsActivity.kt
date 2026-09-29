@@ -155,6 +155,9 @@ class SettingsActivity : Activity() {
         super.onResume()
         // Refreshed here so the status is current after running the ADB command.
         showSetupHelp()
+        // An installer that asked for confirmation while this app was in the background was
+        // blocked by Android and reports nothing, so coming back offers Update again.
+        installing = false
         if (justShowedInstallFailure) {
             // The failure message is on screen; do not overwrite it right away.
             justShowedInstallFailure = false
@@ -196,10 +199,11 @@ class SettingsActivity : Activity() {
         offered = release
         val enabled = UpdateStore.enabled(this)
         checkToggle.text = "Check for updates: ${if (enabled) "On" else "Off"}"
+        val elsewhere = Updates.isUpdating && !downloading
         updateStatus.text = message
-            ?: release?.let { "Labyrinth ${it.version} is available." }
+            ?: release?.let { if (elsewhere) "Labyrinth ${it.version} is downloading." else "Labyrinth ${it.version} is available." }
             ?: "Version ${Updates.currentVersion(this)}"
-        val visible = release != null && !downloading && !installing
+        val visible = release != null && !downloading && !installing && !elsewhere
         if (!visible && (updateButton.isFocused || dismissButton.isFocused)) checkToggle.requestFocus()
         val actions = if (visible) View.VISIBLE else View.GONE
         updateButton.visibility = actions
@@ -212,30 +216,38 @@ class SettingsActivity : Activity() {
             askForInstallPermission(release)
             return
         }
+        if (!Updates.beginUpdate()) {
+            showUpdate(release)
+            return
+        }
         downloading = true
         checkToggle.requestFocus()
         showUpdate(release, "Downloading Labyrinth ${release.version}...")
         thread(name = "update-download", isDaemon = true) {
-            val downloaded = try {
-                Result.success(Updates.download(this, release) { percent ->
-                    runOnUiThread { if (!isDestroyed) updateStatus.text = "Downloading Labyrinth ${release.version}: $percent%" }
-                })
-            } catch (e: IOException) {
-                Result.failure(e)
-            }
             var nowInstalling = false
-            val message = downloaded.fold(
-                onSuccess = { apk ->
-                    try {
-                        Updates.install(this, apk)
-                        nowInstalling = true
-                        "Installing Labyrinth ${release.version}..."
-                    } catch (_: Exception) {
-                        "The update could not be installed."
-                    }
-                },
-                onFailure = { (it as? UpdateFailure)?.message ?: "The download was interrupted." },
-            )
+            val message = try {
+                val downloaded = try {
+                    Result.success(Updates.download(this, release) { percent ->
+                        runOnUiThread { if (!isDestroyed) updateStatus.text = "Downloading Labyrinth ${release.version}: $percent%" }
+                    })
+                } catch (e: IOException) {
+                    Result.failure(e)
+                }
+                downloaded.fold(
+                    onSuccess = { apk ->
+                        try {
+                            Updates.install(this, apk)
+                            nowInstalling = true
+                            "Installing Labyrinth ${release.version}..."
+                        } catch (_: Exception) {
+                            "The update could not be installed."
+                        }
+                    },
+                    onFailure = { (it as? UpdateFailure)?.message ?: "The download was interrupted." },
+                )
+            } finally {
+                Updates.endUpdate()
+            }
             runOnUiThread {
                 if (isDestroyed) return@runOnUiThread
                 downloading = false

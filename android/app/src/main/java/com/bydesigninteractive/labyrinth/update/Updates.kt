@@ -29,6 +29,18 @@ object Updates {
     const val EXTRA_INSTALL_FAILED = "com.bydesigninteractive.labyrinth.INSTALL_FAILED"
     private const val TIMEOUT_MS = 15_000
     private val checking = AtomicBoolean(false)
+    private val updating = AtomicBoolean(false)
+
+    /**
+     * Claims the one update download for the whole process. A download keeps running after
+     * the activity that started it is gone, and every download writes the same file, so a
+     * second one must not start until [endUpdate] is called.
+     */
+    fun beginUpdate(): Boolean = updating.compareAndSet(false, true)
+
+    fun endUpdate() = updating.set(false)
+
+    val isUpdating: Boolean get() = updating.get()
 
     fun currentVersion(context: Context): String =
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
