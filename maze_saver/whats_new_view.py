@@ -1,5 +1,5 @@
-"""Draws the What's new section beside the primary maze (the rules are in whats_new). The
-whole section is drawn once into its own surface; later frames copy only what changed: the
+"""Draws the What's new card beside the primary maze (the rules are in whats_new). The
+whole card is drawn once into its own surface; later frames copy only what changed: the
 footer once a second, everything after the board clears the screen, and every frame of the
 1.5 second fade."""
 from __future__ import annotations
@@ -26,12 +26,15 @@ class WhatsNewSection:
         self.clock = clock
         box = self.split.section
         self.rect = pygame.Rect(box.x, box.y, box.w, box.h)
-        base = min(size)
-        body_size = max(12, base // 54)  # the watermark's size
+        # Sizes follow the card's height, so the text scales with the card: on a 1440 px
+        # monitor (a 690 px card) the body is 23 px and the title 34 px, which keeps the
+        # "More at" address on one row.
+        card_h = self.rect.h
+        body_size = max(10, card_h // 29)
         self._body = pygame.font.SysFont(FONT_NAME, body_size)
         heading = pygame.font.SysFont(FONT_NAME, body_size, bold=True)
-        title_font = pygame.font.SysFont(FONT_NAME, max(14, base // 40))
-        pad = max(8, base // 60)
+        title_font = pygame.font.SysFont(FONT_NAME, max(12, card_h // 20))
+        pad = max(6, card_h // 40)
         inner_w = self.rect.w - 2 * pad
         line_h = self._body.get_linesize()
         self.image = pygame.Surface(self.rect.size)

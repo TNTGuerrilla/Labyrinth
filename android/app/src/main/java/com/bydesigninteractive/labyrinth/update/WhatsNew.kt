@@ -91,14 +91,37 @@ data class Box(val x: Int, val y: Int, val w: Int, val h: Int) {
 
 data class Split(val board: Box, val section: Box)
 
-/** Landscape: a strip on the right, 30% of the width; portrait: at the bottom, 30% of the height. */
-fun splitScreen(w: Int, h: Int): Split {
-    val marginX = w / 40
-    val marginY = h / 20
+/** The TV's card is this many times the Windows screensaver's. */
+const val TV_CARD_SCALE = 1.25
+
+/**
+ * The section's fixed-size card, as maze_saver.whats_new.card_size: 540 x 690 scaled by the
+ * screen's shorter side over 1440, then shrunk, aspect ratio kept, to fit 25% of the width
+ * and 80% of the height. [scale] enlarges the card and its width limit alike (about 506 x 647
+ * on a 1080p TV); the height limit stays 80%. Rounded half up.
+ */
+fun cardSize(w: Int, h: Int, scale: Double = TV_CARD_SCALE): Pair<Int, Int> {
+    val s = minOf(w, h) / 1440.0 * scale
+    val cw = 540 * s
+    val ch = 690 * s
+    val maxW = w * 0.25 * scale
+    val maxH = h * 0.8
+    val k = minOf(1.0, maxW / cw, maxH / ch)
+    return minOf(Math.round(cw * k).toInt(), maxW.toInt()) to minOf(Math.round(ch * k).toInt(), maxH.toInt())
+}
+
+/**
+ * Landscape: the card in a column on the right (card width plus a margin each side),
+ * vertically centred; portrait: in a band at the bottom, horizontally centred. The board
+ * keeps the rest, so the card never covers the maze.
+ */
+fun splitScreen(w: Int, h: Int, scale: Double = TV_CARD_SCALE): Split {
+    val (cw, ch) = cardSize(w, h, scale)
+    val margin = minOf(w, h) / 40
     if (w >= h) {
-        val strip = w * 3 / 10
-        return Split(Box(0, 0, w - strip, h), Box(w - strip, marginY, strip - marginX, h - 2 * marginY))
+        val column = cw + 2 * margin
+        return Split(Box(0, 0, w - column, h), Box(w - column + margin, (h - ch) / 2, cw, ch))
     }
-    val strip = h * 3 / 10
-    return Split(Box(0, 0, w, h - strip), Box(marginX, h - strip, w - 2 * marginX, strip - marginY))
+    val band = ch + 2 * margin
+    return Split(Box(0, 0, w, h - band), Box((w - cw) / 2, h - band + margin, cw, ch))
 }

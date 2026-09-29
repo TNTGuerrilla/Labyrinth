@@ -1,9 +1,9 @@
 // The screensaver itself. Android starts this when the TV goes idle; any remote button
 // press ends it, since the dream is not interactive. When an update is waiting, a dim line
 // sits in the margin the maze never uses and moves corner to corner so it cannot burn in.
-// After an update, What's new shows as a normal View beside a MazeView sized to the rest
-// of the screen, counts down a minute, fades after the next solve, and the maze gets the
-// whole screen back when its board goes black for the next maze.
+// After an update, What's new shows as a fixed-size card (a normal View) beside a MazeView
+// sized to the rest of the screen, counts down a minute, fades after the next solve, and the
+// maze gets the whole screen back when its board goes black for the next maze.
 package com.bydesigninteractive.labyrinth
 
 import android.graphics.Color
@@ -77,7 +77,7 @@ class LabyrinthDreamService : DreamService(), MazeListener {
                 topMargin = s.board.y
             })
             maze.listener = this
-            val view = sectionView(news)
+            val view = sectionView(news, s.section.h)
             root.addView(view, FrameLayout.LayoutParams(s.section.w, s.section.h).apply {
                 leftMargin = s.section.x
                 topMargin = s.section.y
@@ -115,15 +115,21 @@ class LabyrinthDreamService : DreamService(), MazeListener {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
-    private fun dimText(value: String, sizeSp: Float) = TextView(this).apply {
+    private fun dimText(value: String, sizePx: Float) = TextView(this).apply {
         text = value
         setTextColor(NOTICE_COLOR)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, sizePx)
     }
 
-    private fun sectionView(news: WhatsNew): LinearLayout {
-        val pad = dp(12)
-        val notes = dimText("", 14f)
+    /**
+     * The card, sized by its layout params to the split's box. Text sizes follow the card's
+     * height, as on Windows (body 1/29, title 1/20, padding 1/40), so the text scales with
+     * the card; notes that do not fit are cut with the More at line.
+     */
+    private fun sectionView(news: WhatsNew, cardH: Int): LinearLayout {
+        val body = maxOf(10, cardH / 29).toFloat()
+        val pad = maxOf(6, cardH / 40)
+        val notes = dimText("", body)
         notes.text = styledNotes(news.lines(), notes.paint)
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -132,19 +138,19 @@ class LabyrinthDreamService : DreamService(), MazeListener {
                 setColor(Color.BLACK)
                 setStroke(maxOf(1, dp(1)), NOTICE_COLOR)
             }
-            addView(dimText("Labyrinth updated to ${news.version}", 18f).apply {
+            addView(dimText("Labyrinth updated to ${news.version}", maxOf(12, cardH / 20).toFloat()).apply {
                 typeface = Typeface.DEFAULT_BOLD
-                setPadding(0, 0, 0, dp(8))
+                setPadding(0, 0, 0, (body / 2).toInt())
             })
             addView(notes, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-            addView(footer(), LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            addView(footer(body), LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
             notes.post { cutToFit(notes) }
         }
     }
 
-    private fun footer(): LinearLayout {
-        val words = dimText(CLOSES_IN, 14f)
-        val number = dimText("60", 14f).apply {
+    private fun footer(sizePx: Float): LinearLayout {
+        val words = dimText(CLOSES_IN, sizePx)
+        val number = dimText("60", sizePx).apply {
             fontFeatureSettings = "tnum" // equal-width digits
             gravity = Gravity.END
             // As wide as the widest two-digit number, so the words never move.

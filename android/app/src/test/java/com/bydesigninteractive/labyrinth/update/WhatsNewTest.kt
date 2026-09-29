@@ -93,13 +93,51 @@ class WhatsNewTest {
         assertEquals(165_000L, clock.closedAtMs)
     }
 
+    private val sizes = listOf(1920 to 1080, 3440 to 1440, 2560 to 1440, 1200 to 1920, 1920 to 1200, 800 to 600)
+
+    /** The rule written out: 540 x 690 at a 1440 px shorter side, scaled, clamped to 25% of the width (times the TV factor) and 80% of the height. */
+    private fun expectedCard(w: Int, h: Int, factor: Double): Pair<Int, Int> {
+        val scale = minOf(w, h) / 1440.0 * factor
+        val cw = 540 * scale
+        val ch = 690 * scale
+        val k = minOf(1.0, w / 4.0 * factor / cw, h * 0.8 / ch)
+        return Math.round(cw * k).toInt() to Math.round(ch * k).toInt()
+    }
+
     @Test
-    fun sectionAndBoardNeverOverlap() {
-        for ((w, h) in listOf(1920 to 1080, 3840 to 2160, 1280 to 720, 1080 to 1920, 1000 to 1000)) {
+    fun cardSizeFollowsTheRuleAndItsClamps() {
+        assertEquals(540 to 690, cardSize(3440, 1440, 1.0))
+        assertEquals(405 to 518, cardSize(1920, 1080, 1.0))
+        assertEquals(506 to 647, cardSize(1920, 1080)) // the TV default: 1.25 times the monitor's
+        for ((w, h) in sizes) {
+            for (factor in listOf(1.0, TV_CARD_SCALE)) {
+                val (cw, ch) = cardSize(w, h, factor)
+                val (ew, eh) = expectedCard(w, h, factor)
+                assertTrue("$w x $h at $factor: $cw x $ch", Math.abs(cw - ew) <= 1 && Math.abs(ch - eh) <= 1)
+                assertTrue(cw <= w / 4.0 * factor && ch <= h * 0.8)
+            }
+        }
+    }
+
+    @Test
+    fun cardAndBoardNeverOverlapAndCoverTheScreen() {
+        for ((w, h) in sizes) {
             val s = splitScreen(w, h)
-            assertTrue(s.board.x == 0 && s.board.y == 0 && s.board.right <= w && s.board.bottom <= h)
-            assertTrue(s.section.x >= 0 && s.section.y >= 0 && s.section.right <= w && s.section.bottom <= h)
-            assertTrue(s.section.x >= s.board.right || s.section.y >= s.board.bottom)
+            val card = s.section
+            val margin = minOf(w, h) / 40
+            assertEquals(cardSize(w, h), card.w to card.h)
+            assertTrue(card.x >= 0 && card.y >= 0 && card.right <= w && card.bottom <= h)
+            if (w >= h) {
+                assertEquals(Box(0, 0, w - card.w - 2 * margin, h), s.board)
+                assertEquals(margin, card.x - s.board.right)
+                assertEquals(margin, w - card.right)
+                assertTrue(Math.abs(card.y - (h - card.bottom)) <= 1)
+            } else {
+                assertEquals(Box(0, 0, w, h - card.h - 2 * margin), s.board)
+                assertEquals(margin, card.y - s.board.bottom)
+                assertEquals(margin, h - card.bottom)
+                assertTrue(Math.abs(card.x - (w - card.right)) <= 1)
+            }
         }
     }
 }

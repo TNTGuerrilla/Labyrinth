@@ -1,5 +1,5 @@
 """The What's new section the screensaver shows beside the primary maze after an update:
-its countdown, when it closes, and (split_monitor) where it goes. Pure logic;
+its countdown, when it closes, and (card_size, split_monitor) where it goes. Pure logic;
 whats_new_view draws it."""
 from __future__ import annotations
 
@@ -88,24 +88,40 @@ class SectionClock:
         return self.closed_at is not None and now - self.closed_at >= FADE_SECONDS
 
 
-STRIP_NUM, STRIP_DEN = 3, 10  # the section's strip: 30% of the monitor's long side
+CARD_W, CARD_H = 540, 690  # the settings dialog's size on a monitor 1440 px on its short side
+CARD_BASE = 1440
+CARD_MAX_W = 0.25  # at most a quarter of the monitor's width
+CARD_MAX_H = 0.8  # and 80% of its height
+
+
+def card_size(w: int, h: int, scale: float = 1.0) -> tuple[int, int]:
+    """The section's fixed-size card: CARD_W x CARD_H scaled by the monitor's shorter side
+    over 1440, then shrunk, aspect ratio kept, to fit 25% of the width and 80% of the
+    height. scale (1.25 on the TV) enlarges the card and its width limit alike, so the TV's
+    card is 1.25 times the monitor's (about 506 x 647 on a 1080p screen) while the height
+    limit stays 80%. Rounded half up, like Kotlin's Math.round."""
+    s = min(w, h) / CARD_BASE * scale
+    cw, ch = CARD_W * s, CARD_H * s
+    max_w, max_h = w * CARD_MAX_W * scale, h * CARD_MAX_H
+    k = min(1.0, max_w / cw, max_h / ch)
+    return (min(int(cw * k + 0.5), int(max_w)), min(int(ch * k + 0.5), int(max_h)))
 
 
 @dataclass(frozen=True)
 class Split:
     board: Rect  # where the primary maze is laid out while the section shows
-    section: Rect  # the section's box, border included
+    section: Rect  # the card, border included
 
 
-def split_monitor(w: int, h: int) -> Split:
-    """Landscape: a strip on the right, 30% of the width; portrait: a strip at the bottom,
-    30% of the height. The board keeps the rest, so the section never covers the maze (a
-    maze fills at most 80% of its area, which leaves a gap on the section's side too)."""
-    margin_x, margin_y = w // 40, h // 20
+def split_monitor(w: int, h: int, scale: float = 1.0) -> Split:
+    """Landscape: the card in a column on the right (card width plus a margin each side),
+    vertically centred; portrait: in a band at the bottom, horizontally centred. The board
+    keeps the rest, so the card never covers the maze."""
+    cw, ch = card_size(w, h, scale)
+    margin = min(w, h) // 40
     if w >= h:
-        strip = w * STRIP_NUM // STRIP_DEN
-        return Split(Rect(0, 0, w - strip, h),
-                     Rect(w - strip, margin_y, strip - margin_x, h - 2 * margin_y))
-    strip = h * STRIP_NUM // STRIP_DEN
-    return Split(Rect(0, 0, w, h - strip),
-                 Rect(margin_x, h - strip, w - 2 * margin_x, strip - margin_y))
+        column = cw + 2 * margin
+        return Split(Rect(0, 0, w - column, h),
+                     Rect(w - column + margin, (h - ch) // 2, cw, ch))
+    band = ch + 2 * margin
+    return Split(Rect(0, 0, w, h - band), Rect((w - cw) // 2, h - band + margin, cw, ch))
