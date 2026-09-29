@@ -1,12 +1,15 @@
-// The app's launcher screen: screensaver settings, built for a TV remote. Up and down move
-// between rows, left and right change the focused value (hold to speed up), and changes
-// save as they are made. Also opened from the system screensaver settings, when a TV shows them.
+// The app's launcher screen, built for a TV remote: Play, the Mode (game, screensaver or
+// both), the screensaver settings, updates and info. Up and down move between rows, left
+// and right change the focused value (hold to speed up), and changes save as they are made.
+// Also opened from the system screensaver settings, when a TV shows them.
 package com.bydesigninteractive.labyrinth
 
 import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -23,8 +26,12 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import com.bydesigninteractive.labyrinth.game.Mode
 import com.bydesigninteractive.labyrinth.maze.Field
 import com.bydesigninteractive.labyrinth.maze.Settings
+import com.bydesigninteractive.labyrinth.play.GameActivity
+import com.bydesigninteractive.labyrinth.play.GameStore
+import com.bydesigninteractive.labyrinth.play.Session
 import com.bydesigninteractive.labyrinth.update.Release
 import com.bydesigninteractive.labyrinth.update.UpdateFailure
 import com.bydesigninteractive.labyrinth.update.UpdateStore
@@ -46,6 +53,10 @@ private const val LICENSE_ADDRESS = "github.com/TNTGuerrilla/Labyrinth/blob/mast
 
 class SettingsActivity : Activity() {
     private lateinit var settings: Settings
+    private lateinit var mode: Mode
+    private lateinit var playButton: TextView
+    private lateinit var modeValue: TextView
+    private val screensaverViews = ArrayList<View>()
     private val valueViews = HashMap<Field, TextView>()
     private lateinit var column: LinearLayout
     private lateinit var help: LinearLayout
@@ -66,6 +77,8 @@ class SettingsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settings = SettingsStore.load(this)
+        mode = GameStore.mode(this)
+        if (intent?.action == Intent.ACTION_MAIN) Session.controlsShown = false
 
         column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -80,14 +93,19 @@ class SettingsActivity : Activity() {
             showNotes(news)
             UpdateStore.markWhatsNewSeen(this, current) // shown once: it counts as seen
         }
+        playButton = button("Play") { startActivity(Intent(this, GameActivity::class.java)) }
+        column.addView(playButton)
+        column.addView(modeRow())
         var first: View? = null
         for (field in Field.entries) {
             val row = fieldRow(field)
             column.addView(row)
+            screensaverViews.add(row)
             if (first == null) first = row
         }
-        column.addView(button("Preview screensaver") { startActivity(Intent(this, PreviewActivity::class.java)) })
-        column.addView(button("Reset to defaults") { update(Settings()) })
+        column.addView(button("Preview screensaver") { startActivity(Intent(this, PreviewActivity::class.java)) }
+            .also { screensaverViews.add(it) })
+        column.addView(button("Reset to defaults") { update(Settings()) }.also { screensaverViews.add(it) })
         column.addView(text("Info", 24f, TEXT).apply {
             typeface = Typeface.DEFAULT_BOLD
             setPadding(dp(16), dp(24), dp(16), dp(8))
@@ -116,13 +134,15 @@ class SettingsActivity : Activity() {
             background = focusBackground()
         }
         column.addView(help)
+        screensaverViews.add(help)
 
         setContentView(ScrollView(this).apply {
             setBackgroundColor(BACKGROUND)
             addView(column)
         })
         refresh()
-        first?.requestFocus()
+        applyMode()
+        if (mode.game) playButton.requestFocus() else first?.requestFocus()
         if (intent?.getBooleanExtra(Updates.EXTRA_INSTALL_FAILED, false) == true) {
             intent.removeExtra(Updates.EXTRA_INSTALL_FAILED) // not again if the activity is recreated
             showInstallFailed()
@@ -153,6 +173,7 @@ class SettingsActivity : Activity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (intent.action == Intent.ACTION_MAIN) Session.controlsShown = false
         if (intent.getBooleanExtra(Updates.EXTRA_INSTALL_FAILED, false)) showInstallFailed()
     }
 
@@ -300,6 +321,55 @@ class SettingsActivity : Activity() {
         column.addView(block, 1) // index 0 is the title
         notesBlock = block
         if (focus) block.requestFocus()
+    }
+
+    /** Mode: Both / Game / Screensaver, changed with left and right like the other rows. */
+    private fun modeRow(): LinearLayout {
+        modeValue = text("", 20f, ACCENT).apply {
+            gravity = Gravity.END
+            typeface = Typeface.MONOSPACE
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(10), dp(16), dp(10))
+            isFocusable = true
+            background = focusBackground()
+            addView(text("Mode", 20f, TEXT), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(modeValue)
+            setOnKeyListener { _, keyCode, event ->
+                val sign = when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_LEFT -> -1
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> 1
+                    else -> return@setOnKeyListener false
+                }
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) setMode(mode.next(sign))
+                true
+            }
+        }
+    }
+
+    /**
+     * Turning the screensaver off disables the dream component, so Labyrinth leaves the TV's
+     * screensaver list; the TV falls back to its default if Labyrinth was chosen.
+     */
+    private fun setMode(next: Mode) {
+        mode = next
+        GameStore.setMode(this, next)
+        packageManager.setComponentEnabledSetting(
+            ComponentName(this, LabyrinthDreamService::class.java),
+            if (next.screensaver) PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+            else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            PackageManager.DONT_KILL_APP,
+        )
+        applyMode()
+    }
+
+    private fun applyMode() {
+        modeValue.text = "<  ${mode.label}  >"
+        playButton.visibility = if (mode.game) View.VISIBLE else View.GONE
+        val saver = if (mode.screensaver) View.VISIBLE else View.GONE
+        screensaverViews.forEach { it.visibility = saver }
     }
 
     private fun fieldRow(field: Field): LinearLayout {
