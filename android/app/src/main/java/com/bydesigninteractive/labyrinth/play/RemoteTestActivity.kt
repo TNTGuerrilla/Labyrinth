@@ -35,6 +35,8 @@ import com.bydesigninteractive.labyrinth.game.lagMs
 
 private const val MAX_SOUND_DELAY = 400
 private const val BLOCK_START_MS = 800L
+/** OK is ignored this long after a title or retry screen appears, so a trailing press cannot skip it. */
+private const val SCREEN_GUARD_MS = 600L
 
 private val STEPS = listOf(
     "Step 1 of 5: Sound" to "A dot bounces between two walls with a click on every bounce. " +
@@ -64,6 +66,8 @@ class RemoteTestActivity : Activity() {
     private lateinit var bodyView: TextView
     private lateinit var click: Click
     private var phase = Phase.LOADING
+    /** Uptime when the current title or retry screen appeared. */
+    private var shownAt = 0L
     private var step = 0
     private var soundDelayMs = 0
     private var nextHit = 0L
@@ -118,6 +122,7 @@ class RemoteTestActivity : Activity() {
     private fun showTitle(i: Int) {
         step = i
         phase = Phase.TITLE
+        shownAt = SystemClock.uptimeMillis()
         testView.clear()
         show(STEPS[i].first, STEPS[i].second + "\n\nPress OK to start.")
     }
@@ -200,6 +205,7 @@ class RemoteTestActivity : Activity() {
 
     private fun retry() {
         phase = Phase.RETRY
+        shownAt = SystemClock.uptimeMillis()
         show(STEPS[step].first, "Too few presses landed near the beat. Follow the rhythm rather than " +
             "waiting for the dot, and try again.\n\nPress OK to try again.")
     }
@@ -247,7 +253,8 @@ class RemoteTestActivity : Activity() {
         val first = event.repeatCount == 0
         when (phase) {
             Phase.LOADING -> {}
-            Phase.TITLE, Phase.RETRY -> if (key == RemoteKey.OK && first) beginStep()
+            Phase.TITLE, Phase.RETRY ->
+                if (key == RemoteKey.OK && first && event.eventTime - shownAt >= SCREEN_GUARD_MS) beginStep()
             Phase.SYNC -> when (key) {
                 RemoteKey.LEFT, RemoteKey.RIGHT -> {
                     soundDelayMs = (soundDelayMs + if (key == RemoteKey.RIGHT) 10 else -10).coerceIn(0, MAX_SOUND_DELAY)

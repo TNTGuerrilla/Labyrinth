@@ -1,5 +1,5 @@
-// The app's launcher screen, built for a TV remote: Play, the Mode (game, screensaver or
-// both), the screensaver settings, updates and info. Up and down move between rows, left
+// The app's launcher screen, built for a TV remote: Play, Use as (game and screensaver,
+// game only, screensaver only), the screensaver settings, updates and info. Up and down move between rows, left
 // and right change the focused value (hold to speed up), and changes save as they are made.
 // Also opened from the system screensaver settings, when a TV shows them.
 package com.bydesigninteractive.labyrinth
@@ -79,6 +79,7 @@ class SettingsActivity : Activity() {
         super.onCreate(savedInstanceState)
         settings = SettingsStore.load(this)
         mode = GameStore.mode(this)
+        reconcileDream()
         if (intent?.action == Intent.ACTION_MAIN) Session.controlsShown = false
 
         column = LinearLayout(this).apply {
@@ -357,13 +358,26 @@ class SettingsActivity : Activity() {
     private fun setMode(next: Mode) {
         mode = next
         GameStore.setMode(this, next)
+        setDreamEnabled(next.screensaver)
+        applyMode()
+    }
+
+    private fun setDreamEnabled(on: Boolean) {
         packageManager.setComponentEnabledSetting(
             ComponentName(this, LabyrinthDreamService::class.java),
-            if (next.screensaver) PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+            if (on) PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
             else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
             PackageManager.DONT_KILL_APP,
         )
-        applyMode()
+    }
+
+    /** Brings the dream component back in line with the stored mode if they disagree (say, after a reinstall). */
+    private fun reconcileDream() {
+        val state = packageManager.getComponentEnabledSetting(ComponentName(this, LabyrinthDreamService::class.java))
+        // The manifest leaves the dream enabled, so DEFAULT counts as on.
+        val on = state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT ||
+            state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+        if (on != mode.screensaver) setDreamEnabled(mode.screensaver)
     }
 
     private fun applyMode() {

@@ -276,6 +276,9 @@ class GameActivity : Activity() {
             menuPanel.visibility = View.GONE
             return
         }
+        // The win panel never sits over the menu. winDismissed stays as it is, so refresh()
+        // shows the panel again once the menu closes if the maze is still solved.
+        if (winShown) hideWin()
         menuPanel.visibility = View.VISIBLE
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         for (t in Tab.entries) {
