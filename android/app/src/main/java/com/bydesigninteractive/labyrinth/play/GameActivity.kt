@@ -228,7 +228,7 @@ class GameActivity : Activity() {
         remote = GameStore.loadRemote(this) ?: remote
         val r = remote
         view.send { setRemote(r) }
-        menu.open(now()) // closed moments ago, so it reopens where it was: Movement
+        menu.open(now(), Tab.MOVEMENT) // menu reopens on Movement; a full test takes longer than the one-minute reset
         renderMenu()
     }
 
