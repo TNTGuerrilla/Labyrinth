@@ -42,6 +42,14 @@
             android:exported="false"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
 
+        <!-- The game. configChanges: a remote connecting or disconnecting counts as a
+             keyboard/navigation change and must not restart a maze in progress. -->
+        <activity
+            android:name=".play.GameActivity"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|uiMode"
+            android:exported="false"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
+
         <service
             android:name=".LabyrinthDreamService"
             android:exported="true"
