@@ -2,7 +2,7 @@
 
 <img src="maze_saver/assets/icon.png" alt="Labyrinth icon" width="96" align="right">
 
-Procedurally grown pipe mazes in three forms: a playable game for Windows and Linux, a Windows screensaver, and a Google TV screensaver. Each maze is carved live by one or more snake-like leads (up to 16), each in its own color, that race across the screen and weld their regions together into a single perfect maze with exactly one route between any two cells. In the screensavers, a solver then traces that route the way a person would with a finger: it looks a few cells ahead, sometimes takes a wrong turn, backs out of dead ends, and leaves a bright trail behind its gliding dot. The game and the Windows screensaver are Python and pygame; the TV version is a Kotlin port that runs as a native Android screensaver.
+Procedurally grown pipe mazes in three forms: a playable game for Windows and Linux, a Windows screensaver, and a Google TV screensaver. The look is inspired by the classic 3D Pipes screensaver that shipped with Windows from Windows NT 3.5 through Windows XP. Each maze is carved live by one or more snake-like leads (up to 16), each in its own color, that race across the screen and weld their regions together into a single perfect maze with exactly one route between any two cells. In the screensavers, a solver then traces that route the way a person would with a finger: it looks a few cells ahead, sometimes takes a wrong turn, backs out of dead ends, and leaves a bright trail behind its gliding dot. The game and the Windows screensaver are Python and pygame; the TV version is a Kotlin port that runs as a native Android screensaver.
 
 ## Contents
 
