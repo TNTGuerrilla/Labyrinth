@@ -63,6 +63,8 @@ class GameActivity : Activity() {
     private lateinit var backHint: TextView
     private var menuSettingsBefore: GameSettings? = null
     private var winShown = false
+    /** The panel was just dismissed; ignore stale win snapshots until one without winScreen arrives. */
+    private var winDismissed = false
     private var screenHeld = false
     private var away = false
 
@@ -190,6 +192,7 @@ class GameActivity : Activity() {
             }
             is Command.WinPick -> renderWin()
             is Command.WinConfirm -> {
+                winDismissed = true
                 hideWin()
                 if (c.choice == 0) view.send { newRound() } else view.send { replay() }
             }
@@ -202,6 +205,7 @@ class GameActivity : Activity() {
         menuSettingsBefore = settings
         menu.open(now(), first)
         view.send { paused = true }
+        if (screenHeld) releaseScreen()
         renderMenu()
     }
 
@@ -233,7 +237,10 @@ class GameActivity : Activity() {
                 MenuAction.RESUME, MenuAction.NEW_MAZE, null -> {}
             }
         }
-        if (newMaze || action == MenuAction.REPLAY) hideWin()
+        if (newMaze || action == MenuAction.REPLAY) {
+            winDismissed = true
+            hideWin()
+        }
     }
 
     private fun changeSettings(next: GameSettings) {
@@ -305,17 +312,19 @@ class GameActivity : Activity() {
     private fun refresh() {
         val snap = view.snapshot ?: return
         readout.text = if (snap.phase == RoundPhase.GROW) "" else "Explored ${snap.explored} \u00b7 ${formatTime(snap.elapsed)}"
-        if (snap.winScreen && !winShown && !menu.isOpen) {
+        if (!snap.winScreen) winDismissed = false
+        if (snap.winScreen && !winShown && !winDismissed && !menu.isOpen) {
             winShown = true
             input.resetWin()
             renderWin()
         } else if (!snap.winScreen && winShown) {
             hideWin()
         }
-        if (snap.dotMoving && !screenHeld) {
+        val hold = snap.dotMoving && !menu.isOpen
+        if (hold && !screenHeld) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             screenHeld = true
-        } else if (!snap.dotMoving && screenHeld) {
+        } else if (!hold && screenHeld) {
             releaseScreen()
         }
     }

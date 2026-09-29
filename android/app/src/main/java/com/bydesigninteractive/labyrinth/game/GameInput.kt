@@ -54,7 +54,7 @@ class GameInput {
     /** What a key press does; null means it is not the game's key and Android should handle it. */
     fun down(key: RemoteKey, repeatCount: Int, state: InputState, now: Double): List<Command>? {
         if (state.menuOpen) return menu(key, repeatCount)
-        if (key == RemoteKey.BACK) return back(state, now)
+        if (key == RemoteKey.BACK) return if (repeatCount > 0) emptyList() else back(state, now)
         if (state.winScreen) return win(key, repeatCount)
         if (key == RemoteKey.VOLUME_UP || key == RemoteKey.VOLUME_DOWN) {
             return listOf(Command.Zoom(if (key == RemoteKey.VOLUME_UP) 1 else -1))

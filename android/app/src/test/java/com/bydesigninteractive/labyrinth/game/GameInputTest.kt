@@ -73,6 +73,13 @@ class GameInputTest {
     }
 
     @Test
+    fun aHeldBackDoesNotCountAsTheSecondPress() {
+        assertEquals(listOf(Command.BackHint), input.down(RemoteKey.BACK, 0, PLAYING, 10.0))
+        assertEquals(emptyList<Command>(), input.down(RemoteKey.BACK, 1, PLAYING, 10.5))
+        assertEquals(listOf(Command.Leave), input.down(RemoteKey.BACK, 0, PLAYING, 11.0))
+    }
+
+    @Test
     fun theMenuGetsNavigationKeys() {
         assertEquals(listOf(Command.Menu(MenuKey.LEFT, 0)), input.down(RemoteKey.LEFT, 0, MENU, 0.0))
         assertEquals(listOf(Command.Menu(MenuKey.RIGHT, 9)), input.down(RemoteKey.RIGHT, 9, MENU, 0.0))
