@@ -15,6 +15,13 @@ class ModeTest {
     }
 
     @Test
+    fun labelsSayWhatIsOn() {
+        assertEquals("Game and screensaver", Mode.BOTH.label)
+        assertEquals("Game only", Mode.GAME.label)
+        assertEquals("Screensaver only", Mode.SCREENSAVER.label)
+    }
+
+    @Test
     fun theCarouselWraps() {
         assertEquals(Mode.GAME, Mode.BOTH.next(1))
         assertEquals(Mode.BOTH, Mode.SCREENSAVER.next(1))

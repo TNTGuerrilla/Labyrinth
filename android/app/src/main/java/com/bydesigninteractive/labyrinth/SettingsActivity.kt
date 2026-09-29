@@ -85,7 +85,7 @@ class SettingsActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(64), dp(40), dp(64), dp(40))
         }
-        column.addView(text("Labyrinth", 30f, TEXT).apply {
+        column.addView(text("Labyrinth", 26f, TEXT).apply {
             typeface = Typeface.DEFAULT_BOLD
             setPadding(dp(16), 0, dp(16), dp(16))
         })
@@ -107,7 +107,7 @@ class SettingsActivity : Activity() {
         column.addView(button("Preview screensaver") { startActivity(Intent(this, PreviewActivity::class.java)) }
             .also { screensaverViews.add(it) })
         column.addView(button("Reset to defaults") { update(Settings()) }.also { screensaverViews.add(it) })
-        column.addView(text("Info", 24f, TEXT).apply {
+        column.addView(text("Info", 20f, TEXT).apply {
             typeface = Typeface.DEFAULT_BOLD
             setPadding(dp(16), dp(24), dp(16), dp(8))
         })
@@ -324,19 +324,19 @@ class SettingsActivity : Activity() {
         if (focus) block.requestFocus()
     }
 
-    /** Mode: Both / Game / Screensaver, changed with left and right like the other rows. */
+    /** Use as: game and screensaver / game only / screensaver only, changed with left and right like the other rows. */
     private fun modeRow(): LinearLayout {
-        modeValue = text("", 20f, ACCENT).apply {
+        modeValue = text("", 17f, ACCENT).apply {
             gravity = Gravity.END
             typeface = Typeface.MONOSPACE
         }
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(10), dp(16), dp(10))
+            setPadding(dp(16), dp(6), dp(16), dp(6))
             isFocusable = true
             background = focusBackground()
-            addView(text("Mode", 20f, TEXT), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text("Use as", 17f, TEXT), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             addView(modeValue)
             setOnKeyListener { _, keyCode, event ->
                 val sign = when (keyCode) {
@@ -374,7 +374,7 @@ class SettingsActivity : Activity() {
     }
 
     private fun fieldRow(field: Field): LinearLayout {
-        val value = text("", 20f, ACCENT).apply {
+        val value = text("", 17f, ACCENT).apply {
             gravity = Gravity.END
             typeface = Typeface.MONOSPACE
         }
@@ -382,10 +382,10 @@ class SettingsActivity : Activity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(10), dp(16), dp(10))
+            setPadding(dp(16), dp(6), dp(16), dp(6))
             isFocusable = true
             background = focusBackground()
-            addView(text(field.label, 20f, TEXT), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text(field.label, 17f, TEXT), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             addView(value)
             setOnKeyListener { _, keyCode, event ->
                 val sign = when (keyCode) {
@@ -434,8 +434,8 @@ class SettingsActivity : Activity() {
     }
 
     private fun button(label: String, onClick: () -> Unit): TextView =
-        text(label, 20f, TEXT).apply {
-            setPadding(dp(16), dp(12), dp(16), dp(12))
+        text(label, 17f, TEXT).apply {
+            setPadding(dp(16), dp(8), dp(16), dp(8))
             isFocusable = true
             isClickable = true
             background = focusBackground()
