@@ -188,4 +188,12 @@ class BoardTest {
         runUntil(board, Phase.BLACK)
         assertEquals(1, board.mazesCleared)
     }
+
+    @Test
+    fun boardIsACellSource() {
+        val source: CellSource = Board(1920, 1080, FAST, Random(1))
+        runUntil(source as Board, Phase.SOLVE)
+        assertTrue(source.grid != null && source.start != null && source.end != null)
+        assertTrue(source.headCells.isEmpty())
+    }
 }

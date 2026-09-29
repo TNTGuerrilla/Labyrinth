@@ -81,7 +81,7 @@ class Board(
     private val rng: Random,
     initialDelay: Double = 0.0,
     private val forcedLeads: Int? = null,
-) {
+) : CellSource {
     var time = 0.0
         private set
     var phase = Phase.BLACK
@@ -89,26 +89,26 @@ class Board(
 
     var geometry: Geometry? = null
         private set
-    var grid: Grid? = null
+    override var grid: Grid? = null
         private set
-    var start: Cell? = null
+    override var start: Cell? = null
         private set
-    var end: Cell? = null
+    override var end: Cell? = null
         private set
-    val regionOf = HashMap<Cell, Int>()
-    var hues = DoubleArray(0)
+    override val regionOf = HashMap<Cell, Int>()
+    override var hues = DoubleArray(0)
         private set
     val heads = HashMap<Int, Cell>()
-    val welds = HashMap<Edge, Double>()
+    override val welds = HashMap<Edge, Double>()
     /** Edge -> true while it is on the current route (bright), false once backed out of (dim). */
-    val trail = HashMap<Edge, Boolean>()
-    var dot: Cell? = null
+    override val trail = HashMap<Edge, Boolean>()
+    override var dot: Cell? = null
         private set
     /** While the dot glides into [dot]: the cell it left. */
-    var glideFrom: Cell? = null
+    override var glideFrom: Cell? = null
         private set
     /** The trail state the gliding edge had before this move, or null if it had none. */
-    var glideOld: Boolean? = null
+    override var glideOld: Boolean? = null
         private set
     var solved = false
         private set
@@ -151,13 +151,13 @@ class Board(
         activeLeads = 0
     }
 
-    val headCells: Set<Cell> get() = heads.values.toHashSet()
+    override val headCells: Set<Cell> get() = heads.values.toHashSet()
 
     /**
      * How far the dot has glided from [glideFrom] to [dot]: 0 to 1, and 1 when at rest.
      * One solver step lasts exactly one glide, so the dot moves at a steady speed.
      */
-    val glideProgress: Double get() = if (glideFrom == null) 1.0 else steps?.fraction ?: 1.0
+    override val glideProgress: Double get() = if (glideFrom == null) 1.0 else steps?.fraction ?: 1.0
 
     fun update(dt: Double): Changes {
         time += dt
