@@ -78,6 +78,9 @@ class GameInput {
             RemoteKey.BACK -> MenuKey.BACK
             else -> return null
         }
+        // A held OK or BACK must not run a row or close the menu again; arrows repeat on
+        // purpose (edit mode steps values while held).
+        if (repeatCount > 0 && (k == MenuKey.OK || k == MenuKey.BACK)) return emptyList()
         return listOf(Command.Menu(k, repeatCount))
     }
 

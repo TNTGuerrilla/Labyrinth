@@ -19,6 +19,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
         round = r
         auto = null
         keys.resetRound()
+        pendingRelease.clear()
     }
 
     fun replay() {
@@ -58,6 +59,12 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
     fun releaseArrow(d: Int) {
         val grace = remote.holdGraceSeconds
         if (grace == null) keys.release(d) else pendingRelease[d] = now + grace
+    }
+
+    /** Forget every held arrow, including releases still waiting out a stutter's grace. */
+    fun clearKeys() {
+        keys.clear()
+        pendingRelease.clear()
     }
 
     fun skipGrowth() = round.skipGrowth()

@@ -98,6 +98,17 @@ class GameControllerTest {
     }
 
     @Test
+    fun clearKeysDropsAPendingRelease() {
+        val g = controller(remote = RemoteProfile(arrowHoldGapMs = 100))
+        g.pressArrow(E)
+        g.keys.request = null
+        g.releaseArrow(E)
+        g.clearKeys()
+        g.pressArrow(E) // a fresh press, not the stutter continuing the old hold
+        assertEquals(E, g.keys.request)
+    }
+
+    @Test
     fun anArrowDuringGrowthSkipsItWithoutSteering() {
         val g = GameController(TEST, RemoteProfile())
         g.start(Round.create(20, 12, TEST, Random(3)))

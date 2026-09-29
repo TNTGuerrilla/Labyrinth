@@ -209,6 +209,7 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
     // --- commands (render thread) ----------------------------------------------------
 
     fun newRound() {
+        if (width == 0) return // no surface yet; onSurfaceChanged starts the round
         val s = settings
         val short = pickShort(s.size, s.customMin, s.customMax, width, height, rng, s.coverage)
         val (cols, rows) = gridSize(short, width, height, s.coverage)
@@ -271,7 +272,7 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
     fun toggleAuto() { if (started) controller.toggleAuto() }
 
     /** Key-ups can be lost while the app is away, so held arrows are forgotten. */
-    fun clearKeys() { if (started) controller.keys.clear() }
+    fun clearKeys() { if (started) controller.clearKeys() }
 
     private fun redrawAll() {
         redraw.clear()

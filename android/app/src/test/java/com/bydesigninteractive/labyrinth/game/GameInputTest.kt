@@ -89,6 +89,13 @@ class GameInputTest {
     }
 
     @Test
+    fun heldOkAndBackDoNothingInTheMenu() {
+        assertEquals(emptyList<Command>(), input.down(RemoteKey.OK, 1, MENU, 0.0))
+        assertEquals(emptyList<Command>(), input.down(RemoteKey.BACK, 3, MENU, 0.0))
+        assertEquals(listOf(Command.Menu(MenuKey.RIGHT, 2)), input.down(RemoteKey.RIGHT, 2, MENU, 0.0))
+    }
+
+    @Test
     fun theWinScreenPicksAndConfirms() {
         assertEquals(listOf(Command.WinConfirm(0)), input.down(RemoteKey.OK, 0, WIN, 0.0))
         assertEquals(listOf(Command.WinPick(1)), input.down(RemoteKey.RIGHT, 0, WIN, 0.0))
