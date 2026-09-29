@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import shutil
 import subprocess
 import sys
@@ -54,14 +55,25 @@ def cleanup_old(target: Path) -> list[Path]:
 
 def can_write(folder: Path) -> bool:
     """Whether this process can create files in folder. Tried for real, since os.access
-    does not report Windows folder permissions reliably."""
-    try:
-        handle, probe = tempfile.mkstemp(prefix=".labyrinth-", dir=folder)
-    except OSError:
-        return False
-    os.close(handle)
-    _remove(Path(probe))
-    return True
+    does not report Windows folder permissions reliably.
+
+    tempfile.mkstemp is not used here: on Windows, when the folder denies file creation,
+    CPython's retry loop mistakes the PermissionError for a name collision (os.access
+    reports the folder writable even when it is not) and retries up to TMP_MAX times,
+    which can make this call take a very long time. A small, bounded number of probe
+    names avoids that."""
+    for _ in range(5):
+        probe = folder / f".labyrinth-{secrets.token_hex(8)}.tmp"
+        try:
+            handle = os.open(probe, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            continue
+        except OSError:
+            return False
+        os.close(handle)
+        _remove(probe)
+        return True
+    return False
 
 
 def swap(target: Path, new_file: Path, windows: bool = WINDOWS) -> None:

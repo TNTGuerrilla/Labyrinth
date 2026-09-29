@@ -106,6 +106,34 @@ def test_can_write(tmp_path):
     assert not can_write(tmp_path / "missing")
 
 
+def test_can_write_returns_false_promptly_when_access_is_denied(tmp_path, monkeypatch):
+    calls = []
+
+    def denied(path, flags):
+        calls.append(path)
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(install.os, "open", denied)
+    assert not can_write(tmp_path)
+    assert 0 < len(calls) <= 5
+
+
+def test_can_write_retries_past_a_name_collision(tmp_path, monkeypatch):
+    real_open = os.open
+    calls = []
+
+    def collide_once(path, flags):
+        calls.append(path)
+        if len(calls) == 1:
+            raise FileExistsError("taken")
+        return real_open(path, flags)
+
+    monkeypatch.setattr(install.os, "open", collide_once)
+    assert can_write(tmp_path)
+    assert len(calls) == 2
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_extract_linux_binary(tmp_path):
     archive = tmp_path / "a.tar.gz"
     archive.write_bytes(tarball())
