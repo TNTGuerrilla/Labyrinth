@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-_VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)")
+_VERSION = re.compile(r"([0-9]+)\.([0-9]+)\.([0-9]+)")  # \d would take any script's digits
 _HERE = Path(__file__).resolve().parent
 # Taken at import, before anything can change the working directory.
 _RAW_ARGV0 = sys.argv[0] if sys.argv and sys.argv[0] else None

@@ -125,6 +125,14 @@ def load(path: Optional[Path] = None) -> Settings:
 
 
 def save(settings: Settings, path: Optional[Path] = None) -> None:
+    """Write a temp file next to the target, then replace the target with it, so a crash
+    mid-save cannot leave a half-written file. Raises OSError if it cannot be written."""
     target = Path(path or default_path())
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(asdict(settings), indent=2), encoding="utf-8")
+    tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(asdict(settings), indent=2), encoding="utf-8")
+    try:
+        os.replace(tmp, target)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise

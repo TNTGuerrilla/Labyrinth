@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -16,6 +17,9 @@ API_URL = "https://api.github.com/repos/TNTGuerrilla/Labyrinth/releases?per_page
 URL_ENV = "LABYRINTH_UPDATE_URL"  # points the updater at a test server
 MAX_LIST_BYTES = 8_000_000
 _SHA256 = re.compile(r"[0-9a-f]{64}")
+GITHUB_HOSTS = ("github.com", "api.github.com")
+GITHUB_HOST_SUFFIX = ".githubusercontent.com"
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
 
 
 @dataclass(frozen=True)
@@ -57,6 +61,22 @@ def _sha256(asset: dict) -> Optional[str]:
     return value if is_sha256(value) else None
 
 
+def is_download_url(url: object) -> bool:
+    """True for an https link on GitHub. With the test server set (URL_ENV), http or https
+    links to this PC's loopback address are allowed too."""
+    if not isinstance(url, str):
+        return False
+    try:
+        parts = urllib.parse.urlsplit(url)
+        host = (parts.hostname or "").lower()
+    except ValueError:
+        return False
+    scheme = parts.scheme.lower()
+    if scheme == "https" and (host in GITHUB_HOSTS or host.endswith(GITHUB_HOST_SUFFIX)):
+        return True
+    return bool(os.environ.get(URL_ENV)) and scheme in ("http", "https") and host in LOOPBACK_HOSTS
+
+
 def _asset(release: dict, name: str) -> Optional[dict]:
     assets = release.get("assets")
     if not isinstance(assets, list):
@@ -66,8 +86,9 @@ def _asset(release: dict, name: str) -> Optional[dict]:
 
 def newest(releases: Any, product: Product, current: str) -> Optional[Release]:
     """The highest release of `product` newer than `current` whose file has a published
-    SHA-256. Drafts, pre-releases and other products' tags are ignored. `releases` is the
-    parsed GitHub API list and is untrusted, so any shape is handled."""
+    SHA-256 and a download link that is_download_url() accepts. Drafts, pre-releases and
+    other products' tags are ignored. `releases` is the parsed GitHub API list and is
+    untrusted, so any shape is handled."""
     best_version = parse_version(current)
     if best_version is None or not isinstance(releases, list):
         return None
@@ -87,7 +108,7 @@ def newest(releases: Any, product: Product, current: str) -> Optional[Release]:
             continue
         url = asset.get("browser_download_url")
         sha = _sha256(asset)
-        if not isinstance(url, str) or sha is None:
+        if not is_download_url(url) or sha is None:
             continue
         best, best_version = Release(text, url, sha), version
     return best

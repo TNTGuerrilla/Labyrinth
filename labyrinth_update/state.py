@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
@@ -13,6 +14,7 @@ from .releases import Release, is_sha256
 from .version import parse_version
 
 CHECK_INTERVAL = 7 * 24 * 3600  # seconds
+STALE_TEMP_AGE = 3600  # seconds; a save's temp file older than this was left by a killed run
 
 
 @dataclass(frozen=True)
@@ -71,6 +73,22 @@ def load(path: Path) -> UpdateState:
                        dismissed, _notes(raw.get("notes")), last_run, runs)
 
 
+def remove_stale_temps(target: Path, now: Optional[float] = None) -> None:
+    """Delete target's temp files (name.<pid>.tmp) older than STALE_TEMP_AGE, which a run
+    killed mid-save leaves behind. Newer ones may belong to a save in progress. Never raises."""
+    now = time.time() if now is None else now
+    try:
+        leftovers = list(target.parent.glob(f"{target.name}.*.tmp"))
+    except OSError:
+        return
+    for tmp in leftovers:
+        try:
+            if now - tmp.stat().st_mtime > STALE_TEMP_AGE:
+                tmp.unlink()
+        except OSError:
+            pass
+
+
 def save(path: Path, state: UpdateState) -> None:
     """Raises OSError if the file cannot be written."""
     found = None
@@ -83,6 +101,7 @@ def save(path: Path, state: UpdateState) -> None:
             "whats_new_runs": state.whats_new_runs}
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
+    remove_stale_temps(target)
     tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
     tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
     try:

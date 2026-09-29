@@ -280,7 +280,7 @@ def published(version, digest):
     return [{"tag_name": f"labyrinth-screensaver-v{version}", "draft": False,
              "prerelease": False,
              "assets": [{"name": "Labyrinth.scr", "digest": f"sha256:{digest}",
-                         "browser_download_url": "https://example.invalid/Labyrinth.scr"}]}]
+                         "browser_download_url": "https://github.com/dl/Labyrinth.scr"}]}]
 
 
 def running_saver(monkeypatch, target, version="1.0.0"):

@@ -7,7 +7,7 @@ SHA = "ab" * 32
 
 
 def asset(name, sha=SHA):
-    a = {"name": name, "browser_download_url": f"https://example.test/{name}"}
+    a = {"name": name, "browser_download_url": f"https://github.com/dl/{name}"}
     if sha is not None:
         a["digest"] = f"sha256:{sha}"
     return a
@@ -31,7 +31,7 @@ LIST = [
 
 def test_newest_game_release():
     assert newest(LIST, GAME_WINDOWS, "1.1.0") == Release(
-        "1.2.0", "https://example.test/Labyrinth.exe", SHA)
+        "1.2.0", "https://github.com/dl/Labyrinth.exe", SHA)
     assert newest(LIST, GAME_LINUX, "1.1.0").url.endswith("Labyrinth-1.2.0-linux-x86_64.tar.gz")
 
 
@@ -77,3 +77,35 @@ def test_fetch_uses_the_override_url(serve, monkeypatch):
     server = serve({"/releases": json.dumps(LIST).encode()})
     monkeypatch.setenv(URL_ENV, server.url("/releases"))
     assert fetch_releases() == LIST
+
+
+def one(url):
+    return [{"tag_name": "labyrinth-v2.0.0", "assets": [{
+        "name": "Labyrinth.exe", "browser_download_url": url, "digest": f"sha256:{SHA}"}]}]
+
+
+def test_only_https_github_download_links_are_offered(monkeypatch):
+    monkeypatch.delenv(URL_ENV, raising=False)
+    for good in ("https://github.com/dl/v/Labyrinth.exe",
+                 "https://api.github.com/repos/x/y/releases/assets/1",
+                 "https://objects.githubusercontent.com/abc",
+                 "HTTPS://GitHub.com/x"):
+        assert newest(one(good), GAME_WINDOWS, "1.0.0").url == good
+    for bad in ("http://github.com/x", "https://example.test/x", "https://github.com.evil.test/x",
+                "https://evilgithub.com/x", "https://githubusercontent.com.evil.test/x",
+                "ftp://github.com/x", "file:///C:/x", "https://127.0.0.1:8765/x",
+                "http://localhost/x", "not a url", "https://[::1/x"):
+        assert newest(one(bad), GAME_WINDOWS, "1.0.0") is None, bad
+
+
+def test_loopback_download_links_are_offered_only_with_the_test_server(monkeypatch):
+    local = ("http://127.0.0.1:8765/files/x/Labyrinth.exe", "https://localhost/x",
+             "http://[::1]:8765/x")
+    monkeypatch.delenv(URL_ENV, raising=False)
+    for url in local:
+        assert newest(one(url), GAME_WINDOWS, "1.0.0") is None, url
+    monkeypatch.setenv(URL_ENV, "http://127.0.0.1:8765/releases")
+    for url in local:
+        assert newest(one(url), GAME_WINDOWS, "1.0.0").url == url
+    for bad in ("http://10.0.2.2:8765/x", "http://example.test/x", "ftp://127.0.0.1/x"):
+        assert newest(one(bad), GAME_WINDOWS, "1.0.0") is None, bad

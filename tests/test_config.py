@@ -155,3 +155,41 @@ def test_coverage_accepts_its_bounds_and_any_whole_percent_between():
 def test_coverage_bad_values_fall_back_to_default():
     for bad in (45, 105, "x", 72.5, True):
         assert from_dict({"coverage": bad}).coverage == 100
+
+
+def test_save_writes_a_temp_file_then_replaces_the_target(tmp_path, monkeypatch):
+    import os
+
+    from maze_saver import config as config_module
+
+    path = tmp_path / "config.json"
+    calls = []
+    real_replace = os.replace
+
+    def fake_replace(src, dst):
+        calls.append((Path(src), Path(dst)))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(config_module.os, "replace", fake_replace)
+    save(Settings(gen_speed=70.0), path)
+    assert calls == [(tmp_path / f"config.json.{os.getpid()}.tmp", path)]
+    assert list(tmp_path.iterdir()) == [path]
+    assert load(path).gen_speed == 70.0
+
+
+def test_a_failed_save_keeps_the_old_settings_and_leaves_no_temp_file(tmp_path, monkeypatch):
+    import pytest
+
+    from maze_saver import config as config_module
+
+    path = tmp_path / "config.json"
+    save(Settings(gen_speed=70.0), path)
+
+    def fake_replace(src, dst):
+        raise OSError("locked")
+
+    monkeypatch.setattr(config_module.os, "replace", fake_replace)
+    with pytest.raises(OSError):
+        save(Settings(gen_speed=30.0), path)
+    assert list(tmp_path.iterdir()) == [path]
+    assert load(path).gen_speed == 70.0

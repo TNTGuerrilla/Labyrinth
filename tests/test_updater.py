@@ -13,7 +13,7 @@ DAY = 24 * 3600
 def listing(*versions):
     return [{"tag_name": f"labyrinth-v{v}",
              "assets": [{"name": "Labyrinth.exe",
-                         "browser_download_url": f"https://example.test/{v}/Labyrinth.exe",
+                         "browser_download_url": f"https://github.com/dl/{v}/Labyrinth.exe",
                          "digest": "sha256:" + "ab" * 32}]} for v in versions]
 
 

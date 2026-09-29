@@ -203,3 +203,43 @@ def test_the_watermark_waits_for_a_maze_laid_out_with_the_notice_cap():
     assert board.maze_notice is True
     assert board.geometry.height <= 900 * NOTICE_COVERAGE // 100
     assert stage.watermark.corner is not None
+
+
+def test_startup_monitors_waits_for_monitors_to_appear():
+    from maze_saver.app import startup_monitors
+    from maze_saver.layout import Monitor
+    real = [Monitor(0, 0, 1920, 1080)]
+    answers = [[], [], real]
+    sleeps = []
+    found = startup_monitors(lambda: answers.pop(0), lambda: (0, 0, 800, 600, 0),
+                             sleeps.append)
+    assert found == real
+    assert len(sleeps) == 2
+
+
+def test_startup_monitors_falls_back_to_the_virtual_screen():
+    from maze_saver.app import STARTUP_MONITOR_TRIES, STARTUP_MONITOR_WAIT, startup_monitors
+    from maze_saver.layout import Monitor
+    calls, sleeps = [], []
+
+    def none():
+        calls.append(1)
+        return []
+
+    found = startup_monitors(none, lambda: (-1920, 0, 3840, 1080, 2), sleeps.append)
+    assert found == [Monitor(-1920, 0, 3840, 1080)]
+    assert len(calls) == STARTUP_MONITOR_TRIES
+    assert len(sleeps) == STARTUP_MONITOR_TRIES - 1
+    assert 1.0 <= sum(sleeps) <= 3.0  # about two seconds in all
+    assert sleeps == [STARTUP_MONITOR_WAIT] * (STARTUP_MONITOR_TRIES - 1)
+
+
+def test_startup_monitors_without_a_virtual_screen_uses_the_desktop_size(monkeypatch):
+    from maze_saver import app
+    from maze_saver.layout import Monitor
+    monkeypatch.setattr(app.pygame.display, "get_desktop_sizes", lambda: [(1280, 720)])
+    found = app.startup_monitors(lambda: [], lambda: (0, 0, 0, 0, 0), lambda s: None)
+    assert found == [Monitor(0, 0, 1280, 720)]
+    monkeypatch.setattr(app.pygame.display, "get_desktop_sizes", lambda: [])
+    found = app.startup_monitors(lambda: [], lambda: (0, 0, 0, 0, 0), lambda s: None)
+    assert found == [Monitor(0, 0, *app.FALLBACK_SCREEN)]

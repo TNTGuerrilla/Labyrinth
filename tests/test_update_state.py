@@ -126,3 +126,43 @@ def test_damaged_notes_and_seen_fields_are_ignored(tmp_path):
     assert state.last_run_version is None and state.whats_new_runs == 0
     path.write_text('{"last_check": 5, "found": null, "dismissed": null}', encoding="utf-8")
     assert load(path) == UpdateState(last_check=5.0)  # a file from before this feature
+
+
+def test_save_removes_temp_files_left_by_killed_runs(tmp_path):
+    import os
+    import time
+
+    path = tmp_path / "update.json"
+    old = tmp_path / "update.json.1234.tmp"
+    fresh = tmp_path / "update.json.5678.tmp"  # another run may be saving right now
+    other = tmp_path / "config.json.1234.tmp"
+    for f in (old, fresh, other):
+        f.write_text("{}")
+    hours_ago = time.time() - 2 * 3600
+    os.utime(old, (hours_ago, hours_ago))
+    os.utime(other, (hours_ago, hours_ago))
+    save(path, UpdateState(1000.0, REL, "1.1.5"))
+    assert not old.exists()
+    assert fresh.exists() and other.exists()
+    assert load(path) == UpdateState(1000.0, REL, "1.1.5")
+
+
+def test_a_temp_file_that_cannot_be_removed_does_not_stop_the_save(tmp_path, monkeypatch):
+    import os
+    import time
+
+    path = tmp_path / "update.json"
+    old = tmp_path / "update.json.1234.tmp"
+    old.write_text("{}")
+    hours_ago = time.time() - 2 * 3600
+    os.utime(old, (hours_ago, hours_ago))
+    real_unlink = Path.unlink
+
+    def locked(self, missing_ok=False):
+        if self == old:
+            raise PermissionError("locked")
+        real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", locked)
+    save(path, UpdateState(1000.0, REL, "1.1.5"))
+    assert load(path) == UpdateState(1000.0, REL, "1.1.5")

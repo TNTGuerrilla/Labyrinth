@@ -31,6 +31,9 @@ DEBUG_WINDOW_MAX = (1600, 900)
 DEBUG_GAP_COLOR = (24, 24, 24)
 DISPLAY_POLL_SECONDS = 2.0
 NOTICE_POLL_SECONDS = 1.0
+STARTUP_MONITOR_TRIES = 5
+STARTUP_MONITOR_WAIT = 0.5  # seconds between tries: about two seconds in all
+FALLBACK_SCREEN = (1920, 1080)  # when Windows reports no screen size at all
 EXIT_EVENTS = frozenset({pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN, pygame.MOUSEWHEEL, pygame.QUIT,
                          pygame.WINDOWCLOSE})
 
@@ -196,6 +199,31 @@ def needs_rebuild(opened_signature: tuple[int, int, int, int, int],
     return opened_signature != current_signature
 
 
+def startup_monitors(get: Optional[Callable[[], list[Monitor]]] = None,
+                     signature: Optional[Callable[[], tuple[int, int, int, int, int]]] = None,
+                     sleep: Callable[[float], None] = time.sleep) -> list[Monitor]:
+    """The monitors to open on. Windows can briefly report none (a display waking or being
+    reconnected), so ask a few times, then fall back to one monitor covering the virtual
+    screen, or pygame's desktop size, or FALLBACK_SCREEN. A later monitor poll rebuilds
+    the stage once the real monitors show up."""
+    get = get or monitors.get_monitors
+    for attempt in range(STARTUP_MONITOR_TRIES):
+        found = get()
+        if found:
+            return found
+        if attempt < STARTUP_MONITOR_TRIES - 1:
+            sleep(STARTUP_MONITOR_WAIT)
+    x, y, w, h, _ = (signature or monitors.virtual_screen_signature)()
+    if w > 0 and h > 0:
+        return [Monitor(x, y, w, h)]
+    try:
+        sizes = pygame.display.get_desktop_sizes()
+    except pygame.error:
+        sizes = []
+    w, h = sizes[0] if sizes else FALLBACK_SCREEN
+    return [Monitor(0, 0, w, h)]
+
+
 def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Optional[int] = None,
              notice: Optional[Callable[[], Optional[str]]] = None,
              whats_new: Optional[SaverWhatsNew] = None) -> None:
@@ -229,7 +257,7 @@ def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Option
                 target.show_section(WhatsNewSection(whats_new.title, whats_new.lines,
                                                     section_clock, size), seen)
 
-        current = monitors.get_monitors()
+        current = startup_monitors()
         stage = open_stage(current, settings, rng, force_multiwindow, first_cycle=True, forced_leads=leads)
         attach(stage)
         pygame.mouse.set_visible(False)
@@ -353,7 +381,7 @@ def run_debug_window(settings: Settings, leads: Optional[int] = None) -> None:
     monitors.enable_dpi_awareness()
     pygame.display.init()
     try:
-        size, rects = scale_to_fit(monitors.get_monitors(), *DEBUG_WINDOW_MAX)
+        size, rects = scale_to_fit(startup_monitors(), *DEBUG_WINDOW_MAX)
         set_display_icon()
         surface = pygame.display.set_mode(size)
         pygame.display.set_caption(f"{TITLE} (debug)")

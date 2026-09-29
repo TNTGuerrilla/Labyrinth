@@ -62,3 +62,9 @@ def test_current_binary_started_by_name_from_path(tmp_path, monkeypatch):
     monkeypatch.chdir(elsewhere)
     assert current_binary("labyrinth", built=True) == binary.resolve()
     assert current_binary("missing", built=True) is None
+
+
+def test_only_ascii_digits_make_a_version():
+    assert parse_version("\u0661.\u0662.\u0663") is None  # Arabic-Indic 1.2.3
+    assert parse_version("1.\u0662.3") is None
+    assert parse_version("\uff11.2.3") is None  # fullwidth 1
