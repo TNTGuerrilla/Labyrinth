@@ -3,6 +3,7 @@
 package com.bydesigninteractive.labyrinth.update
 
 import android.app.Activity
+import android.app.ActivityOptions
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -228,9 +229,20 @@ object Updates {
                 val intent = Intent(activity, InstallStatusActivity::class.java)
                 val flags = PendingIntent.FLAG_UPDATE_CURRENT or
                     (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+                // From Android 15 (targetSdk 35) the installer's report cannot start an activity
+                // of this app unless the app, as the PendingIntent's creator, allows it. Without
+                // this the report is blocked as a background activity launch and the confirmation
+                // never shows. The option exists from Android 14; older versions allow it anyway.
+                val options = if (Build.VERSION.SDK_INT >= 34) {
+                    ActivityOptions.makeBasic().setPendingIntentCreatorBackgroundActivityStartMode(
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED,
+                    ).toBundle()
+                } else {
+                    null
+                }
                 // Set first: the installer may report back before commit returns.
                 awaitingInstall.set(true)
-                session.commit(PendingIntent.getActivity(activity, 0, intent, flags).intentSender)
+                session.commit(PendingIntent.getActivity(activity, 0, intent, flags, options).intentSender)
             } catch (e: Exception) {
                 awaitingInstall.set(false)
                 session.abandon()
