@@ -203,6 +203,7 @@ class MobileGameActivity : Activity() {
             visibility = View.GONE
         }
         joystick = JoystickView(this) { seen ->
+            if (menuOpen || howOpen) return@JoystickView
             stickDir?.let { d -> view.send { releaseTouch(d) } }
             stickDir = seen?.let { toMaze(it, turns) }
             stickDir?.let { d -> view.send { holdTouch(d) } }
@@ -397,9 +398,17 @@ class MobileGameActivity : Activity() {
         joystick.reset()
     }
 
+    /** The touch scheme the current gesture started with; a setting changed mid-gesture waits for the next. */
+    private var gestureScheme = TouchScheme.TAP
+
+    private fun endDrag() {
+        if (gestureScheme == TouchScheme.DRAG) view.send { dragEnd() }
+    }
+
     private fun onBoardTouch(e: MotionEvent) {
         scale.onTouchEvent(e)
-        val scheme = phone.touch
+        if (e.actionMasked == MotionEvent.ACTION_DOWN) gestureScheme = phone.touch
+        val scheme = gestureScheme
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 pinching = false
@@ -415,7 +424,7 @@ class MobileGameActivity : Activity() {
             MotionEvent.ACTION_POINTER_DOWN -> {
                 pinching = true // two fingers zoom; they never steer
                 swipes.cancel()
-                if (scheme == TouchScheme.DRAG) view.send { dragEnd() }
+                endDrag()
             }
             MotionEvent.ACTION_MOVE -> if (!pinching) {
                 if (hypot(e.x - downX, e.y - downY) > tapSlop) moved = true
@@ -427,7 +436,7 @@ class MobileGameActivity : Activity() {
             }
             MotionEvent.ACTION_UP -> {
                 val steered = scheme == TouchScheme.SWIPE && swipes.up()
-                if (scheme == TouchScheme.DRAG) view.send { dragEnd() }
+                endDrag()
                 if (!pinching && !moved && !steered) {
                     val x = e.x
                     val y = e.y
@@ -440,7 +449,7 @@ class MobileGameActivity : Activity() {
             }
             MotionEvent.ACTION_CANCEL -> {
                 swipes.cancel()
-                if (scheme == TouchScheme.DRAG) view.send { dragEnd() }
+                endDrag()
             }
         }
     }

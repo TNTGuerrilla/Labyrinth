@@ -74,6 +74,15 @@ fun Context.focusBackground(color: Int): StateListDrawable {
     }
 }
 
+/** A green outline when a controller focuses the view, nothing otherwise, and no pressed fill (for sliders). */
+fun Context.focusOutline(): StateListDrawable {
+    val radius = dp(8).toFloat()
+    return StateListDrawable().apply {
+        addState(intArrayOf(android.R.attr.state_focused), rounded(Color.TRANSPARENT, radius, dp(2), ACCENT))
+        addState(intArrayOf(), rounded(Color.TRANSPARENT, radius))
+    }
+}
+
 /** A ScrollView no wider than [maxWidthPx]: with MATCH width and margins it also fits narrow screens. */
 class CappedScroll(context: Context, private val maxWidthPx: Int) : ScrollView(context) {
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {

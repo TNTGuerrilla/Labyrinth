@@ -21,6 +21,8 @@ import kotlin.math.min
 
 class JoystickView(context: Context, private val onChange: (Int?) -> Unit) : View(context) {
     private var active: Int? = null
+    private var armed = false
+    private var pointerId = -1
     private val disc = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(60, 255, 255, 255) }
     private val lit = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(120, 60, 220, 90) }
     private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -31,6 +33,7 @@ class JoystickView(context: Context, private val onChange: (Int?) -> Unit) : Vie
 
     /** Lets go without telling anyone: the game already forgot its held keys. */
     fun reset() {
+        armed = false
         active = null
         invalidate()
     }
@@ -63,11 +66,27 @@ class JoystickView(context: Context, private val onChange: (Int?) -> Unit) : Vie
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        val next = when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE ->
-                wedge(event.x - width / 2f, event.y - height / 2f, min(width, height) / 2f)
-            else -> null
+        val next: Int?
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                armed = true
+                pointerId = event.getPointerId(0)
+                next = wedge(event.x - width / 2f, event.y - height / 2f, min(width, height) / 2f)
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (!armed) return true
+                val i = event.findPointerIndex(pointerId)
+                if (i == -1) return true
+                next = wedge(event.getX(i) - width / 2f, event.getY(i) - height / 2f, min(width, height) / 2f)
+            }
+            MotionEvent.ACTION_POINTER_DOWN -> return true
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (!armed || event.getPointerId(event.actionIndex) != pointerId) return true
+                next = null
+            }
+            else -> next = null
         }
+        if (!armed) return true
         if (next != active) {
             active = next
             invalidate()
