@@ -30,6 +30,24 @@ def split_rects(label: str, right: int,
     return main, close
 
 
+def _counters(state: ToolbarState) -> tuple[str, str]:
+    """The full and the compact counters text (both just "Screensaver" while it runs)."""
+    if state.screensaver:
+        return "Screensaver", "Screensaver"
+    return (f"Explored {state.explored}     Time {format_time(state.elapsed)}",
+            f"{state.explored}   {format_time(state.elapsed)}")
+
+
+def _info_width(info: str) -> int:
+    return font(15).size(info)[0] + 12 if info else 0
+
+
+def _fits(width: int, left_end: int, info: str, other: int = 0) -> bool:
+    """Whether `info` (plus `other` px, the update control) fits between the last toolbar
+    button, ending at `left_end`, and the right margin, with a small gap."""
+    return width - 12 - _info_width(info) - other >= left_end + 8
+
+
 ITEMS = (
     ("new", "New maze"), ("replay", "Replay"), ("hint", "Hint"), ("autosolve", "Auto-solve"),
     ("flash", "Flash finish"), None,
@@ -82,29 +100,32 @@ class Toolbar:
             if hovered:
                 tip = action
             x = rect.right + 6
-        stats = ("Screensaver" if state.screensaver
-                 else f"Explored {state.explored}     Time {format_time(state.elapsed)}")
+        stats, compact = _counters(state)
         if state.update_label is None:
-            text(surface, stats, (width - 12, TOOLBAR_H // 2), 15, anchor="midright")
+            for info in (stats, compact, ""):
+                if _fits(width, x, info):
+                    break
+            if info:
+                text(surface, info, (width - 12, TOOLBAR_H // 2), 15, anchor="midright")
         else:
-            hovered = self._draw_update(surface, state, stats, x, mouse)
+            hovered = self._draw_update(surface, state, stats, compact, x, mouse)
             if hovered is not None:
                 tip = hovered
         if tip is not None:
             self._tooltip(surface, keymap, state, tip, mouse)
 
     def _draw_update(self, surface: pygame.Surface, state: ToolbarState, stats: str,
-                     left_end: int, mouse: tuple[int, int]) -> Optional[str]:
+                     compact: str, left_end: int,
+                     mouse: tuple[int, int]) -> Optional[str]:
         """The update control just left of the counters: one split button, install on the
         left and (when this version can be hidden) x on the right. A narrow window gets the
         short label, then compact counters, then no counters. Returns the hovered action."""
         width = surface.get_width()
-        compact = f"{state.explored}   {format_time(state.elapsed)}"
         choices = ((state.update_label, stats), (state.update_short, stats),
                    (state.update_short, compact), (state.update_short, ""))
         for label, info in choices:
-            info_w = font(15).size(info)[0] + 12 if info else 0
-            if width - 12 - info_w - split_width(label, state.update_dismiss) >= left_end + 8:
+            info_w = _info_width(info)
+            if _fits(width, left_end, info, split_width(label, state.update_dismiss)):
                 break
         right = width - 12
         if info:
@@ -128,6 +149,8 @@ class Toolbar:
         else:
             name = TIP_NAMES.get(action, LABELS[action])
             label = f"{name} ({key_label(keymap.keys_for(action)[0])})"
+            if action == "screensaver" and state.screensaver:
+                label = "Stop screensaver (Space or Esc)"
         if not label:
             return
         width = font(14).size(label)[0] + 16

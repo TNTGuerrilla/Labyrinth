@@ -14,6 +14,7 @@ from maze_game.round import SINGLE_HUE, Phase, Round
 from maze_game.steering import KeyboardSteer
 from maze_game.trail import Trail
 from maze_game.ui.custom_dialog import CustomDialog
+from maze_game.ui import toolbar as toolbar_module
 from maze_game.ui.settings_panel import SettingsPanel
 
 KEY_FOR_DIR = {N: pygame.K_w, E: pygame.K_d, S: pygame.K_s, W: pygame.K_a}
@@ -818,11 +819,6 @@ def test_screensaver_pauses_on_the_solved_maze(saver):
     assert saver.round is first  # still inside the 0.5 s pause
 
 
-def test_toolbar_shows_screensaver_instead_of_stats(saver, monkeypatch):
-    saver.start_screensaver()
-    assert saver_state(saver, monkeypatch).screensaver
-
-
 @pytest.mark.parametrize("key", [pygame.K_SPACE, pygame.K_ESCAPE])
 def test_space_or_escape_stops_it_without_skipping_or_opening_settings(tmp_path, key):
     pygame.init()
@@ -893,3 +889,29 @@ def test_screensaver_mode_uses_the_chosen_solver(saver, monkeypatch):
         if seen:
             break
     assert seen[0] == ("wall", 7)
+
+
+def test_toolbar_shows_screensaver_instead_of_stats(saver, monkeypatch):
+    saver.start_screensaver()
+    assert saver_state(saver, monkeypatch).screensaver
+    drawn = []
+    real = toolbar_module.text
+    monkeypatch.setattr(toolbar_module, "text",
+                        lambda surface, string, *a, **kw: (drawn.append(string),
+                                                           real(surface, string, *a, **kw)))
+    saver.frame(1 / 60)
+    assert "Screensaver" in drawn
+    assert not any(s.startswith("Explored") for s in drawn)
+
+
+def test_a_solve_that_stops_short_moves_on_to_the_next_maze(saver, monkeypatch):
+    real = game_app.solver_cells
+    monkeypatch.setattr(game_app, "solver_cells", lambda *a, **kw: real(*a, **kw)[:1])
+    saver.start_screensaver()
+    first = saver.round
+    until_play(saver)
+    for _ in range(30):
+        saver.frame(1 / 60)
+        if saver.round is not first:
+            break
+    assert saver.round is not first and saver.screensaver

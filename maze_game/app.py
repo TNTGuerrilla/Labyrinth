@@ -50,7 +50,8 @@ DIRS = {"up": N, "left": W, "down": S, "right": E}
 GROW_ACTIONS = frozenset({"new", "small", "medium", "large", "xl", "custom",
                           "settings", "fullscreen", "colors", "update", "update_dismiss",
                           "screensaver"})
-SAVER_STOP_KEYS = frozenset({"space", "escape"})  # the only keys that stop screensaver mode (fixed, whatever the bindings)
+# the only keys that stop screensaver mode (fixed, whatever the bindings)
+SAVER_STOP_KEYS = frozenset({"space", "escape"})
 NAV_KEYS = {"up": "up", "down": "down", "left": "left", "right": "right", "return": "confirm",
             "enter": "confirm", "space": "confirm", "escape": "cancel", "tab": "tab",
             "backspace": "backspace"}
@@ -451,6 +452,10 @@ class Game:
                 and self.round.won_at is not None
                 and self.round.time - self.round.won_at >= s.screensaver_pause):
             self.new_round()
+        if (self.screensaver and self.round.phase is Phase.PLAY
+                and self.saver_path is not None and self.saver_path.done
+                and not self.round.mover.moving):
+            self.new_round()  # the solve stopped short of the end: never get stuck
         r = self.round
         before = r.phase
         self.keys.tick(dt)
