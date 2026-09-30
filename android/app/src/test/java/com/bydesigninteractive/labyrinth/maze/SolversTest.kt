@@ -131,6 +131,30 @@ class SolversTest {
         )
     }
 
+    /**
+     * A wrong branch that looks closer to the finish: from the start (0, 2) the corridor east
+     * along row 2 ends at (width - 2, 2), one cell short of the finish (width - 1, 2). The real
+     * route goes up to row 0, east, and back down.
+     */
+    private fun trapMaze(width: Int = 45): Grid = Grid(width, 3).apply {
+        for (x in 0 until width - 2) carve(Cell(x, 2), Cell(x + 1, 2))
+        carve(Cell(0, 2), Cell(0, 1))
+        carve(Cell(0, 1), Cell(0, 0))
+        for (x in 0 until width - 1) carve(Cell(x, 0), Cell(x + 1, 0))
+        carve(Cell(width - 1, 0), Cell(width - 1, 1))
+        carve(Cell(width - 1, 1), Cell(width - 1, 2))
+    }
+
+    /** It follows the tempting wrong branch all the way (43 cells) before backing out of it in one run. */
+    @Test
+    fun depthFirstHasNoDetourLimit() {
+        val events = solveWith("dfs", trapMaze(), Cell(0, 2), Cell(44, 2), Random(1), 0).asSequence().toList()
+        assertEquals((0 until 43).map { Advance(Cell(it, 2), Cell(it + 1, 2)) }, events.subList(0, 43))
+        assertEquals((0 until 43).reversed().map { Backtrack(Cell(it + 1, 2), Cell(it, 2)) }, events.subList(43, 86))
+        assertEquals(Advance(Cell(0, 2), Cell(0, 1)), events[86])
+        assertTrue(events.last() is Solved)
+    }
+
     @Test
     fun depthFirstNeverEntersAVisibleDeadEnd() {
         for (lookahead in listOf(1, 3, 6)) {
