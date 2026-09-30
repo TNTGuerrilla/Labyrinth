@@ -74,8 +74,13 @@ class UpdateFlow(private val activity: Activity, private val onChange: () -> Uni
         justFailed = true
     }
 
-    fun startUpdate() {
-        val release = offered ?: return
+    /**
+     * Downloads and installs [release]. The launch card passes the version it shows, which
+     * becomes the offer: the resume check may not have set [offered] yet.
+     */
+    fun startUpdate(release: Release? = offered) {
+        if (release == null) return
+        offered = release
         if (!activity.packageManager.canRequestPackageInstalls()) {
             askForInstallPermission(release)
             return
@@ -137,8 +142,10 @@ class UpdateFlow(private val activity: Activity, private val onChange: () -> Uni
         }
     }
 
-    fun dismiss() {
-        val release = offered ?: return
+    /** Dismisses [release]; the launch card passes the version it shows, as for [startUpdate]. */
+    fun dismiss(release: Release? = offered) {
+        if (release == null) return
+        offered = release
         UpdateStore.edit(activity) { it.copy(dismissed = release.version) }
         if (sessionOffer?.version == release.version) sessionOffer = null
         show(null)

@@ -163,7 +163,10 @@ class MobileGameActivity : Activity() {
                 MenuLink.CHECK_NOW -> updates.checkNow()
                 MenuLink.WHATS_NEW -> {
                     closeMenu(null)
-                    showWhatsNew(UpdateStore.runningWhatsNew(this@MobileGameActivity, updates.current))
+                    val news = UpdateStore.runningWhatsNew(this@MobileGameActivity, updates.current)
+                    showWhatsNew(news)
+                    // Read first: marking a pending What's new seen drops its notes. Now shown, it counts as seen.
+                    UpdateStore.markWhatsNewSeen(this@MobileGameActivity, updates.current)
                 }
                 MenuLink.CONTROLLER_TEST -> {
                     closeMenu(null)
@@ -296,10 +299,14 @@ class MobileGameActivity : Activity() {
                 if (next != turns) setTurns(next)
             }
         }
+        // An install report opens the About menu, which must not sit over a launch card (closing
+        // the menu would leave the maze running behind the card), so it takes the launch card's place.
+        val reported = handleInstallReport(intent)
         if (savedInstanceState == null) {
-            val news = UpdateStore.startWhatsNew(this, updates.current)
+            val news = UpdateStore.startWhatsNew(this, updates.current) // once per fresh launch
             val offer = updates.pending()
-            when (launchCard(!PhoneStore.howToPlaySeen(this), news != null, offer != null)) {
+            val first = if (reported) null else launchCard(!PhoneStore.howToPlaySeen(this), news != null, offer != null)
+            when (first) {
                 LaunchCard.HOW_TO_PLAY -> showHowToPlay()
                 LaunchCard.WHATS_NEW -> {
                     showWhatsNew(news!!)
@@ -309,7 +316,6 @@ class MobileGameActivity : Activity() {
                 null -> {}
             }
         }
-        handleInstallReport(intent)
     }
 
     override fun onResume() {
@@ -738,10 +744,10 @@ class MobileGameActivity : Activity() {
             "Update now" to {
                 closeCard()
                 openMenu(PhoneTab.ABOUT)
-                updates.startUpdate()
+                updates.startUpdate(release)
             },
             "Dismiss" to {
-                updates.dismiss()
+                updates.dismiss(release)
                 closeCard()
             },
         ))
@@ -757,13 +763,20 @@ class MobileGameActivity : Activity() {
         handleInstallReport(intent)
     }
 
-    /** InstallStatusActivity brings the game back when an update did not install: say so in About. */
-    private fun handleInstallReport(intent: Intent?) {
-        if (intent?.getBooleanExtra(Updates.EXTRA_INSTALL_FAILED, false) != true) return
-        intent.removeExtra(Updates.EXTRA_INSTALL_FAILED) // not again if the activity is recreated
-        if (!Updates.takeInstallReport()) return
+    /**
+     * InstallStatusActivity brings the game back when an update did not install: say so in About,
+     * closing any card first. True when the report was taken.
+     */
+    private fun handleInstallReport(intent: Intent?): Boolean {
+        if (intent?.getBooleanExtra(Updates.EXTRA_INSTALL_FAILED, false) != true) return false
+        intent.removeExtra(Updates.EXTRA_INSTALL_FAILED)
+        // Removing the extra does not reach the copy Android keeps for a recreated activity. This
+        // is the guard: only an install this process committed is reported, and only once.
+        if (!Updates.takeInstallReport()) return false
         updates.installFailed()
+        closeCard()
         if (!menuOpen) openMenu(PhoneTab.ABOUT)
+        return true
     }
 
     // --- win panel and toolbar ---------------------------------------------------------------
