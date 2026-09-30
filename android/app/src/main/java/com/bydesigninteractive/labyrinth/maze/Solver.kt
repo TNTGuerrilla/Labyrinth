@@ -1,4 +1,4 @@
-// Human-like maze solver, ported from maze_saver/solver.py.
+// Maze solvers, ported from maze_saver/solver.py. The default is human-like.
 //
 // The dot walks a DFS stack like a person tracing a maze with a finger. It can see a
 // short distance down each branch (`lookahead` cells from the fork) and will not wander
@@ -7,8 +7,13 @@
 // it usually takes the correct turn, but sometimes (MISTAKE_CHANCE) takes a wrong one
 // anyway and wanders for a while before giving up and backing out, bounded by a random
 // detour budget (DETOUR_MIN..DETOUR_MAX steps).
+//
+// Three more solvers share its events: depth-first (look-ahead pruning, prefers the
+// passage nearest the finish, no detour limit), a left-hand wall follower, and a
+// perfect solver that walks the shortest route. solveWith picks one by name.
 package com.bydesigninteractive.labyrinth.maze
 
+import kotlin.math.abs
 import kotlin.random.Random
 
 const val DEFAULT_LOOKAHEAD = 4
@@ -148,4 +153,112 @@ fun solve(grid: Grid, start: Cell, end: Cell, rng: Random, lookahead: Int = DEFA
             }
             if (forkCell != null && stack.last() == forkCell) forkCell = null
         }
+    }
+
+private fun distance(a: Cell, b: Cell): Int = abs(a.x - b.x) + abs(a.y - b.y)
+
+/**
+ * Depth-first search that skips branches it can see dead-end within [lookahead] and tries
+ * the passage nearest the finish first (straight-line distance, ties at random). A wrong
+ * branch is followed to its end before it backs up: no detour limit.
+ */
+fun solveDepthFirst(grid: Grid, start: Cell, end: Cell, rng: Random, lookahead: Int = DEFAULT_LOOKAHEAD): Iterator<SolveEvent> =
+    iterator {
+        if (start == end) {
+            yield(Solved(listOf(start)))
+            return@iterator
+        }
+        val visited = hashSetOf(start)
+        val stack = arrayListOf(start)
+        while (true) {
+            val cur = stack.last()
+            if (cur == end) {
+                yield(Solved(stack.toList()))
+                return@iterator
+            }
+            val options = candidates(grid, cur, visited, end, lookahead)
+            if (options.isNotEmpty()) {
+                val best = options.minOf { distance(it, end) }
+                val next = options.filter { distance(it, end) == best }.random(rng)
+                visited.add(next)
+                stack.add(next)
+                yield(Advance(cur, next))
+            } else {
+                if (stack.size == 1) return@iterator
+                val abandoned = stack.removeAt(stack.lastIndex)
+                yield(Backtrack(abandoned, stack.last()))
+            }
+        }
+    }
+
+private val CLOCKWISE = intArrayOf(N, E, S, W)
+
+/**
+ * Keeps its left hand on the wall: at each cell it tries left, straight, right, then back,
+ * relative to the way it is facing. It starts facing the first open passage in the order
+ * N, E, S, W. On a perfect maze, stepping back to the previous cell of the route is a
+ * backtrack. It ignores the look-ahead.
+ */
+fun solveWallFollower(grid: Grid, start: Cell, end: Cell): Iterator<SolveEvent> =
+    iterator {
+        if (start == end) {
+            yield(Solved(listOf(start)))
+            return@iterator
+        }
+        var heading = CLOCKWISE.firstOrNull { grid.openDirs(start) and it != 0 } ?: return@iterator
+        val stack = arrayListOf(start)
+        var cur = start
+        // A tree walk crosses each passage at most twice; this bound only stops a runaway
+        // on a grid that is not a perfect maze.
+        for (move in 0 until 4 * grid.cols * grid.rows) {
+            val i = CLOCKWISE.indexOf(heading)
+            val d = intArrayOf(-1, 0, 1, 2).map { CLOCKWISE[(i + it + 4) % 4] }
+                .first { grid.openDirs(cur) and it != 0 }
+            heading = d
+            val next = cur.step(d)
+            if (stack.size >= 2 && stack[stack.size - 2] == next) {
+                stack.removeAt(stack.lastIndex)
+                yield(Backtrack(cur, next))
+            } else {
+                stack.add(next)
+                yield(Advance(cur, next))
+            }
+            cur = next
+            if (cur == end) {
+                yield(Solved(stack.toList()))
+                return@iterator
+            }
+        }
+    }
+
+/** Walks the shortest route with no wrong turns. It ignores the look-ahead. */
+fun solvePerfect(grid: Grid, start: Cell, end: Cell): Iterator<SolveEvent> =
+    iterator {
+        if (start == end) {
+            yield(Solved(listOf(start)))
+            return@iterator
+        }
+        val towardEnd = towardEndMap(grid, end)
+        if (start !in towardEnd) return@iterator
+        val path = arrayListOf(start)
+        while (path.last() != end) {
+            val next = towardEnd.getValue(path.last())
+            yield(Advance(path.last(), next))
+            path.add(next)
+        }
+        yield(Solved(path.toList()))
+    }
+
+const val DEFAULT_SOLVER = "human"
+val SOLVER_LABELS: Map<String, String> = linkedMapOf(
+    "human" to "Human-like", "dfs" to "Depth-first", "wall" to "Wall follower", "perfect" to "Perfect",
+)
+
+/** The solver called [name] (a SOLVER_LABELS key); an unknown name uses Human-like. */
+fun solveWith(name: String, grid: Grid, start: Cell, end: Cell, rng: Random, lookahead: Int = DEFAULT_LOOKAHEAD): Iterator<SolveEvent> =
+    when (name) {
+        "dfs" -> solveDepthFirst(grid, start, end, rng, lookahead)
+        "wall" -> solveWallFollower(grid, start, end)
+        "perfect" -> solvePerfect(grid, start, end)
+        else -> solve(grid, start, end, rng, lookahead)
     }
