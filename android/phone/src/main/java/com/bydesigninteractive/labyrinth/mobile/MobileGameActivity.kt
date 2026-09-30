@@ -343,6 +343,10 @@ class MobileGameActivity : Activity() {
                 if (event.repeatCount == 0) pressFocused()
                 return true
             }
+            if (key in ARROWS && !focusInOpenPanel()) {
+                (if (panelOpen) firstPlayButton else firstWinButton)?.requestFocus()
+                return true
+            }
             return super.onKeyDown(keyCode, event)
         }
         if (key == RemoteKey.OTHER) return super.onKeyDown(keyCode, event)
@@ -363,11 +367,26 @@ class MobileGameActivity : Activity() {
     /** OK on a panel: clicks the focused button, or focuses the first one. */
     private fun pressFocused() {
         val focused = currentFocus
-        if (focused != null && focused.isFocusable && focused !== view) {
+        if (focused != null && focusInOpenPanel()) {
             focused.performClick()
         } else {
             (if (panelOpen) firstPlayButton else firstWinButton)?.requestFocus()
         }
+    }
+
+    /** True when the focused view sits inside the panel that is currently open. */
+    private fun focusInOpenPanel(): Boolean {
+        val focused = currentFocus ?: return false
+        return isInside(focused, if (panelOpen) playPanel else winPanel)
+    }
+
+    private fun isInside(view: View, parent: View): Boolean {
+        var v: View? = view
+        while (v != null) {
+            if (v === parent) return true
+            v = v.parent as? View
+        }
+        return false
     }
 
     private fun run(c: Command) {
