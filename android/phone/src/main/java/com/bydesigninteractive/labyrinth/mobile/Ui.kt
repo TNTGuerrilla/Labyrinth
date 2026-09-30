@@ -14,6 +14,9 @@ import com.bydesigninteractive.labyrinth.TEXT
 
 private val BUTTON = Color.rgb(34, 38, 46)
 
+/** The background of the menu, the win panel and the cards. */
+val PANEL = Color.argb(240, 16, 18, 22)
+
 fun Context.dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
 fun rounded(color: Int, radiusPx: Float, strokePx: Int = 0, strokeColor: Int = 0) = GradientDrawable().apply {
@@ -58,4 +61,14 @@ fun TextView.compactChip(compact: Boolean) {
     setTextSize(TypedValue.COMPLEX_UNIT_SP, if (compact) 13f else 14f)
     val h = context.dp(if (compact) 6 else 12)
     setPadding(h, context.dp(8), h, context.dp(8))
+}
+
+/** A row's background: [color] normally, a green outline when a controller focuses it, darker when pressed. */
+fun Context.focusBackground(color: Int): StateListDrawable {
+    val radius = dp(8).toFloat()
+    return StateListDrawable().apply {
+        addState(intArrayOf(android.R.attr.state_pressed), rounded(FOCUSED, radius))
+        addState(intArrayOf(android.R.attr.state_focused), rounded(color, radius, dp(2), ACCENT))
+        addState(intArrayOf(), rounded(color, radius))
+    }
 }

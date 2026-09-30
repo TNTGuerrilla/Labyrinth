@@ -36,11 +36,11 @@ import com.bydesigninteractive.labyrinth.game.GameInput
 import com.bydesigninteractive.labyrinth.game.GameSettings
 import com.bydesigninteractive.labyrinth.game.InputState
 import com.bydesigninteractive.labyrinth.game.MenuAction
-import com.bydesigninteractive.labyrinth.game.PLAY_ACTIONS
 import com.bydesigninteractive.labyrinth.game.RemoteKey
 import com.bydesigninteractive.labyrinth.game.RemoteProfile
 import com.bydesigninteractive.labyrinth.game.RoundPhase
 import com.bydesigninteractive.labyrinth.game.ZOOM_STEP
+import com.bydesigninteractive.labyrinth.game.needsNewMaze
 import com.bydesigninteractive.labyrinth.game.phoneGrid
 import com.bydesigninteractive.labyrinth.game.plausiblePpi
 import com.bydesigninteractive.labyrinth.play.GameRenderer
@@ -60,7 +60,6 @@ private const val TICK_MS = 100L
 private const val BACK_HINT_MS = 2000L
 private const val STRIP_DP = 56
 private const val MAX_ZOOM_STEPS = 12
-private val PANEL = Color.argb(240, 16, 18, 22)
 private val SCRIM = Color.argb(120, 0, 0, 0)
 private val WARN = Color.rgb(235, 170, 60)
 private val ARROWS = setOf(RemoteKey.UP, RemoteKey.DOWN, RemoteKey.LEFT, RemoteKey.RIGHT)
@@ -75,10 +74,14 @@ class MobileGameActivity : Activity() {
     private lateinit var overlay: RotatedFrame
     private lateinit var toolbar: GameToolbar
     private lateinit var scrim: View
-    private lateinit var playPanel: LinearLayout
+    private lateinit var menu: MenuPanel
+    private lateinit var phone: PhoneSettings
+    /** When the menu last closed, for reopening on the same tab within a minute. */
+    private var menuClosedAt: Double? = null
+    /** The game settings when the menu opened: closing it starts a new maze if the size changed. */
+    private var menuSettingsBefore: GameSettings? = null
     private lateinit var winPanel: LinearLayout
-    /** Each panel sits in a scroller, so a phone held sideways can reach all of it. */
-    private lateinit var playScroll: ScrollView
+    /** The win panel sits in a scroller, so a phone held sideways can reach all of it. */
     private lateinit var winScroll: ScrollView
     private lateinit var backHint: TextView
     private lateinit var swipes: SwipeTracker
@@ -90,8 +93,7 @@ class MobileGameActivity : Activity() {
     private var tall = true
     /** Pixels per inch for the render thread's maze sizer. */
     @Volatile private var ppi = 160.0
-    private var panelOpen = false
-    private var firstPlayButton: View? = null
+    private var menuOpen = false
     private var firstWinButton: View? = null
     private var winShown = false
     /** The win panel was just dismissed; ignore stale win snapshots until one without winScreen arrives. */
@@ -101,6 +103,28 @@ class MobileGameActivity : Activity() {
     private var pinchScale = 1f
     /** Arrow keys held down, as the (turned) arrow each pressed: the phone may turn while one is held. */
     private val heldKeys = HashMap<Int, RemoteKey>()
+
+    private val menuHost = object : MenuPanel.Host {
+        override val game: GameSettings get() = settings
+        override val phone: PhoneSettings get() = this@MobileGameActivity.phone
+        override val version: String get() = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+
+        override fun readout(): String? {
+            val snap = view.snapshot ?: return null
+            return if (snap.phase == RoundPhase.GROW) null else "Explored ${snap.explored} \u00b7 ${formatTime(snap.elapsed)}"
+        }
+
+        override fun changeGame(next: GameSettings) = changeSettings(next)
+        override fun changePhone(next: PhoneSettings) = changePhoneSettings(next)
+        override fun runAction(action: MenuAction) = closeMenu(action)
+        override fun openLink(link: MenuLink) {
+            when (link) {
+                MenuLink.HOW_TO_PLAY -> closeMenu(null) // Task 3 opens the How to play card here
+            }
+        }
+
+        override fun close() = closeMenu(null)
+    }
 
     private val tick = object : Runnable {
         override fun run() {
@@ -113,10 +137,11 @@ class MobileGameActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settings = GameStore.load(this)
+        phone = PhoneStore.load(this)
         updatePpi()
         view = GameView(this, settings, RemoteProfile(), startPaused = false,
             sizer = MazeSizer { s, w, h, rng -> phoneGrid(s, w, h, ppi, rng) })
-        toolbar = GameToolbar(this, onHint = { view.send { hint() } }, onMenu = ::openPanel)
+        toolbar = GameToolbar(this, onHint = { view.send { hint() } }, onMenu = ::openMenu)
         startStrip = RotatedFrame(this).apply { setBackgroundColor(BACKGROUND) }
         endStrip = RotatedFrame(this).apply { setBackgroundColor(BACKGROUND) }
         val board = BoardLayout(this, dp(STRIP_DP), view, startStrip, endStrip) { isTall ->
@@ -127,11 +152,10 @@ class MobileGameActivity : Activity() {
         scrim = View(this).apply {
             setBackgroundColor(SCRIM)
             visibility = View.GONE
-            setOnClickListener { closePanel(null) }
+            setOnClickListener { closeMenu(null) }
         }
-        playPanel = panel()
+        menu = MenuPanel(this, menuHost)
         winPanel = panel()
-        playScroll = scroller(playPanel)
         winScroll = scroller(winPanel)
         backHint = label("Press Back again to leave", 16f, TEXT).apply {
             setPadding(dp(20), dp(10), dp(20), dp(10))
@@ -140,10 +164,7 @@ class MobileGameActivity : Activity() {
         }
         overlay.content.apply {
             addView(scrim, FrameLayout.LayoutParams(MATCH, MATCH))
-            addView(playScroll, FrameLayout.LayoutParams(dp(320), WRAP, Gravity.CENTER).apply {
-                topMargin = dp(12)
-                bottomMargin = dp(12)
-            })
+            addView(menu, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.CENTER).apply { setMargins(dp(12), dp(12), dp(12), dp(12)) })
             addView(winScroll, FrameLayout.LayoutParams(dp(340), WRAP, Gravity.CENTER).apply {
                 topMargin = dp(12)
                 bottomMargin = dp(12)
@@ -152,7 +173,7 @@ class MobileGameActivity : Activity() {
                 bottomMargin = dp(88)
             })
         }
-        playScroll.visibility = View.GONE
+        menu.visibility = View.GONE
         winScroll.visibility = View.GONE
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
@@ -330,21 +351,25 @@ class MobileGameActivity : Activity() {
         if (key == RemoteKey.BACK) {
             if (event.repeatCount == 0) {
                 when {
-                    panelOpen -> closePanel(null)
+                    menuOpen -> closeMenu(null)
                     winShown -> finish()
                     else -> input.down(key, 0, state(), now())?.forEach(::run)
                 }
             }
             return true
         }
-        if (panelOpen || winShown) {
+        if (menuOpen || winShown) {
             // The panels' buttons take arrows through Android's focus navigation.
+            if (menuOpen && (key == RemoteKey.VOLUME_UP || key == RemoteKey.VOLUME_DOWN)) {
+                if (event.repeatCount == 0) menu.nextTab(if (key == RemoteKey.VOLUME_UP) 1 else -1)
+                return true
+            }
             if (key == RemoteKey.OK) {
                 if (event.repeatCount == 0) pressFocused()
                 return true
             }
             if (key in ARROWS && !focusInOpenPanel()) {
-                (if (panelOpen) firstPlayButton else firstWinButton)?.requestFocus()
+                focusFirst()
                 return true
             }
             return super.onKeyDown(keyCode, event)
@@ -370,14 +395,18 @@ class MobileGameActivity : Activity() {
         if (focused != null && focusInOpenPanel()) {
             focused.performClick()
         } else {
-            (if (panelOpen) firstPlayButton else firstWinButton)?.requestFocus()
+            focusFirst()
         }
     }
 
     /** True when the focused view sits inside the panel that is currently open. */
     private fun focusInOpenPanel(): Boolean {
         val focused = currentFocus ?: return false
-        return isInside(focused, if (panelOpen) playPanel else winPanel)
+        return isInside(focused, if (menuOpen) menu else winPanel)
+    }
+
+    private fun focusFirst() {
+        if (menuOpen) menu.focusFirst() else firstWinButton?.requestFocus()
     }
 
     private fun isInside(view: View, parent: View): Boolean {
@@ -394,7 +423,7 @@ class MobileGameActivity : Activity() {
             is Command.Press -> view.send { pressArrow(c.d) }
             is Command.Release -> view.send { releaseArrow(c.d) }
             Command.SkipGrowth -> view.send { skipGrowth() }
-            Command.OpenMenu -> openPanel()
+            Command.OpenMenu -> openMenu()
             is Command.Zoom -> zoomBy(c.steps)
             Command.Leave -> finish()
             Command.BackHint -> {
@@ -407,11 +436,12 @@ class MobileGameActivity : Activity() {
         }
     }
 
-    // --- the Play panel ----------------------------------------------------------------------
+    // --- the menu ----------------------------------------------------------------------------
 
-    private fun openPanel() {
-        if (panelOpen) return
-        panelOpen = true
+    private fun openMenu() {
+        if (menuOpen) return
+        menuOpen = true
+        menuSettingsBefore = settings
         heldKeys.clear()
         view.send {
             paused = true
@@ -419,17 +449,20 @@ class MobileGameActivity : Activity() {
         }
         if (screenHeld) releaseScreen()
         if (winShown) hideWin()
-        renderPlayPanel()
+        menu.show(reopenTab(menu.tab, menuClosedAt, now()))
         scrim.visibility = View.VISIBLE
-        playScroll.visibility = View.VISIBLE
+        menu.visibility = View.VISIBLE
     }
 
-    private fun closePanel(action: MenuAction?) {
-        if (!panelOpen) return
-        panelOpen = false
-        playScroll.visibility = View.GONE
+    private fun closeMenu(action: MenuAction?) {
+        if (!menuOpen) return
+        menuOpen = false
+        menuClosedAt = now()
+        menu.visibility = View.GONE
         scrim.visibility = View.GONE
-        val newMaze = action == MenuAction.NEW_MAZE
+        val before = menuSettingsBefore
+        menuSettingsBefore = null
+        val newMaze = action == MenuAction.NEW_MAZE || (before != null && needsNewMaze(before, settings))
         view.send {
             paused = false
             if (newMaze) newRound()
@@ -447,21 +480,9 @@ class MobileGameActivity : Activity() {
         }
     }
 
-    private fun renderPlayPanel() {
-        playPanel.removeAllViews()
-        val snap = view.snapshot
-        if (snap != null && snap.phase != RoundPhase.GROW) {
-            playPanel.addView(label("Explored ${snap.explored} \u00b7 ${formatTime(snap.elapsed)}", 15f, DIM_TEXT).apply {
-                gravity = Gravity.CENTER
-                setPadding(0, 0, 0, dp(8))
-            }, LinearLayout.LayoutParams(MATCH, WRAP))
-        }
-        firstPlayButton = null
-        for (action in PLAY_ACTIONS) {
-            val button = panelButton(action.label) { closePanel(action) }
-            if (firstPlayButton == null) firstPlayButton = button
-            playPanel.addView(button, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8) })
-        }
+    private fun changePhoneSettings(next: PhoneSettings) {
+        phone = next
+        PhoneStore.save(this, next)
     }
 
     // --- win panel and toolbar ---------------------------------------------------------------
@@ -470,14 +491,14 @@ class MobileGameActivity : Activity() {
         val snap = view.snapshot ?: return
         toolbar.show(if (snap.phase == RoundPhase.GROW) null else snap.explored, snap.elapsed)
         if (!snap.winScreen) winDismissed = false
-        if (snap.winScreen && !winShown && !winDismissed && !panelOpen) {
+        if (snap.winScreen && !winShown && !winDismissed && !menuOpen) {
             winShown = true
             heldKeys.clear()
             renderWin()
         } else if (!snap.winScreen && winShown) {
             hideWin()
         }
-        val hold = snap.dotMoving && !panelOpen
+        val hold = snap.dotMoving && !menuOpen
         if (hold && !screenHeld) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             screenHeld = true
