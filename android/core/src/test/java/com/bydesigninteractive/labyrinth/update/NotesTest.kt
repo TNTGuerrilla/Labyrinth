@@ -40,14 +40,14 @@ class NotesTest {
             release("labyrinth-tv-v1.3.6", "p", prerelease = true), release("labyrinth-v1.3.0", "game"),
             release("labyrinth-tv-v1.2.2", null),
         )
-        assertEquals(listOf(NoteEntry("1.3.0", "Three"), NoteEntry("1.2.0", "Two")), collectNotes(json, "1.1.0", "1.3.0"))
-        assertEquals(emptyList<NoteEntry>(), collectNotes("junk", "1.0.0", "2.0.0"))
+        assertEquals(listOf(NoteEntry("1.3.0", "Three"), NoteEntry("1.2.0", "Two")), collectNotes(json, "1.1.0", "1.3.0", TV_PRODUCT))
+        assertEquals(emptyList<NoteEntry>(), collectNotes("junk", "1.0.0", "2.0.0", TV_PRODUCT))
     }
 
     @Test
     fun ordersNumerically() {
         val json = listing(release("labyrinth-tv-v1.9.0", "Nine"), release("labyrinth-tv-v1.10.0", "Ten"))
-        assertEquals(listOf("1.10.0", "1.9.0"), collectNotes(json, "1.0.0", "1.10.0").map { it.version })
+        assertEquals(listOf("1.10.0", "1.9.0"), collectNotes(json, "1.0.0", "1.10.0", TV_PRODUCT).map { it.version })
     }
 
     @Test

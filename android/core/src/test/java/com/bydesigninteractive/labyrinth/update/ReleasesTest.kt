@@ -36,8 +36,8 @@ class ReleasesTest {
             release("labyrinth-tv-v2.0.0", asset("LabyrinthTV.apk"), draft = true),
             release("labyrinth-tv-v3.0.0", asset("LabyrinthTV.apk"), pre = true),
         )
-        assertEquals(Release("1.10.0", "https://example.test/LabyrinthTV.apk", SHA), newestRelease(json, "1.0.0"))
-        assertNull(newestRelease(json, "1.10.0"))
+        assertEquals(Release("1.10.0", "https://example.test/LabyrinthTV.apk", SHA), newestRelease(json, "1.0.0", TV_PRODUCT))
+        assertNull(newestRelease(json, "1.10.0", TV_PRODUCT))
     }
 
     @Test
@@ -48,7 +48,7 @@ class ReleasesTest {
             release("labyrinth-tv-v1.7.0", asset("Other.apk")),
             release("labyrinth-tv-v1.4.0", asset("LabyrinthTV.apk", sha = "AB".repeat(32))),
         )
-        assertEquals(Release("1.4.0", "https://example.test/LabyrinthTV.apk", SHA), newestRelease(json, "1.0.0"))
+        assertEquals(Release("1.4.0", "https://example.test/LabyrinthTV.apk", SHA), newestRelease(json, "1.0.0", TV_PRODUCT))
     }
 
     @Test
@@ -90,9 +90,9 @@ class ReleasesTest {
 
     @Test
     fun junkIsIgnored() {
-        assertNull(newestRelease("not json", "1.0.0"))
-        assertNull(newestRelease("{}", "1.0.0"))
-        assertNull(newestRelease("""[null, 3, {"tag_name": 5}, {"tag_name": "labyrinth-tv-v2.0.0", "assets": "x"}]""", "1.0.0"))
-        assertNull(newestRelease(list(release("labyrinth-tv-v2.0.0", asset("LabyrinthTV.apk"))), "bad"))
+        assertNull(newestRelease("not json", "1.0.0", TV_PRODUCT))
+        assertNull(newestRelease("{}", "1.0.0", TV_PRODUCT))
+        assertNull(newestRelease("""[null, 3, {"tag_name": 5}, {"tag_name": "labyrinth-tv-v2.0.0", "assets": "x"}]""", "1.0.0", TV_PRODUCT))
+        assertNull(newestRelease(list(release("labyrinth-tv-v2.0.0", asset("LabyrinthTV.apk"))), "bad", TV_PRODUCT))
     }
 }

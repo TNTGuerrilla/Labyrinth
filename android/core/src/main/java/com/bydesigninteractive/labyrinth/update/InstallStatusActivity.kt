@@ -1,6 +1,6 @@
 // Receives Android's installer reports for an update. It is not exported, so only the
 // installer (through the PendingIntent that Updates.install gives it) and this app can start
-// it; the exported launcher screen never acts on an installer report.
+// it; the app's exported screens never act on an installer report.
 package com.bydesigninteractive.labyrinth.update
 
 import android.app.Activity
@@ -9,7 +9,6 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
 import android.os.Bundle
-import com.bydesigninteractive.labyrinth.SettingsActivity
 
 class InstallStatusActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,10 +42,10 @@ class InstallStatusActivity : Activity() {
         }
     }
 
-    /** Brings the settings screen back with "The update was not installed." and Update again. */
+    /** Brings the app's update screen back with "The update was not installed." and Update again. */
     private fun reportFailure() {
         startActivity(
-            Intent(this, SettingsActivity::class.java)
+            Intent(this, UpdateConfig.failureScreen)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 .putExtra(Updates.EXTRA_INSTALL_FAILED, true),
         )

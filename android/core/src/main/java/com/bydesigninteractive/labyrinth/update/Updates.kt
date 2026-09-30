@@ -11,7 +11,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import com.bydesigninteractive.labyrinth.BuildConfig
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -26,10 +25,10 @@ import org.json.JSONException
 class UpdateFailure(message: String) : IOException(message)
 
 object Updates {
-    /** Set on the intent that brings SettingsActivity back after an install did not happen. */
+    /** Set on the intent that brings the app's update screen back after an install did not happen. */
     const val EXTRA_INSTALL_FAILED = "com.bydesigninteractive.labyrinth.INSTALL_FAILED"
     private const val TIMEOUT_MS = 15_000
-    /** Far above any real APK, so a wrong or hostile file cannot fill the TV's storage. */
+    /** Far above any real APK, so a wrong or hostile file cannot fill the device's storage. */
     private const val MAX_DOWNLOAD_BYTES = 300L * 1024 * 1024
     private val checking = AtomicBoolean(false)
     private val updating = AtomicBoolean(false)
@@ -91,11 +90,11 @@ object Updates {
         val main = Handler(Looper.getMainLooper())
         thread(name = "update-check", isDaemon = true) {
             val offer = try {
-                val json = fetch(BuildConfig.UPDATE_URL)
+                val json = fetch(UpdateConfig.releasesUrl)
                 requireListing(json)
-                val found = newestRelease(json, current)
+                val found = newestRelease(json, current, UpdateConfig.product)
                 if (found != null) {
-                    val fresh = collectNotes(json, current, found.version)
+                    val fresh = collectNotes(json, current, found.version, UpdateConfig.product)
                     UpdateStore.editSeen(app) { it.copy(notes = mergeNotes(it.notes, fresh, current)) }
                 }
                 val next = UpdateStore.edit(app) { it.copy(lastCheck = System.currentTimeMillis(), found = found) }
@@ -115,7 +114,7 @@ object Updates {
         (URL(url).openConnection() as? HttpURLConnection ?: throw UpdateFailure("The update's address is not allowed.")).apply {
             connectTimeout = TIMEOUT_MS
             readTimeout = TIMEOUT_MS
-            setRequestProperty("User-Agent", "Labyrinth-TV-updater")
+            setRequestProperty("User-Agent", UpdateConfig.product.userAgent)
             setRequestProperty("Accept", accept)
         }
 
@@ -158,11 +157,11 @@ object Updates {
         val file = File(context.cacheDir, "update.apk")
         val digest = MessageDigest.getInstance("SHA-256")
         val notAllowed = "The update's address is not allowed."
-        if (!isAllowedDownloadUrl(release.url, BuildConfig.DEBUG)) throw UpdateFailure(notAllowed)
+        if (!isAllowedDownloadUrl(release.url, UpdateConfig.debug)) throw UpdateFailure(notAllowed)
         val connection = connect(release.url, "application/octet-stream")
         try {
             // Redirects are followed within https (or within http), so check where they led.
-            if (!isAllowedDownloadUrl(connection.url.toString(), BuildConfig.DEBUG)) throw UpdateFailure(notAllowed)
+            if (!isAllowedDownloadUrl(connection.url.toString(), UpdateConfig.debug)) throw UpdateFailure(notAllowed)
             if (connection.responseCode != 200) throw UpdateFailure("Could not reach the update server.")
             val total = connection.contentLengthLong
             val tooLarge = "The download was larger than an update can be."
@@ -222,7 +221,7 @@ object Updates {
         val id = installer.createSession(params)
         installer.openSession(id).use { session ->
             try {
-                session.openWrite(ASSET_NAME, 0, apk.length()).use { out ->
+                session.openWrite(UpdateConfig.product.assetName, 0, apk.length()).use { out ->
                     apk.inputStream().use { it.copyTo(out) }
                     session.fsync(out)
                 }
@@ -261,11 +260,11 @@ object Updates {
         val current = currentVersion(app)
         thread(name = "update-check-now", isDaemon = true) {
             val outcome = try {
-                val json = fetch(BuildConfig.UPDATE_URL)
+                val json = fetch(UpdateConfig.releasesUrl)
                 requireListing(json)
-                val found = newestRelease(json, current)
+                val found = newestRelease(json, current, UpdateConfig.product)
                 if (found != null) {
-                    val fresh = collectNotes(json, current, found.version)
+                    val fresh = collectNotes(json, current, found.version, UpdateConfig.product)
                     UpdateStore.editSeen(app) { it.copy(notes = mergeNotes(it.notes, fresh, current)) }
                 }
                 val next = UpdateStore.edit(app) { state ->

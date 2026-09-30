@@ -1,4 +1,4 @@
-// Picks the newest Labyrinth TV release from the GitHub releases list. Pure logic, unit
+// Picks the newest release of one Labyrinth product from the GitHub releases list. Pure logic, unit
 // tested on the desktop JVM, and the same rules as the desktop updater.
 package com.bydesigninteractive.labyrinth.update
 
@@ -8,8 +8,6 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
-const val TAG_PREFIX = "labyrinth-tv-v"
-const val ASSET_NAME = "LabyrinthTV.apk"
 private val VERSION = Regex("""(\d+)\.(\d+)\.(\d+)""")
 private val SHA256 = Regex("[0-9a-f]{64}")
 
@@ -31,10 +29,10 @@ fun compareVersions(a: List<Int>, b: List<Int>): Int {
 }
 
 /**
- * The highest TV release newer than [current] whose APK has a published SHA-256. Drafts,
- * pre-releases and other products' tags are ignored; any malformed input gives null.
+ * The highest [product] release newer than [current] whose asset has a published SHA-256.
+ * Drafts, pre-releases and other products' tags are ignored; any malformed input gives null.
  */
-fun newestRelease(json: String, current: String): Release? {
+fun newestRelease(json: String, current: String, product: Product): Release? {
     var bestVersion = parseVersion(current) ?: return null
     val releases = try {
         JSONArray(json)
@@ -46,13 +44,13 @@ fun newestRelease(json: String, current: String): Release? {
         val release = releases.optJSONObject(i) ?: continue
         if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue
         val tag = release.optString("tag_name")
-        if (!tag.startsWith(TAG_PREFIX)) continue
-        val text = tag.removePrefix(TAG_PREFIX)
+        if (!tag.startsWith(product.tagPrefix)) continue
+        val text = tag.removePrefix(product.tagPrefix)
         val version = parseVersion(text) ?: continue
         if (compareVersions(version, bestVersion) <= 0) continue
         val assets = release.optJSONArray("assets") ?: continue
         val asset = (0 until assets.length()).mapNotNull { assets.optJSONObject(it) }
-            .firstOrNull { it.optString("name") == ASSET_NAME } ?: continue
+            .firstOrNull { it.optString("name") == product.assetName } ?: continue
         val url = asset.optString("browser_download_url").takeIf { it.isNotEmpty() } ?: continue
         val sha = sha256Of(asset) ?: continue
         best = Release(text, url, sha)

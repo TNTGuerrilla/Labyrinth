@@ -1,2 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Receives the installer's reports for an update. Not exported: other apps must not
+             be able to hand Labyrinth an intent to start. -->
+        <activity
+            android:name="com.bydesigninteractive.labyrinth.update.InstallStatusActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    </application>
+</manifest>
