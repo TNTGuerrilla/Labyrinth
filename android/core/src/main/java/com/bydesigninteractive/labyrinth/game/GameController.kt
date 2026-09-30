@@ -5,6 +5,7 @@ package com.bydesigninteractive.labyrinth.game
 
 import com.bydesigninteractive.labyrinth.maze.Cell
 import com.bydesigninteractive.labyrinth.touch.allowedPrefix
+import com.bydesigninteractive.labyrinth.touch.tapRoute
 import com.bydesigninteractive.labyrinth.touch.uniquePath
 
 class GameController(var settings: GameSettings, var remote: RemoteProfile) {
@@ -114,6 +115,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
         touch = true
         swiping = false
         route.clear()
+        pendingRelease.remove(d)
         val r = round
         if (r.phase == RoundPhase.GROW) {
             r.skipGrowth()
@@ -134,8 +136,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
     fun goTo(target: Cell): Boolean {
         val r = round
         if (r.phase != RoundPhase.PLAY) return false
-        val path = pathFromDot(target)
-        if (path.isEmpty() || allowedPrefix(r.grid, path, r.visitedCells).size != path.size) return false
+        val path = tapRoute(r.grid, r.visitedCells, startOf(target), target) ?: return false
         follow(path)
         return true
     }
@@ -148,20 +149,21 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
         }
         val r = round
         if (r.phase != RoundPhase.PLAY) return
-        val path = pathFromDot(target)
+        val path = uniquePath(r.grid, startOf(target), target)
         if (path.isNotEmpty()) follow(allowedPrefix(r.grid, path, r.visitedCells))
     }
 
     /**
-     * The path to [target] from where the dot is heading, or, when [target] lies behind a moving
-     * dot, from the cell it came from (the dot turns around; see follow).
+     * The cell a route to [target] starts from: where the dot is heading, or, when [target] lies
+     * behind a moving dot, the cell it came from (the dot turns around; see follow). A returning
+     * dot (after a late turn) is already heading for its [frm], so that is where the route starts.
      */
-    private fun pathFromDot(target: Cell): List<Cell> {
+    private fun startOf(target: Cell): Cell {
         val m = round.mover
-        val to = m.to ?: return uniquePath(round.grid, m.frm, target)
+        val to = m.to ?: return m.frm
+        if (m.returning) return m.frm
         val ahead = uniquePath(round.grid, to, target)
-        if (!m.returning && ahead.size >= 2 && ahead[1] == m.frm) return uniquePath(round.grid, m.frm, target)
-        return ahead
+        return if (ahead.size >= 2 && ahead[1] == m.frm) m.frm else to
     }
 
     private fun follow(path: List<Cell>) {
@@ -169,6 +171,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
         swiping = false
         auto = null
         keys.clear()
+        pendingRelease.clear()
         route.clear()
         val m = round.mover
         if (m.to != null && !m.returning && path.first() == m.frm) round.reverse() // the route starts back the way the dot came
@@ -189,7 +192,11 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
     fun clearKeys() {
         keys.clear()
         pendingRelease.clear()
+        clearRoute()
     }
+
+    /** End any tap or drag route, for when the finger's lift may have been lost. */
+    fun clearRoute() = route.clear()
 
     fun skipGrowth() = round.skipGrowth()
 
@@ -241,6 +248,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
                 })
             }
             if (r.phase != RoundPhase.PLAY || auto?.done == true) auto = null
+            if (r.phase != RoundPhase.PLAY) route.clear()
         }
         r.tickTimer(dt)
         return changed

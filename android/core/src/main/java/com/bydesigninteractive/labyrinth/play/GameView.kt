@@ -231,6 +231,8 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
 
     fun newRound() {
         if (width == 0) return // no surface yet; onSurfaceChanged starts the round
+        dragging = false
+        deniedCell = null
         val s = settings
         val (cols, rows) = sizer.grid(s, width, height, rng)
         val r = Round.create(cols, rows, s, rng)
@@ -325,7 +327,11 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
     fun toggleAuto() { if (started) controller.toggleAuto() }
 
     /** Key-ups can be lost while the app is away, so held arrows are forgotten. */
-    fun clearKeys() { if (started) controller.clearKeys() }
+    fun clearKeys() {
+        dragging = false
+        deniedCell = null
+        if (started) controller.clearKeys()
+    }
 
     private fun redrawAll() {
         redraw.clear()

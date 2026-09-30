@@ -322,7 +322,7 @@ class GameControllerTest {
     }
 
     @Test
-    fun theJoystickHasNoRemoteLagAndDoesNotCoast() {
+    fun theJoystickHasNoRemoteLag() {
         val g = controller(settings = TEST.copy(followBends = false), remote = RemoteProfile(arrowLagMs = 100, arrowRepeatCooldownMs = 50))
         g.holdTouch(E)
         assertTrue(g.touch)
@@ -337,5 +337,51 @@ class GameControllerTest {
         g.holdTouch(E)
         g.frames(100)
         assertEquals(c(3, 1), g.round.dot)
+    }
+
+    @Test
+    fun aTapBehindABackingOutDotRoutesFromWhereItIsHeading() {
+        val g = controller(settings = TEST.copy(turnPause = 0.0), remote = RemoteProfile(arrowLagMs = 200))
+        g.pressArrow(E)
+        repeat(200) { if (g.round.mover.to != c(2, 1)) g.frame(0.02) }
+        g.frames(3)
+        g.pressArrow(N)
+        assertTrue(g.round.mover.returning)
+        val explored = g.round.explored
+        assertTrue(g.goTo(c(0, 1)))
+        g.frames(100)
+        assertEquals(c(0, 1), g.round.dot)
+        assertEquals(explored, g.round.explored)
+    }
+
+    @Test
+    fun theJoystickRespectsBendAssistOff() {
+        val s = TEST.copy(followBends = false)
+        val g = GameController(s, RemoteProfile()).apply { start(Round.ofMaze(forkGrid(), c(0, 1), c(2, 1), s)) }
+        g.holdTouch(N)
+        g.frames(100)
+        assertEquals(c(0, 0), g.round.dot)
+        assertFalse(g.dotMoving)
+    }
+
+    @Test
+    fun autoSolveAndReplayClearARoute() {
+        val g = controller(end = c(1, 0))
+        g.goTo(c(1, 1))
+        g.toggleAuto()
+        assertFalse(g.routing)
+        g.toggleAuto()
+        g.goTo(c(1, 1))
+        assertTrue(g.routing)
+        g.replay()
+        assertFalse(g.routing)
+    }
+
+    @Test
+    fun clearingKeysEndsARoute() {
+        val g = controller(end = c(1, 0))
+        g.goTo(c(1, 1))
+        g.clearKeys()
+        assertFalse(g.routing)
     }
 }
