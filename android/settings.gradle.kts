@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "Labyrinth"
-include(":app")
+include(":app", ":core")
