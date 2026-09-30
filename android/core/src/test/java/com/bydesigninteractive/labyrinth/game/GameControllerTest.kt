@@ -191,4 +191,70 @@ class GameControllerTest {
         g.frames(10)
         assertTrue(g.round.elapsed > 0)
     }
+
+    @Test
+    fun touchLeavesTheRemoteOutOfTheForkPause() {
+        val g = controller(remote = RemoteProfile(arrowLagMs = 100, arrowRepeatCooldownMs = 50))
+        g.swipe(E)
+        assertTrue(g.touch)
+        assertEquals(0.2, g.forkPause, 1e-9)
+    }
+
+    @Test
+    fun aKeyPressEndsTouchSteering() {
+        val g = controller(remote = RemoteProfile(arrowLagMs = 100, arrowRepeatCooldownMs = 50))
+        g.swipe(E)
+        g.pressArrow(E)
+        assertFalse(g.touch)
+        assertEquals(0.35, g.forkPause, 1e-9)
+    }
+
+    @Test
+    fun aSwipeRunsToTheForkAndStopsThere() {
+        val g = controller(settings = TEST.copy(followBends = false))
+        g.swipe(E)
+        g.frames(100) // 2 s: far longer than reaching the fork and its 0.2 s pause
+        assertEquals(c(1, 1), g.round.dot)
+        assertFalse(g.dotMoving)
+    }
+
+    @Test
+    fun aSwipeFollowsBendsEvenWithBendAssistOff() {
+        val s = TEST.copy(followBends = false)
+        val g = GameController(s, RemoteProfile()).apply { start(Round.ofMaze(forkGrid(), c(0, 1), c(2, 1), s)) }
+        g.swipe(N) // up to the bend at (0,0), then east to the fork at (1,0)
+        g.frames(100)
+        assertEquals(c(1, 0), g.round.dot)
+        assertFalse(g.dotMoving)
+    }
+
+    @Test
+    fun aSwipeDuringTheRunIsTheTurnAtTheFork() {
+        val g = controller()
+        g.swipe(E)
+        g.frames(2)
+        g.swipe(N)
+        g.frames(100)
+        assertEquals(c(1, 0), g.round.dot) // took the side branch, never went on to (2,1)
+        assertEquals(2, g.round.explored)
+    }
+
+    @Test
+    fun swipingBackReverses() {
+        val g = controller(settings = TEST.copy(turnPause = 0.0))
+        g.swipe(E)
+        g.frames(2)
+        g.swipe(W)
+        assertEquals(c(0, 1), g.round.mover.to)
+        assertNull(g.keys.request)
+    }
+
+    @Test
+    fun aSwipeDuringGrowthSkipsItWithoutSteering() {
+        val g = GameController(TEST, RemoteProfile())
+        g.start(Round.create(20, 12, TEST, Random(3)))
+        g.swipe(E)
+        assertTrue(g.round.fastForward)
+        assertNull(g.keys.request)
+    }
 }

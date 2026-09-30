@@ -277,6 +277,7 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
     // Commands sent before the surface exists (no round yet) do nothing.
     fun pressArrow(d: Int) { if (started) controller.pressArrow(d) }
     fun releaseArrow(d: Int) { if (started) controller.releaseArrow(d) }
+    fun swipe(d: Int) { if (started) controller.swipe(d) }
     fun skipGrowth() { if (started) controller.skipGrowth() }
     fun hint() { if (started) controller.hint() }
     fun flash() { if (started) controller.flash() }

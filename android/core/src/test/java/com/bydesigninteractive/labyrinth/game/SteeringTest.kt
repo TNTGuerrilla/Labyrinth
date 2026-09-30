@@ -204,4 +204,13 @@ class SteeringTest {
         assertNull(a.choose(c(2, 1)))
         assertTrue(a.done)
     }
+
+    @Test
+    fun coastRunsThroughABendWithNothingHeld() {
+        val g = forkGrid()
+        val off = KeyboardSteer()
+        assertNull(guided(off, g, c(0, 0), c(0, 1)))
+        val on = KeyboardSteer().apply { coast = true }
+        assertEquals(c(1, 0), guided(on, g, c(0, 0), c(0, 1)))
+    }
 }

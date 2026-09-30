@@ -23,6 +23,9 @@ import com.bydesigninteractive.labyrinth.maze.direction
  */
 class KeyboardSteer {
     val held = ArrayList<Int>()
+
+    /** Touch steering: nothing is held after a swipe, but the dot runs on through corridors and bends. */
+    var coast = false
     var request: Int? = null
     var now = 0.0
         private set
@@ -146,7 +149,7 @@ class KeyboardSteer {
                 request = null
                 return null
             }
-            if (held.isEmpty()) {
+            if (held.isEmpty() && !coast) {
                 request = null
                 stopped = true
                 return null
