@@ -50,9 +50,9 @@ def _fits(width: int, left_end: int, info: str, other: int = 0) -> bool:
 
 ITEMS = (
     ("new", "New maze"), ("replay", "Replay"), ("hint", "Hint"), ("autosolve", "Auto-solve"),
-    ("flash", "Flash finish"), None,
+    ("flash", "Flash"), None,
     ("small", "S"), ("medium", "M"), ("large", "L"), ("xl", "XL"), ("custom", "Custom"), None,
-    ("colors", "Colors"), ("screensaver", "Saver"), ("settings", "Settings"),
+    ("colors", "Colors"), ("screensaver", "Screen Saver"), ("settings", "Settings"),
 )
 TIP_NAMES = {"small": "Small (8-12)", "medium": "Medium (13-24)", "large": "Large (25-48)",
              "xl": "XL (49-96)", "custom": "Custom size"}
@@ -101,16 +101,20 @@ class Toolbar:
                 tip = action
             x = rect.right + 6
         stats, compact = _counters(state)
-        if state.update_label is None:
+        hovered = None
+        drawn = False
+        if state.update_label is not None and _fits(
+                width, x, "", split_width(state.update_short, state.update_dismiss)):
+            hovered, drawn = self._draw_update(surface, state, stats, compact, x, mouse), True
+        if drawn:
+            if hovered is not None:
+                tip = hovered
+        else:
             for info in (stats, compact, ""):
                 if _fits(width, x, info):
                     break
             if info:
                 text(surface, info, (width - 12, TOOLBAR_H // 2), 15, anchor="midright")
-        else:
-            hovered = self._draw_update(surface, state, stats, compact, x, mouse)
-            if hovered is not None:
-                tip = hovered
         if tip is not None:
             self._tooltip(surface, keymap, state, tip, mouse)
 
@@ -119,7 +123,8 @@ class Toolbar:
                      mouse: tuple[int, int]) -> Optional[str]:
         """The update control just left of the counters: one split button, install on the
         left and (when this version can be hidden) x on the right. A narrow window gets the
-        short label, then compact counters, then no counters. Returns the hovered action."""
+        short label, then compact counters, then no counters. The caller has checked that at least
+        the short label fits. Returns the hovered action."""
         width = surface.get_width()
         choices = ((state.update_label, stats), (state.update_short, stats),
                    (state.update_short, compact), (state.update_short, ""))

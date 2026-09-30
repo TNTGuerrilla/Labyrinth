@@ -86,7 +86,7 @@ def update_state(**kw):
     return ToolbarState("medium", False, True, 3, 12.0, **values)
 
 
-@pytest.mark.parametrize("width", [960, 1280, 1920])
+@pytest.mark.parametrize("width", [1280, 1920])
 def test_update_control_is_one_split_button_left_of_the_counters(width):
     surface = pygame.Surface((width, 700))
     toolbar = Toolbar()
@@ -235,3 +235,65 @@ def test_saver_button_tooltip_follows_the_mode(monkeypatch):
         seen.clear()
         toolbar.draw(surface, Keymap(), state, toolbar.hits.rect_for("screensaver").center)
         assert tip in [s for s, _ in seen]
+
+
+UPDATE_KW = dict(update_label="Update to 1.2.0", update_short="Update", update_dismiss=True)
+
+
+def test_toolbar_buttons_never_overlap_and_the_right_side_stays_clear(monkeypatch):
+    seen = drawn_texts(monkeypatch)
+    for kw in ({}, UPDATE_KW):
+        for width in range(960, 1400, 20):
+            seen.clear()
+            toolbar = Toolbar()
+            toolbar.draw(pygame.Surface((width, 700)), Keymap(),
+                         ToolbarState("medium", False, True, 12345, 3723.0, **kw), (-1, -1))
+            buttons = [r for r, a in toolbar.hits._items if a not in ("update", "update_dismiss")]
+            for i, a in enumerate(buttons):
+                assert all(not a.colliderect(b) for b in buttons[i + 1:]), (width, kw)
+            last = max(r.right for r in buttons)
+            assert all(stats_left(string, width) > last for string, _ in seen), (width, kw)
+            for action in ("update", "update_dismiss"):
+                rect = toolbar.hits.rect_for(action)
+                if rect is not None:
+                    assert rect.left > last and rect.right <= width - 12, (width, kw, action)
+            assert (toolbar.hits.rect_for("update") is None) == (
+                toolbar.hits.rect_for("update_dismiss") is None), (width, kw)
+
+
+def test_update_control_is_hidden_when_even_the_short_form_does_not_fit():
+    hidden = False
+    for width in range(960, 1400, 20):
+        toolbar = Toolbar()
+        toolbar.draw(pygame.Surface((width, 700)), Keymap(), update_state(), (-1, -1))
+        hidden = hidden or toolbar.hits.rect_for("update") is None
+    assert hidden
+
+
+def test_wide_window_still_draws_the_full_update_control():
+    toolbar = Toolbar()
+    toolbar.draw(pygame.Surface((1600, 700)), Keymap(), update_state(), (-1, -1))
+    full = button_rect("Update to 1.2.0", (0, 0), size=15)
+    assert toolbar.hits.rect_for("update").w == full.w
+    assert toolbar.hits.rect_for("update_dismiss") is not None
+
+
+def test_toolbar_button_labels_are_screen_saver_and_flash():
+    assert dict(i for i in toolbar_module.ITEMS if i)["screensaver"] == "Screen Saver"
+    assert dict(i for i in toolbar_module.ITEMS if i)["flash"] == "Flash"
+    toolbar = Toolbar()
+    toolbar.draw(pygame.Surface((1400, 700)), Keymap(),
+                 ToolbarState("medium", False, True, 0, 0.0), (-1, -1))
+    assert toolbar.hits.rect_for("screensaver").w == button_rect("Screen Saver", (0, 0), size=15).w
+    assert toolbar.hits.rect_for("flash").w == button_rect("Flash", (0, 0), size=15).w
+
+
+def test_flash_button_tooltip_keeps_flash_finish(monkeypatch):
+    seen = drawn_texts(monkeypatch)
+    toolbar = Toolbar()
+    surface = pygame.Surface((1400, 700))
+    state = ToolbarState("medium", False, True, 0, 0.0)
+    toolbar.draw(surface, Keymap(), state, (-1, -1))
+    seen.clear()
+    toolbar.draw(surface, Keymap(), state, toolbar.hits.rect_for("flash").center)
+    assert any(s.startswith("Flash finish") for s, _ in seen)

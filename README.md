@@ -97,7 +97,7 @@ Run `Labyrinth.exe` (on Linux, see [Install on Linux](#install-on-linux)). Hold 
 | Small, Medium, Large, XL maze | 1, 2, 3, 4 |
 | Custom size | 5 |
 | Multi-color on/off | C |
-| Screensaver mode | M (or the Screensaver button) |
+| Screensaver mode | M (or the Screen Saver button) |
 | Zoom in, out, reset | +, -, Z (or the mouse wheel) |
 | Settings | Esc |
 | Fullscreen | F11 |
@@ -108,7 +108,7 @@ Every key can be changed in Settings, Controls tab, except Space, which is fixed
 
 ### Screensaver mode
 
-The **Screensaver** toolbar button (or M) turns the game window into a screensaver: it grows a maze at the size currently selected, solves it with the solver chosen in Settings > Screensaver, pauses on the solved maze, then starts the next one. Nothing is scored. Space or Esc stops it and starts a fresh maze; a toolbar button stops it and does its action; F11 toggles fullscreen while it runs. Every other key, click, wheel turn and mouse movement is ignored.
+The **Screen Saver** toolbar button (or M) turns the game window into a screensaver: it grows a maze at the size currently selected, solves it with the solver chosen in Settings > Screensaver, pauses on the solved maze, then starts the next one. Nothing is scored. Space or Esc stops it and starts a fresh maze; a toolbar button stops it and does its action; F11 toggles fullscreen while it runs. Every other key, click, wheel turn and mouse movement is ignored.
 
 The **Screensaver** settings tab (the game's settings, separate from the Windows screensaver) has Solver, Solve speed, Look-ahead and **Pause on solved maze**. Look-ahead applies to the Human-like and Depth-first solvers. The solver choices are listed under [Windows screensaver](#windows-screensaver).
 
