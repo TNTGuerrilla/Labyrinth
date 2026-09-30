@@ -48,7 +48,6 @@ import com.bydesigninteractive.labyrinth.play.GameStore
 import com.bydesigninteractive.labyrinth.play.GameView
 import com.bydesigninteractive.labyrinth.play.MazeSizer
 import com.bydesigninteractive.labyrinth.play.formatTime
-import com.bydesigninteractive.labyrinth.touch.Hold
 import com.bydesigninteractive.labyrinth.touch.SWIPE_DP
 import com.bydesigninteractive.labyrinth.touch.Strip
 import com.bydesigninteractive.labyrinth.touch.SwipeTracker
@@ -83,6 +82,10 @@ class MobileGameActivity : Activity() {
     private lateinit var winPanel: LinearLayout
     /** The win panel sits in a scroller, so a phone held sideways can reach all of it. */
     private lateinit var winScroll: ScrollView
+    private lateinit var howPanel: LinearLayout
+    private lateinit var howScroll: ScrollView
+    private var howOpen = false
+    private var howButton: View? = null
     private lateinit var backHint: TextView
     private lateinit var swipes: SwipeTracker
     private lateinit var scale: ScaleGestureDetector
@@ -119,7 +122,10 @@ class MobileGameActivity : Activity() {
         override fun runAction(action: MenuAction) = closeMenu(action)
         override fun openLink(link: MenuLink) {
             when (link) {
-                MenuLink.HOW_TO_PLAY -> closeMenu(null) // Task 3 opens the How to play card here
+                MenuLink.HOW_TO_PLAY -> {
+                    closeMenu(null)
+                    showHowToPlay()
+                }
             }
         }
 
@@ -139,24 +145,26 @@ class MobileGameActivity : Activity() {
         settings = GameStore.load(this)
         phone = PhoneStore.load(this)
         updatePpi()
-        view = GameView(this, settings, RemoteProfile(), startPaused = false,
+        view = GameView(this, settings, RemoteProfile(), startPaused = !PhoneStore.howToPlaySeen(this),
             sizer = MazeSizer { s, w, h, rng -> phoneGrid(s, w, h, ppi, rng) })
         toolbar = GameToolbar(this, onHint = { view.send { hint() } }, onMenu = ::openMenu)
         startStrip = RotatedFrame(this).apply { setBackgroundColor(BACKGROUND) }
         endStrip = RotatedFrame(this).apply { setBackgroundColor(BACKGROUND) }
         val board = BoardLayout(this, dp(STRIP_DP), view, startStrip, endStrip) { isTall ->
             tall = isTall
-            placeToolbar()
+            setTurns(turnsFor(-1, turns, phone.hold, tall))
         }
         overlay = RotatedFrame(this)
         scrim = View(this).apply {
             setBackgroundColor(SCRIM)
             visibility = View.GONE
-            setOnClickListener { closeMenu(null) }
+            setOnClickListener { if (howOpen) hideHowToPlay() else closeMenu(null) }
         }
         menu = MenuPanel(this, menuHost)
         winPanel = panel()
         winScroll = scroller(winPanel)
+        howPanel = panel()
+        howScroll = scroller(howPanel)
         backHint = label("Press Back again to leave", 16f, TEXT).apply {
             setPadding(dp(20), dp(10), dp(20), dp(10))
             background = rounded(PANEL, dp(10).toFloat())
@@ -169,21 +177,26 @@ class MobileGameActivity : Activity() {
                 topMargin = dp(12)
                 bottomMargin = dp(12)
             })
+            addView(howScroll, FrameLayout.LayoutParams(dp(360), WRAP, Gravity.CENTER).apply {
+                topMargin = dp(12)
+                bottomMargin = dp(12)
+            })
             addView(backHint, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
                 bottomMargin = dp(88)
             })
         }
         menu.visibility = View.GONE
         winScroll.visibility = View.GONE
+        howScroll.visibility = View.GONE
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(board, FrameLayout.LayoutParams(MATCH, MATCH))
             addView(this@MobileGameActivity.overlay, FrameLayout.LayoutParams(MATCH, MATCH))
         }
-        // The layout keeps clear of a camera cutout; hidden system bars take no space.
+        // The layout keeps clear of a camera cutout, and of the system bars when they are shown.
         root.setOnApplyWindowInsetsListener { v, insets ->
-            val cutout = if (Build.VERSION.SDK_INT >= 28) insets.displayCutout else null
-            v.setPadding(cutout?.safeInsetLeft ?: 0, cutout?.safeInsetTop ?: 0, cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0)
+            val (l, t, r, b) = safeInsets(insets)
+            v.setPadding(l, t, r, b)
             insets
         }
         if (Build.VERSION.SDK_INT >= 28) {
@@ -223,15 +236,16 @@ class MobileGameActivity : Activity() {
         }
         orientation = object : OrientationEventListener(this) {
             override fun onOrientationChanged(degrees: Int) {
-                val next = turnsFor(degrees, turns, Hold.AUTO, tall)
+                val next = turnsFor(degrees, turns, phone.hold, tall)
                 if (next != turns) setTurns(next)
             }
         }
+        if (!PhoneStore.howToPlaySeen(this)) showHowToPlay()
     }
 
     override fun onResume() {
         super.onResume()
-        hideSystemBars()
+        applySystemBars()
         view.onResume()
         view.send { clearKeys() }
         if (orientation.canDetectOrientation()) orientation.enable()
@@ -249,7 +263,7 @@ class MobileGameActivity : Activity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemBars()
+        if (hasFocus) applySystemBars()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -262,21 +276,48 @@ class MobileGameActivity : Activity() {
         ppi = plausiblePpi(m.xdpi, m.ydpi, m.densityDpi)
     }
 
-    private fun hideSystemBars() {
+    /** Hides the status and navigation bars, or shows them, as the Look setting says. */
+    private fun applySystemBars() {
         if (Build.VERSION.SDK_INT >= 30) {
             // Still needed below API 35, where edge-to-edge is not the default.
             @Suppress("DEPRECATION")
             window.setDecorFitsSystemWindows(false)
             window.insetsController?.let {
-                it.hide(WindowInsets.Type.systemBars())
-                it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                if (phone.hideBars) {
+                    it.hide(WindowInsets.Type.systemBars())
+                    it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                } else {
+                    it.show(WindowInsets.Type.systemBars())
+                }
             }
         } else {
+            val layout = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            val hide = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
             @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            window.decorView.systemUiVisibility = if (phone.hideBars) layout or hide else layout
         }
+        window.decorView.requestApplyInsets()
+    }
+
+    /** Left, top, right, bottom to keep clear: a camera cutout, and the system bars while they show. */
+    private fun safeInsets(insets: WindowInsets): IntArray {
+        if (Build.VERSION.SDK_INT >= 30) {
+            val types = WindowInsets.Type.displayCutout() or (if (phone.hideBars) 0 else WindowInsets.Type.systemBars())
+            val i = insets.getInsets(types)
+            return intArrayOf(i.left, i.top, i.right, i.bottom)
+        }
+        val cutout = if (Build.VERSION.SDK_INT >= 28) insets.displayCutout else null
+        @Suppress("DEPRECATION")
+        val bars = if (phone.hideBars) intArrayOf(0, 0, 0, 0) else intArrayOf(
+            insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom,
+        )
+        return intArrayOf(
+            maxOf(bars[0], cutout?.safeInsetLeft ?: 0),
+            maxOf(bars[1], cutout?.safeInsetTop ?: 0),
+            maxOf(bars[2], cutout?.safeInsetRight ?: 0),
+            maxOf(bars[3], cutout?.safeInsetBottom ?: 0),
+        )
     }
 
     private fun now() = SystemClock.elapsedRealtime() / 1000.0
@@ -352,13 +393,14 @@ class MobileGameActivity : Activity() {
             if (event.repeatCount == 0) {
                 when {
                     menuOpen -> closeMenu(null)
+                    howOpen -> hideHowToPlay()
                     winShown -> finish()
                     else -> input.down(key, 0, state(), now())?.forEach(::run)
                 }
             }
             return true
         }
-        if (menuOpen || winShown) {
+        if (menuOpen || howOpen || winShown) {
             // The panels' buttons take arrows through Android's focus navigation.
             if (menuOpen && (key == RemoteKey.VOLUME_UP || key == RemoteKey.VOLUME_DOWN)) {
                 if (event.repeatCount == 0) menu.nextTab(if (key == RemoteKey.VOLUME_UP) 1 else -1)
@@ -402,11 +444,15 @@ class MobileGameActivity : Activity() {
     /** True when the focused view sits inside the panel that is currently open. */
     private fun focusInOpenPanel(): Boolean {
         val focused = currentFocus ?: return false
-        return isInside(focused, if (menuOpen) menu else winPanel)
+        return isInside(focused, if (menuOpen) menu else if (howOpen) howPanel else winPanel)
     }
 
     private fun focusFirst() {
-        if (menuOpen) menu.focusFirst() else firstWinButton?.requestFocus()
+        when {
+            menuOpen -> menu.focusFirst()
+            howOpen -> howButton?.requestFocus()
+            else -> firstWinButton?.requestFocus()
+        }
     }
 
     private fun isInside(view: View, parent: View): Boolean {
@@ -481,8 +527,47 @@ class MobileGameActivity : Activity() {
     }
 
     private fun changePhoneSettings(next: PhoneSettings) {
+        val before = phone
         phone = next
         PhoneStore.save(this, next)
+        if (next.hold != before.hold) setTurns(turnsFor(-1, turns, next.hold, tall))
+        if (next.hideBars != before.hideBars) applySystemBars()
+    }
+
+    // --- how to play -------------------------------------------------------------------------
+
+    private fun showHowToPlay() {
+        if (howOpen) return
+        howOpen = true
+        heldKeys.clear()
+        view.send {
+            paused = true
+            clearKeys()
+        }
+        if (screenHeld) releaseScreen()
+        if (winShown) hideWin()
+        howPanel.removeAllViews()
+        howPanel.addView(label("How to play", 24f, TEXT).apply {
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+        }, LinearLayout.LayoutParams(MATCH, WRAP))
+        for (line in HOW_TO_PLAY) {
+            howPanel.addView(label(line, 16f, TEXT).apply { setPadding(0, dp(10), 0, 0) }, LinearLayout.LayoutParams(MATCH, WRAP))
+        }
+        val play = panelButton("Play") { hideHowToPlay() }
+        howButton = play
+        howPanel.addView(play, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(18) })
+        scrim.visibility = View.VISIBLE
+        howScroll.visibility = View.VISIBLE
+    }
+
+    private fun hideHowToPlay() {
+        if (!howOpen) return
+        howOpen = false
+        PhoneStore.markHowToPlaySeen(this)
+        howScroll.visibility = View.GONE
+        scrim.visibility = View.GONE
+        view.send { paused = false }
     }
 
     // --- win panel and toolbar ---------------------------------------------------------------
@@ -491,14 +576,14 @@ class MobileGameActivity : Activity() {
         val snap = view.snapshot ?: return
         toolbar.show(if (snap.phase == RoundPhase.GROW) null else snap.explored, snap.elapsed)
         if (!snap.winScreen) winDismissed = false
-        if (snap.winScreen && !winShown && !winDismissed && !menuOpen) {
+        if (snap.winScreen && !winShown && !winDismissed && !menuOpen && !howOpen) {
             winShown = true
             heldKeys.clear()
             renderWin()
         } else if (!snap.winScreen && winShown) {
             hideWin()
         }
-        val hold = snap.dotMoving && !menuOpen
+        val hold = snap.dotMoving && !menuOpen && !howOpen
         if (hold && !screenHeld) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             screenHeld = true

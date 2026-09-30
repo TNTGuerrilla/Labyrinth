@@ -6,7 +6,7 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
 
         <!-- The game. The window never rotates (nosensor): the maze stays fixed to the glass
              and only the toolbar and panels turn. Folding, resizing, or a keyboard or
