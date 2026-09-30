@@ -1,9 +1,11 @@
 package com.bydesigninteractive.labyrinth.mobile
 
 import android.content.Context
+import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
+import com.bydesigninteractive.labyrinth.ACCENT
 import com.bydesigninteractive.labyrinth.BACKGROUND
 import com.bydesigninteractive.labyrinth.DIM_TEXT
 import com.bydesigninteractive.labyrinth.play.formatTime
@@ -54,6 +56,19 @@ class GameToolbar(context: Context, onHint: () -> Unit, onMenu: () -> Unit) : Li
         }
         shown = ""
         update()
+    }
+
+    /** A small dot after "Menu" while an update is on offer. */
+    fun setBadge(on: Boolean) {
+        val dot = if (on) GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(ACCENT)
+            val size = context.dp(7)
+            setSize(size, size)
+            setBounds(0, 0, size, size)
+        } else null
+        menu.setCompoundDrawablesRelative(null, null, dot, null)
+        menu.compoundDrawablePadding = context.dp(5)
     }
 
     /** [explored] is null while the maze grows (nothing to show yet). */

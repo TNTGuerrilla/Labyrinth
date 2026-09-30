@@ -17,9 +17,12 @@ enum class PhoneTab(val title: String) {
 
 enum class PhoneChoice(val label: String) { TOUCH("Touch controls"), ORIENTATION("Orientation"), JOYSTICK_HAND("Joystick hand") }
 
-enum class PhoneToggle(val label: String) { HIDE_BARS("Hide system bars") }
+enum class PhoneToggle(val label: String) { HIDE_BARS("Hide system bars"), CHECK_UPDATES("Check for updates") }
 
-enum class MenuLink(val label: String) { HOW_TO_PLAY("How to play"), CONTROLLER_TEST("Controller test") }
+enum class MenuLink(val label: String) {
+    HOW_TO_PLAY("How to play"), CONTROLLER_TEST("Controller test"),
+    UPDATE("Update"), DISMISS("Dismiss"), CHECK_NOW("Check now"), WHATS_NEW("What's new"),
+}
 
 sealed interface MenuRow {
     data class Note(val text: String) : MenuRow
@@ -28,6 +31,8 @@ sealed interface MenuRow {
     data class Choice(val choice: PhoneChoice) : MenuRow
     data class Toggle(val toggle: PhoneToggle) : MenuRow
     data class Link(val link: MenuLink) : MenuRow
+    /** The update line, drawn live by the menu. */
+    data object Status : MenuRow
 }
 
 const val COPYRIGHT = "\u00a9 2026 ByDesign Interactive"
@@ -53,7 +58,7 @@ val HOW_TO_PLAY = listOf(
 
 private val HOLD_LABELS = mapOf(Hold.AUTO to "Auto", Hold.PORTRAIT to "Portrait", Hold.LANDSCAPE to "Landscape")
 
-fun phoneRows(tab: PhoneTab, s: GameSettings, p: PhoneSettings, version: String, controllerUsed: Boolean = false): List<MenuRow> = when (tab) {
+fun phoneRows(tab: PhoneTab, s: GameSettings, p: PhoneSettings, version: String, controllerUsed: Boolean = false, canUpdate: Boolean = false): List<MenuRow> = when (tab) {
     PhoneTab.CONTROLS -> listOfNotNull(
         MenuRow.Choice(PhoneChoice.TOUCH),
         if (p.touch == TouchScheme.JOYSTICK) MenuRow.Choice(PhoneChoice.JOYSTICK_HAND) else null,
@@ -88,8 +93,14 @@ fun phoneRows(tab: PhoneTab, s: GameSettings, p: PhoneSettings, version: String,
         MenuRow.Choice(PhoneChoice.ORIENTATION),
         MenuRow.Toggle(PhoneToggle.HIDE_BARS),
     )
-    PhoneTab.ABOUT -> listOf(
+    PhoneTab.ABOUT -> listOfNotNull(
         MenuRow.Note("Labyrinth Mobile $version"),
+        MenuRow.Status,
+        if (canUpdate) MenuRow.Link(MenuLink.UPDATE) else null,
+        if (canUpdate) MenuRow.Link(MenuLink.DISMISS) else null,
+        MenuRow.Link(MenuLink.CHECK_NOW),
+        MenuRow.Link(MenuLink.WHATS_NEW),
+        MenuRow.Toggle(PhoneToggle.CHECK_UPDATES),
         MenuRow.Link(MenuLink.HOW_TO_PLAY),
         MenuRow.Note(COPYRIGHT),
         MenuRow.Note(LICENSE_LINE),
@@ -121,10 +132,12 @@ fun choose(c: PhoneChoice, p: PhoneSettings, i: Int): PhoneSettings = when (c) {
 
 fun toggleValue(t: PhoneToggle, p: PhoneSettings): Boolean = when (t) {
     PhoneToggle.HIDE_BARS -> p.hideBars
+    PhoneToggle.CHECK_UPDATES -> false // held by the updater, not PhoneSettings: MenuPanel asks its host
 }
 
 fun flip(t: PhoneToggle, p: PhoneSettings): PhoneSettings = when (t) {
     PhoneToggle.HIDE_BARS -> p.copy(hideBars = !p.hideBars)
+    PhoneToggle.CHECK_UPDATES -> p // held by the updater, not PhoneSettings: MenuPanel asks its host
 }
 
 /** Slider positions for a number: one per increment from low to high. */

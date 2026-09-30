@@ -74,14 +74,22 @@ class PhoneMenuTest {
     }
 
     @Test
-    fun aboutShowsTheVersionHowToPlayAndLicense() {
+    fun aboutShowsTheVersionUpdatesHowToPlayAndLicense() {
         assertEquals(
             listOf(
-                MenuRow.Note("Labyrinth Mobile 1.2.3"), MenuRow.Link(MenuLink.HOW_TO_PLAY),
+                MenuRow.Note("Labyrinth Mobile 1.2.3"), MenuRow.Status,
+                MenuRow.Link(MenuLink.CHECK_NOW), MenuRow.Link(MenuLink.WHATS_NEW), MenuRow.Toggle(PhoneToggle.CHECK_UPDATES),
+                MenuRow.Link(MenuLink.HOW_TO_PLAY),
                 MenuRow.Note(COPYRIGHT), MenuRow.Note(LICENSE_LINE), MenuRow.Note(PROJECT_ADDRESS),
             ),
             phoneRows(PhoneTab.ABOUT, s, p, "1.2.3"),
         )
+    }
+
+    @Test
+    fun anOfferedUpdateAddsUpdateAndDismiss() {
+        val rows = phoneRows(PhoneTab.ABOUT, s, p, "1.2.3", canUpdate = true)
+        assertEquals(listOf(MenuRow.Link(MenuLink.UPDATE), MenuRow.Link(MenuLink.DISMISS)), rows.subList(2, 4))
     }
 
     @Test

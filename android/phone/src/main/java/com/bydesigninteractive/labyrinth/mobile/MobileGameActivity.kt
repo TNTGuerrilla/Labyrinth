@@ -32,6 +32,13 @@ import android.widget.TextView
 import com.bydesigninteractive.labyrinth.BACKGROUND
 import com.bydesigninteractive.labyrinth.DIM_TEXT
 import com.bydesigninteractive.labyrinth.TEXT
+import com.bydesigninteractive.labyrinth.styledNotes
+import com.bydesigninteractive.labyrinth.update.RELEASES_TEXT
+import com.bydesigninteractive.labyrinth.update.Release
+import com.bydesigninteractive.labyrinth.update.UpdateStore
+import com.bydesigninteractive.labyrinth.update.Updates
+import com.bydesigninteractive.labyrinth.update.WhatsNew
+import com.bydesigninteractive.labyrinth.update.notesBetween
 import com.bydesigninteractive.labyrinth.game.Command
 import com.bydesigninteractive.labyrinth.game.GameInput
 import com.bydesigninteractive.labyrinth.game.GameSettings
@@ -77,6 +84,7 @@ class MobileGameActivity : Activity() {
     private lateinit var endStrip: RotatedFrame
     private lateinit var overlay: RotatedFrame
     private lateinit var toolbar: GameToolbar
+    private lateinit var updates: UpdateFlow
     private lateinit var scrim: View
     private lateinit var menu: MenuPanel
     private lateinit var phone: PhoneSettings
@@ -88,10 +96,10 @@ class MobileGameActivity : Activity() {
     private lateinit var winPanel: LinearLayout
     /** The win panel sits in a scroller, so a phone held sideways can reach all of it. */
     private lateinit var winScroll: CappedScroll
-    private lateinit var howPanel: LinearLayout
-    private lateinit var howScroll: CappedScroll
-    private var howOpen = false
-    private var howButton: View? = null
+    private lateinit var cardPanel: LinearLayout
+    private lateinit var cardScroll: CappedScroll
+    private var cardOpen = false
+    private var cardButton: View? = null
     private lateinit var backHint: TextView
     private lateinit var swipes: SwipeTracker
     private lateinit var joystick: JoystickView
@@ -131,6 +139,10 @@ class MobileGameActivity : Activity() {
         override val phone: PhoneSettings get() = this@MobileGameActivity.phone
         override val version: String get() = appVersion
         override val controllerUsed: Boolean get() = this@MobileGameActivity.controllerUsed
+        override val canUpdate: Boolean get() = updates.canUpdate
+        override fun updateStatus(): String = updates.status
+        override val checksOn: Boolean get() = updates.checksOn
+        override fun toggleChecks() = updates.toggleChecks()
 
         override fun readout(): String? {
             val snap = view.snapshot ?: return null
@@ -145,6 +157,13 @@ class MobileGameActivity : Activity() {
                 MenuLink.HOW_TO_PLAY -> {
                     closeMenu(null)
                     showHowToPlay()
+                }
+                MenuLink.UPDATE -> updates.startUpdate()
+                MenuLink.DISMISS -> updates.dismiss()
+                MenuLink.CHECK_NOW -> updates.checkNow()
+                MenuLink.WHATS_NEW -> {
+                    closeMenu(null)
+                    showWhatsNew(UpdateStore.runningWhatsNew(this@MobileGameActivity, updates.current))
                 }
                 MenuLink.CONTROLLER_TEST -> {
                     closeMenu(null)
@@ -175,6 +194,7 @@ class MobileGameActivity : Activity() {
         phone = PhoneStore.load(this)
         appVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         updatePpi()
+        updates = UpdateFlow(this) { onUpdateChange() }
         remote = GameStore.loadRemote(this) ?: RemoteProfile()
         controllerUsed = PhoneStore.controllerUsed(this)
         view = GameView(this, settings, remote, startPaused = !PhoneStore.howToPlaySeen(this),
@@ -190,20 +210,20 @@ class MobileGameActivity : Activity() {
         scrim = View(this).apply {
             setBackgroundColor(SCRIM)
             visibility = View.GONE
-            setOnClickListener { if (howOpen) hideHowToPlay() else closeMenu(null) }
+            setOnClickListener { if (cardOpen) closeCard() else closeMenu(null) }
         }
         menu = MenuPanel(this, menuHost)
         winPanel = panel()
         winScroll = scroller(winPanel, 340)
-        howPanel = panel()
-        howScroll = scroller(howPanel, 360)
+        cardPanel = panel()
+        cardScroll = scroller(cardPanel, 360)
         backHint = label("Press Back again to leave", 16f, TEXT).apply {
             setPadding(dp(20), dp(10), dp(20), dp(10))
             background = rounded(PANEL, dp(10).toFloat())
             visibility = View.GONE
         }
         joystick = JoystickView(this) { seen ->
-            if (menuOpen || howOpen) return@JoystickView
+            if (menuOpen || cardOpen) return@JoystickView
             stickDir?.let { d -> view.send { releaseTouch(d) } }
             stickDir = seen?.let { toMaze(it, turns) }
             stickDir?.let { d -> view.send { holdTouch(d) } }
@@ -213,7 +233,7 @@ class MobileGameActivity : Activity() {
             addView(scrim, FrameLayout.LayoutParams(MATCH, MATCH))
             addView(menu, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.CENTER).apply { setMargins(dp(12), dp(12), dp(12), dp(12)) })
             addView(winScroll, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.CENTER).apply { setMargins(dp(12), dp(12), dp(12), dp(12)) })
-            addView(howScroll, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.CENTER).apply { setMargins(dp(12), dp(12), dp(12), dp(12)) })
+            addView(cardScroll, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.CENTER).apply { setMargins(dp(12), dp(12), dp(12), dp(12)) })
             addView(backHint, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
                 bottomMargin = dp(88)
             })
@@ -221,7 +241,7 @@ class MobileGameActivity : Activity() {
         placeJoystick()
         menu.visibility = View.GONE
         winScroll.visibility = View.GONE
-        howScroll.visibility = View.GONE
+        cardScroll.visibility = View.GONE
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(board, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -276,11 +296,25 @@ class MobileGameActivity : Activity() {
                 if (next != turns) setTurns(next)
             }
         }
-        if (!PhoneStore.howToPlaySeen(this)) showHowToPlay()
+        if (savedInstanceState == null) {
+            val news = UpdateStore.startWhatsNew(this, updates.current)
+            val offer = updates.pending()
+            when (launchCard(!PhoneStore.howToPlaySeen(this), news != null, offer != null)) {
+                LaunchCard.HOW_TO_PLAY -> showHowToPlay()
+                LaunchCard.WHATS_NEW -> {
+                    showWhatsNew(news!!)
+                    UpdateStore.markWhatsNewSeen(this, updates.current) // shown once: it counts as seen
+                }
+                LaunchCard.UPDATE -> showUpdateCard(offer!!)
+                null -> {}
+            }
+        }
+        handleInstallReport(intent)
     }
 
     override fun onResume() {
         super.onResume()
+        updates.onResume()
         applySystemBars()
         view.onResume()
         view.send { clearKeys() }
@@ -489,14 +523,14 @@ class MobileGameActivity : Activity() {
             if (event.repeatCount == 0) {
                 when {
                     menuOpen -> closeMenu(null)
-                    howOpen -> hideHowToPlay()
+                    cardOpen -> closeCard()
                     winShown -> finish()
                     else -> input.down(key, 0, state(), now())?.forEach(::run)
                 }
             }
             return true
         }
-        if (menuOpen || howOpen || winShown) {
+        if (menuOpen || cardOpen || winShown) {
             // The panels' buttons take arrows through Android's focus navigation.
             if (menuOpen && (key == RemoteKey.VOLUME_UP || key == RemoteKey.VOLUME_DOWN)) {
                 if (event.repeatCount == 0) menu.nextTab(if (key == RemoteKey.VOLUME_UP) 1 else -1)
@@ -540,13 +574,13 @@ class MobileGameActivity : Activity() {
     /** True when the focused view sits inside the panel that is currently open. */
     private fun focusInOpenPanel(): Boolean {
         val focused = currentFocus ?: return false
-        return isInside(focused, if (menuOpen) menu else if (howOpen) howPanel else winPanel)
+        return isInside(focused, if (menuOpen) menu else if (cardOpen) cardPanel else winPanel)
     }
 
     private fun focusFirst() {
         when {
             menuOpen -> menu.focusFirst()
-            howOpen -> howButton?.requestFocus()
+            cardOpen -> cardButton?.requestFocus()
             else -> firstWinButton?.requestFocus()
         }
     }
@@ -635,11 +669,19 @@ class MobileGameActivity : Activity() {
         if (next.hideBars != before.hideBars) applySystemBars()
     }
 
-    // --- how to play -------------------------------------------------------------------------
+    // --- cards -------------------------------------------------------------------------
 
-    private fun showHowToPlay() {
-        if (howOpen) return
-        howOpen = true
+    /** The card shown now, so closing it can do what that card needs. */
+    private var card: LaunchCard? = null
+
+    /**
+     * Shows a card over the paused maze: a title, lines (plain or styled notes) and buttons, the
+     * first of which takes a controller's focus.
+     */
+    private fun showCard(kind: LaunchCard, title: String, body: List<CharSequence>, buttons: List<Pair<String, () -> Unit>>) {
+        if (cardOpen) closeCard()
+        cardOpen = true
+        card = kind
         heldKeys.clear()
         letGoOfStick()
         view.send {
@@ -648,28 +690,80 @@ class MobileGameActivity : Activity() {
         }
         if (screenHeld) releaseScreen()
         if (winShown) hideWin()
-        howPanel.removeAllViews()
-        howPanel.addView(label("How to play", 24f, TEXT).apply {
+        cardPanel.removeAllViews()
+        cardPanel.addView(label(title, 22f, TEXT).apply {
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
         }, LinearLayout.LayoutParams(MATCH, WRAP))
-        for (line in HOW_TO_PLAY) {
-            howPanel.addView(label(line, 16f, TEXT).apply { setPadding(0, dp(10), 0, 0) }, LinearLayout.LayoutParams(MATCH, WRAP))
+        for (line in body) {
+            cardPanel.addView(label("", 16f, TEXT).apply {
+                text = line
+                setPadding(0, dp(10), 0, 0)
+            }, LinearLayout.LayoutParams(MATCH, WRAP))
         }
-        val play = panelButton("Play") { hideHowToPlay() }
-        howButton = play
-        howPanel.addView(play, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(18) })
+        cardButton = null
+        for ((text, action) in buttons) {
+            val button = panelButton(text) { action() }
+            if (cardButton == null) cardButton = button
+            cardPanel.addView(button, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(12) })
+        }
         scrim.visibility = View.VISIBLE
-        howScroll.visibility = View.VISIBLE
+        cardScroll.visibility = View.VISIBLE
     }
 
-    private fun hideHowToPlay() {
-        if (!howOpen) return
-        howOpen = false
-        PhoneStore.markHowToPlaySeen(this)
-        howScroll.visibility = View.GONE
+    /** Closes the card (Back, a tap outside, or its buttons) and resumes the game. */
+    private fun closeCard() {
+        if (!cardOpen) return
+        cardOpen = false
+        if (card == LaunchCard.HOW_TO_PLAY) PhoneStore.markHowToPlaySeen(this)
+        card = null
+        cardScroll.visibility = View.GONE
         scrim.visibility = View.GONE
         view.send { paused = false }
+    }
+
+    private fun showHowToPlay() =
+        showCard(LaunchCard.HOW_TO_PLAY, "How to play", HOW_TO_PLAY, listOf("Play" to ::closeCard))
+
+    private fun showWhatsNew(news: WhatsNew) {
+        val notes = label("", 16f, DIM_TEXT)
+        showCard(LaunchCard.WHATS_NEW, "Updated to ${news.version}", listOf(styledNotes(news.lines(), notes.paint)), listOf("Play" to ::closeCard))
+    }
+
+    private fun showUpdateCard(release: Release) {
+        val entries = notesBetween(UpdateStore.loadSeen(this).notes, updates.current, release.version)
+        val paint = label("", 16f, DIM_TEXT).paint
+        val body = if (entries.isEmpty()) listOf<CharSequence>(RELEASES_TEXT) else listOf(styledNotes(WhatsNew(release.version, entries).lines(), paint))
+        showCard(LaunchCard.UPDATE, "Labyrinth ${release.version} is available", body, listOf(
+            "Update now" to {
+                closeCard()
+                openMenu(PhoneTab.ABOUT)
+                updates.startUpdate()
+            },
+            "Dismiss" to {
+                updates.dismiss()
+                closeCard()
+            },
+        ))
+    }
+
+    private fun onUpdateChange() {
+        toolbar.setBadge(updates.offered != null)
+        if (menuOpen) menu.changed()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleInstallReport(intent)
+    }
+
+    /** InstallStatusActivity brings the game back when an update did not install: say so in About. */
+    private fun handleInstallReport(intent: Intent?) {
+        if (intent?.getBooleanExtra(Updates.EXTRA_INSTALL_FAILED, false) != true) return
+        intent.removeExtra(Updates.EXTRA_INSTALL_FAILED) // not again if the activity is recreated
+        if (!Updates.takeInstallReport()) return
+        updates.installFailed()
+        if (!menuOpen) openMenu(PhoneTab.ABOUT)
     }
 
     // --- win panel and toolbar ---------------------------------------------------------------
@@ -678,14 +772,14 @@ class MobileGameActivity : Activity() {
         val snap = view.snapshot ?: return
         toolbar.show(if (snap.phase == RoundPhase.GROW) null else snap.explored, snap.elapsed)
         if (!snap.winScreen) winDismissed = false
-        if (snap.winScreen && !winShown && !winDismissed && !menuOpen && !howOpen) {
+        if (snap.winScreen && !winShown && !winDismissed && !menuOpen && !cardOpen) {
             winShown = true
             heldKeys.clear()
             renderWin()
         } else if (!snap.winScreen && winShown) {
             hideWin()
         }
-        val hold = snap.dotMoving && !menuOpen && !howOpen
+        val hold = snap.dotMoving && !menuOpen && !cardOpen
         if (hold && !screenHeld) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             screenHeld = true

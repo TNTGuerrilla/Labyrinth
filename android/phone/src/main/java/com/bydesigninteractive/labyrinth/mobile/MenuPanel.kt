@@ -39,6 +39,10 @@ class MenuPanel(context: Context, private val host: Host) : LinearLayout(context
         val phone: PhoneSettings
         val version: String
         val controllerUsed: Boolean
+        val canUpdate: Boolean
+        fun updateStatus(): String
+        val checksOn: Boolean
+        fun toggleChecks()
         /** "Explored N . M:SS" while a maze is being played, else null. */
         fun readout(): String?
         fun changeGame(next: GameSettings)
@@ -118,7 +122,7 @@ class MenuPanel(context: Context, private val host: Host) : LinearLayout(context
     // Being clickable would press every child slider with the panel; they must not show as pressed.
     override fun dispatchSetPressed(pressed: Boolean) {}
 
-    private fun rowsNow() = phoneRows(tab, host.game, host.phone, host.version, host.controllerUsed)
+    private fun rowsNow() = phoneRows(tab, host.game, host.phone, host.version, host.controllerUsed, canUpdate = host.canUpdate)
 
     private fun setGame(next: GameSettings) {
         host.changeGame(next)
@@ -175,7 +179,21 @@ class MenuPanel(context: Context, private val host: Host) : LinearLayout(context
             is MenuRow.Choice -> choiceRow(row, row.choice.label, choiceOptions(row.choice), { choiceIndex(row.choice, host.phone) }) { i ->
                 setPhone(choose(row.choice, host.phone, i))
             }
-            is MenuRow.Toggle -> toggleRow(row, row.toggle.label, { toggleValue(row.toggle, host.phone) }) { setPhone(flip(row.toggle, host.phone)) }
+            is MenuRow.Toggle -> if (row.toggle == PhoneToggle.CHECK_UPDATES) {
+                toggleRow(row, row.toggle.label, { host.checksOn }) {
+                    host.toggleChecks()
+                    changed()
+                }
+            } else {
+                toggleRow(row, row.toggle.label, { toggleValue(row.toggle, host.phone) }) { setPhone(flip(row.toggle, host.phone)) }
+            }
+            MenuRow.Status -> {
+                val line = note("").apply { setTextColor(TEXT) }
+                val refresh = { line.text = host.updateStatus() }
+                refresh()
+                refreshers += refresh
+                body.addView(line, LayoutParams(MATCH, WRAP))
+            }
         }
     }
 
