@@ -11,6 +11,7 @@ data class Settings(
     val holdSeconds: Double = 4.0,
     val maxLeads: Int = 12,
     val coverage: Int = 100, // percent of each screen side a maze may cover
+    val solver: String = DEFAULT_SOLVER, // a SOLVER_LABELS key
 )
 
 /** One adjustable setting: its range (inclusive), step size and how to read and write it. */
@@ -35,7 +36,7 @@ enum class Field(
         { it.genSpeed }, { s, v -> s.copy(genSpeed = v) }),
     SOLVE_SPEED("Solve speed (steps per second)", 2.0, 500.0, 1.0, false,
         { it.solveSpeed }, { s, v -> s.copy(solveSpeed = v) }),
-    LOOKAHEAD("Look-ahead distance (cells)", 0.0, 12.0, 1.0, true,
+    LOOKAHEAD("Look-ahead (cells, Human-like and Depth-first)", 0.0, 12.0, 1.0, true,
         { it.lookahead.toDouble() }, { s, v -> s.copy(lookahead = v.toInt()) }),
     HOLD_SECONDS("Show solved maze for (seconds)", 0.0, 30.0, 0.5, false,
         { it.holdSeconds }, { s, v -> s.copy(holdSeconds = v) });
@@ -61,4 +62,14 @@ fun settingsFrom(raw: Map<Field, Double?>): Settings {
         settings = settings.copy(minCells = settings.maxCells, maxCells = settings.minCells)
     }
     return settings
+}
+
+/** A stored solver name, or the default when it is missing or unknown. */
+fun solverFrom(raw: String?): String = if (raw != null && raw in SOLVER_LABELS) raw else DEFAULT_SOLVER
+
+/** The solver after (sign 1) or before (sign -1) [current] in SOLVER_LABELS order, wrapping. */
+fun nextSolver(current: String, sign: Int): String {
+    val names = SOLVER_LABELS.keys.toList()
+    val i = names.indexOf(solverFrom(current))
+    return names[(i + sign + names.size) % names.size]
 }
