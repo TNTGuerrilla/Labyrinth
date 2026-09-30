@@ -77,9 +77,20 @@ data class Snapshot(
     val dotMoving: Boolean,
 )
 
-class GameView(context: Context, settings: GameSettings, remote: RemoteProfile, startPaused: Boolean) :
-    GLSurfaceView(context) {
-    private val game = GameRenderer(settings, remote, startPaused)
+/** How big a new maze is for the play area, as (cols, rows). */
+fun interface MazeSizer {
+    fun grid(s: GameSettings, viewW: Int, viewH: Int, rng: Random): Pair<Int, Int>
+}
+
+/** The TV's sizes: presets count cells on the short side. */
+val TV_SIZER = MazeSizer { s, w, h, rng ->
+    gridSize(pickShort(s.size, s.customMin, s.customMax, w, h, rng, s.coverage), w, h, s.coverage)
+}
+
+class GameView(
+    context: Context, settings: GameSettings, remote: RemoteProfile, startPaused: Boolean, sizer: MazeSizer = TV_SIZER,
+) : GLSurfaceView(context) {
+    private val game = GameRenderer(settings, remote, startPaused, sizer)
 
     init {
         setEGLContextClientVersion(2)
@@ -165,7 +176,8 @@ private val TRIANGLE_FRAGMENT = """
 private fun floats(vararg v: Float): FloatBuffer =
     ByteBuffer.allocateDirect(v.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().apply { put(v).position(0) }
 
-class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: Boolean) : GLSurfaceView.Renderer {
+class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: Boolean, private val sizer: MazeSizer) :
+    GLSurfaceView.Renderer {
     var settings = settings
         private set
     private val controller = GameController(settings, remote)
@@ -211,8 +223,7 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
     fun newRound() {
         if (width == 0) return // no surface yet; onSurfaceChanged starts the round
         val s = settings
-        val short = pickShort(s.size, s.customMin, s.customMax, width, height, rng, s.coverage)
-        val (cols, rows) = gridSize(short, width, height, s.coverage)
+        val (cols, rows) = sizer.grid(s, width, height, rng)
         val r = Round.create(cols, rows, s, rng)
         controller.start(r)
         val cam = Camera(cols, rows, width, height, s.coverage)

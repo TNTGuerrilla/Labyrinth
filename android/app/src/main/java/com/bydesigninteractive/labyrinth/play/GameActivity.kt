@@ -48,11 +48,6 @@ private const val BACK_HINT_MS = 2000L
 private val PANEL = Color.argb(240, 16, 18, 22)
 private val WARN = Color.rgb(235, 170, 60)
 
-fun formatTime(seconds: Double): String {
-    val s = seconds.toInt()
-    return "%d:%02d".format(s / 60, s % 60)
-}
-
 class GameActivity : Activity() {
     private lateinit var view: GameView
     private lateinit var settings: GameSettings
