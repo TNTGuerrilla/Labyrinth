@@ -9,7 +9,8 @@ plugins {
 // Labyrinth Mobile's version lives in versions.json at the repo root, next to the others.
 @Suppress("UNCHECKED_CAST")
 val versions = JsonSlurper().parse(rootProject.file("../versions.json")) as Map<String, String>
-val mobileVersion: String = versions.getValue("mobile")
+// -PmobileVersion=X.Y.Z builds a test copy with another version (for update tests); releases use versions.json.
+val mobileVersion: String = (findProperty("mobileVersion") as String?) ?: versions.getValue("mobile")
 val (major, minor, patch) = mobileVersion.split(".").map { it.toInt() }
 
 // Release signing reads android/keystore.properties, which stays out of git. Without it,
@@ -29,6 +30,11 @@ android {
         targetSdk = 35
         versionCode = major * 10000 + minor * 100 + patch
         versionName = mobileVersion
+        buildConfigField("String", "UPDATE_URL", "\"https://api.github.com/repos/TNTGuerrilla/Labyrinth/releases?per_page=100\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     signingConfigs {
@@ -43,6 +49,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // tools/fake_release_server.py on the development PC, as the emulator sees it.
+            buildConfigField("String", "UPDATE_URL", "\"http://10.0.2.2:8765/releases\"")
+        }
+
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))

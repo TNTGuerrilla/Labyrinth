@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Debug builds fetch test releases from a plain-HTTP server on the development PC. -->
+    <application android:usesCleartextTraffic="true" />
+</manifest>
