@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
@@ -151,17 +152,50 @@ def staging_dir() -> Path:
     return Path(base) / "Labyrinth Screensaver" / "update"
 
 
+class StopSwitch:
+    """Lets the Settings window stop an update while it is only downloading. Once the
+    install commits to replacing the screensaver it runs to the end, so a stop can never
+    leave the program half swapped."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._stopped = False
+        self.committed = False
+
+    def stop(self) -> bool:
+        """Ask the update to stop. False when it has already committed."""
+        with self._lock:
+            if not self.committed:
+                self._stopped = True
+            return self._stopped
+
+    def stopped(self) -> bool:
+        return self._stopped
+
+    def commit(self) -> bool:
+        """Called by the install before it replaces anything. False when stopped."""
+        with self._lock:
+            if not self._stopped:
+                self.committed = True
+            return self.committed
+
+
 def install_screensaver(release: Release, target: Path, staging: Path,
                         on_progress: Optional[Progress] = None,
-                        elevate: Optional[Elevate] = None) -> None:
+                        elevate: Optional[Elevate] = None,
+                        switch: Optional[StopSwitch] = None) -> None:
     """Download and verify a new screensaver, then swap it in: directly when its folder is
     writable, otherwise by running the installed screensaver (target) through the UAC prompt
     with APPLY_FLAG. The download sits in a folder the user can write to, so it is never the
-    program that gets administrator rights. Raises UpdateError."""
+    program that gets administrator rights. `switch` can stop it until the download is
+    done. Raises UpdateError."""
     staged = staging / STAGED_NAME
     try:
         staging.mkdir(parents=True, exist_ok=True)
-        download(release.url, staged, release.sha256, on_progress)
+        download(release.url, staged, release.sha256, on_progress,
+                 stop=switch.stopped if switch is not None else None)
+        if switch is not None and not switch.commit():
+            raise UpdateError("The update was stopped.")
         if can_write(target.parent):
             install_file(staged, target)
             return

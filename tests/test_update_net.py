@@ -18,6 +18,14 @@ def test_download_verifies_and_reports_progress(serve, tmp_path):
     assert file_sha256(dest) == SHA
 
 
+def test_download_stops_when_asked_and_removes_the_file(serve, tmp_path):
+    server = serve({"/f": BODY})
+    dest = tmp_path / "f.new"
+    with pytest.raises(UpdateError, match="stopped"):
+        download(server.url("/f"), dest, SHA, stop=lambda: True)
+    assert not dest.exists()
+
+
 def test_uppercase_checksum_is_accepted(serve, tmp_path):
     server = serve({"/f": BODY})
     download(server.url("/f"), tmp_path / "f", SHA.upper())

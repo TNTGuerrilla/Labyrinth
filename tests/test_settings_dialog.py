@@ -77,6 +77,11 @@ def test_check_updates_is_saved():
     assert parse_fields(VALID, FPS_LABELS["auto"])[0].check_updates is True
 
 
+def test_update_row_while_installing():
+    assert update_row(Snapshot(DOWNLOADING, REL, 1.0), "1.0.1", installing=True) == (
+        "Installing version 1.2.0...", False, False)
+
+
 def test_update_row():
     assert update_row(Snapshot(), "1.0.1") == ("Version 1.0.1", False, False)
     assert update_row(Snapshot(AVAILABLE, REL), "1.0.1") == ("Version 1.2.0 is available.",

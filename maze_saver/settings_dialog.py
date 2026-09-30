@@ -14,6 +14,8 @@ from .icon import ICON_PATH
 
 open_browser = webbrowser.open
 
+STOP_WAIT_SECONDS = 3  # how long a stopped download gets to clean up before closing
+
 FIELDS = [
     ("min_cells", "Minimum rows/columns"),
     ("max_cells", "Maximum rows/columns"),
@@ -53,10 +55,13 @@ def _fmt(value: float) -> str:
     return str(int(value)) if float(value).is_integer() else str(value)
 
 
-def update_row(snapshot: Snapshot, current: str,
-               report: CheckReport = CheckReport()) -> tuple[str, bool, bool]:
-    """(message, show Update, show Dismiss) for the dialog's update row."""
+def update_row(snapshot: Snapshot, current: str, report: CheckReport = CheckReport(),
+               installing: bool = False) -> tuple[str, bool, bool]:
+    """(message, show Update, show Dismiss) for the dialog's update row. `installing` is
+    set once the download is done and the new version is being put in place."""
     version = snapshot.release.version if snapshot.release is not None else ""
+    if snapshot.status == DOWNLOADING and installing:
+        return f"Installing version {version}...", False, False
     if snapshot.status == DOWNLOADING:
         return f"Downloading version {version}: {int(snapshot.progress * 100)}%", False, False
     if snapshot.status == READY:
@@ -105,6 +110,9 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
     from labyrinth_update.version import running_version
 
     current = load(path)
+    # The update this window started: its StopSwitch, and whether Cancel or OK is waiting
+    # for its install to end.
+    update: dict = {"switch": None, "closing": False}
     root = tk.Tk()
     root.title("Labyrinth Screensaver Settings")
     try:
@@ -178,7 +186,13 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
     if updater is None:
         ttk.Label(info, text=SOURCE_ONLY).grid(row=5, column=0, columnspan=2, sticky="w")
     else:
-        from labyrinth_update.install import install_screensaver, staging_dir
+        from labyrinth_update.install import StopSwitch, install_screensaver, staging_dir
+
+        def start_update() -> None:
+            switch = StopSwitch()
+            update["switch"] = switch
+            updater.install(lambda release, progress: install_screensaver(
+                release, target, staging_dir(), progress, switch=switch))
 
         box = ttk.Frame(info)
         box.grid(row=5, column=0, columnspan=2, sticky="we", pady=(4, 0))
@@ -186,9 +200,7 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
         status = ttk.Label(box, text="", wraplength=300)
         status.grid(row=0, column=0, sticky="w")
         target = updater.target
-        update_button = ttk.Button(box, text="Update", command=lambda: updater.install(
-            lambda release, progress: install_screensaver(release, target, staging_dir(),
-                                                          progress)))
+        update_button = ttk.Button(box, text="Update", command=start_update)
         dismiss_button = ttk.Button(box, text="Dismiss", command=updater.dismiss)
 
         actions = ttk.Frame(info)
@@ -199,8 +211,13 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
                   command=lambda: show_notes(updater.running_whats_new())).grid(row=0, column=1)
 
         def poll() -> None:
-            message, can_update, can_dismiss = update_row(updater.snapshot, updater.current,
-                                                          updater.check_report)
+            if update["closing"] and updater.snapshot.status != DOWNLOADING:
+                root.destroy()  # the install that Cancel or OK waited for has ended
+                return
+            switch = update["switch"]
+            message, can_update, can_dismiss = update_row(
+                updater.snapshot, updater.current, updater.check_report,
+                installing=switch is not None and switch.committed)
             status.configure(text=message)
             for widget, show, column in ((update_button, can_update, 1),
                                          (dismiss_button, can_dismiss, 2)):
@@ -220,12 +237,31 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
             updater.mark_whats_new_seen()  # opening the dialog is what counts as seen
 
     def close() -> None:
-        """Hide at once, but let a download or install that is under way finish. A check
-        gets a few seconds, so a stalled server cannot keep a hidden process alive."""
+        """Close, asking first while an update downloads: stopping it is safe until the
+        install commits. After that the window stays up and closes when the install ends
+        (poll does it). A check gets a few seconds, so a stalled server cannot keep a
+        hidden process alive."""
+        if update["closing"]:
+            return
+        if updater is not None and updater.snapshot.status == DOWNLOADING:
+            switch = update["switch"]
+            if switch is not None and not switch.committed:
+                if not messagebox.askyesno("Labyrinth Screensaver",
+                                           "An update is downloading. Stop it and close?",
+                                           parent=root):
+                    return
+                if switch.stop():
+                    root.withdraw()
+                    # A stalled read can take up to the download timeout to notice; the
+                    # thread is a daemon, so leaving sooner only leaves a partial download.
+                    updater.wait(STOP_WAIT_SECONDS)
+                    root.destroy()
+                    return
+            update["closing"] = True
+            return
         root.withdraw()
         if updater is not None:
-            installing = updater.snapshot.status == DOWNLOADING
-            updater.wait(None if installing else 5)
+            updater.wait(5)
         root.destroy()
 
     def on_ok() -> None:

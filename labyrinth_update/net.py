@@ -78,10 +78,11 @@ def _remove(path: Path) -> None:
 
 
 def download(url: str, dest: Path, sha256: str, on_progress: Optional[Progress] = None,
-             timeout: float = 30) -> None:
+             timeout: float = 30, stop: Optional[Callable[[], bool]] = None) -> None:
     """Save url to dest and check its SHA-256. On any failure dest is removed and
     UpdateError is raised, so a partial or wrong file is never left behind. A file larger
-    than MAX_DOWNLOAD_BYTES is refused."""
+    than MAX_DOWNLOAD_BYTES is refused. `stop` is asked between chunks; when it answers
+    True the download ends with UpdateError."""
     digest = hashlib.sha256()
     response = open_url(url, "application/octet-stream", timeout)
     try:
@@ -89,7 +90,11 @@ def download(url: str, dest: Path, sha256: str, on_progress: Optional[Progress] 
             total = int(response.headers.get("Content-Length") or 0)
             done = 0
             too_large = total > MAX_DOWNLOAD_BYTES
+            stopped = False
             while not too_large:
+                if stop is not None and stop():
+                    stopped = True
+                    break
                 chunk = response.read(CHUNK)
                 if not chunk:
                     break
@@ -107,6 +112,9 @@ def download(url: str, dest: Path, sha256: str, on_progress: Optional[Progress] 
     except (OSError, http.client.HTTPException, ValueError) as exc:
         _remove(dest)
         raise UpdateError("The download was interrupted.") from exc
+    if stopped:
+        _remove(dest)
+        raise UpdateError("The update was stopped.")
     if too_large:
         _remove(dest)
         raise UpdateError("The download was too large to be an update.")

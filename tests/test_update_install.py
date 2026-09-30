@@ -9,9 +9,10 @@ from pathlib import Path
 import pytest
 
 from labyrinth_update import APPLY_FLAG, install
-from labyrinth_update.install import (STAGED_NAME, apply_update, authorize_apply, can_write,
-                                      cleanup_old, extract_linux_binary, install_game,
-                                      install_screensaver, new_path, relaunch, swap)
+from labyrinth_update.install import (STAGED_NAME, StopSwitch, apply_update, authorize_apply,
+                                      can_write, cleanup_old, extract_linux_binary,
+                                      install_game, install_screensaver, new_path, relaunch,
+                                      swap)
 from labyrinth_update.net import UpdateError
 from labyrinth_update.releases import Release
 
@@ -216,6 +217,52 @@ def test_screensaver_in_a_protected_folder_elevates_the_installed_program(serve,
     assert args == [APPLY_FLAG, str(staging / STAGED_NAME), str(target), sha(body)]
     assert target.read_bytes() == body
     assert not (staging / STAGED_NAME).exists()
+
+
+def test_stop_switch_stops_only_before_the_install_commits():
+    switch = StopSwitch()
+    assert switch.stop() and switch.stopped() and not switch.commit()
+    switch = StopSwitch()
+    assert switch.commit() and switch.committed and not switch.stop() and not switch.stopped()
+
+
+def test_a_stopped_screensaver_update_changes_nothing(serve, tmp_path, monkeypatch):
+    body = b"new scr"
+    server = serve({"/Labyrinth.scr": body})
+    target = program(tmp_path, "Labyrinth.scr")
+    staging = tmp_path / "staging"
+    monkeypatch.setattr(install, "can_write", lambda folder: False)
+    switch = StopSwitch()
+    elevated = []
+
+    def download_then_stop(url, dest, sha256, on_progress=None, stop=None):
+        dest.write_bytes(body)
+        switch.stop()  # Settings closed just as the download finished
+
+    monkeypatch.setattr(install, "download", download_then_stop)
+    with pytest.raises(UpdateError, match="stopped"):
+        install_screensaver(Release("2.0.0", server.url("/Labyrinth.scr"), sha(body)), target,
+                            staging, elevate=lambda p, a: elevated.append(a) or 0,
+                            switch=switch)
+    assert elevated == [] and target.read_bytes() == b"old"
+    assert not (staging / STAGED_NAME).exists()
+
+
+def test_a_committed_screensaver_update_cannot_be_stopped(serve, tmp_path, monkeypatch):
+    body = b"new scr"
+    server = serve({"/Labyrinth.scr": body})
+    target = program(tmp_path, "Labyrinth.scr")
+    monkeypatch.setattr(install, "can_write", lambda folder: False)
+    switch = StopSwitch()
+    stops = []
+
+    def elevate(program_path, args):
+        stops.append(switch.stop())  # Settings closed while the UAC prompt is up
+        return apply_update(Path(args[1]), Path(args[2]), args[3])
+
+    install_screensaver(Release("2.0.0", server.url("/Labyrinth.scr"), sha(body)), target,
+                        tmp_path / "staging", elevate=elevate, switch=switch)
+    assert stops == [False] and target.read_bytes() == body
 
 
 def test_screensaver_elevation_declined(serve, tmp_path, monkeypatch):
