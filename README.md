@@ -108,7 +108,7 @@ Every key can be changed in Settings, Controls tab, except Space, which is fixed
 
 ### Screensaver mode
 
-The **Screensaver** toolbar button (or M) turns the game window into a screensaver: it grows a maze at the size currently selected, solves it with the solver chosen in Settings > Screensaver, pauses on the solved maze, then starts the next one. Nothing is scored. Space or Esc stops it and starts a fresh maze; a toolbar button stops it and does its action; F11 toggles fullscreen while it runs. Every other key, click and mouse movement is ignored.
+The **Screensaver** toolbar button (or M) turns the game window into a screensaver: it grows a maze at the size currently selected, solves it with the solver chosen in Settings > Screensaver, pauses on the solved maze, then starts the next one. Nothing is scored. Space or Esc stops it and starts a fresh maze; a toolbar button stops it and does its action; F11 toggles fullscreen while it runs. Every other key, click, wheel turn and mouse movement is ignored.
 
 The **Screensaver** settings tab (the game's settings, separate from the Windows screensaver) has Solver, Solve speed, Look-ahead and **Pause on solved maze**. Look-ahead applies to the Human-like and Depth-first solvers. The solver choices are listed under [Windows screensaver](#windows-screensaver).
 
@@ -138,6 +138,7 @@ The screensaver is a separate download from the game:
 
 1. Right-click `Labyrinth.scr` and choose **Install**.
 2. In Screen Saver Settings, pick **Labyrinth**. Its Settings button controls maze density, speeds, hold time and the frame rate cap. Screen coverage sets how much of the screen the maze fills, from 50% to edge to edge (the default); larger mazes always grow from several leads at once.
+
 The **Solver** dropdown, next to the frame rate cap, chooses how the maze is solved:
 
 | Solver | Behavior |
