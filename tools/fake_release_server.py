@@ -65,6 +65,11 @@ def make_handler(entries: list[tuple[str, Path]], port: int,
     files = {f"/files/{tag}/{Path(path).name}": Path(path) for tag, path in entries}
 
     class Handler(BaseHTTPRequestHandler):
+        # HTTP/1.1 keeps each connection open for the client's next request (every response
+        # has a Content-Length). The Android emulator's network lost responses from a server
+        # that closed the connection straight after writing, even with "Connection: close".
+        protocol_version = "HTTP/1.1"
+
         def do_GET(self):
             if self.path.split("?")[0] == "/releases":
                 base = base_url(self.headers.get("Host"), port)
@@ -81,6 +86,7 @@ def make_handler(entries: list[tuple[str, Path]], port: int,
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+            self.wfile.flush()
 
     return Handler
 

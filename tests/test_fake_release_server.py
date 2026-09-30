@@ -89,3 +89,19 @@ def test_parse_notes_arg():
     assert parse_notes_arg("labyrinth-v9.9.9=## New\\n- Faster") == (
         "labyrinth-v9.9.9", "## New\n- Faster")
     assert parse_notes_arg("t=a=b") == ("t", "a=b")
+
+
+def test_one_connection_serves_several_requests(fake_server):
+    # The Android emulator's network lost responses from a server that closed each connection
+    # straight after writing; HTTP/1.1 keeps it open for the client's next request instead.
+    conn = http.client.HTTPConnection("127.0.0.1", fake_server, timeout=5)
+    try:
+        for path in ("/releases", "/files/labyrinth-v9.9.9/Labyrinth.exe", "/releases"):
+            conn.request("GET", path, headers={"Host": "10.0.2.2:8765"})
+            response = conn.getresponse()
+            body = response.read()
+            assert response.status == 200 and response.version == 11
+            assert int(response.getheader("Content-Length")) == len(body)
+            assert not response.will_close
+    finally:
+        conn.close()
