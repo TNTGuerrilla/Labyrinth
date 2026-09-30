@@ -44,12 +44,6 @@
             android:exported="false"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
 
-        <activity
-            android:name=".play.RemoteTestActivity"
-            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|uiMode"
-            android:exported="false"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
-
         <service
             android:name=".LabyrinthDreamService"
             android:exported="true"

@@ -54,9 +54,18 @@ private val STEPS = listOf(
     "Step 5 of 5: Holding" to "Hold the button down from the first beat and let go on the fourth.",
 )
 
+/** What the test is for. Only wording and margins differ; the timing and analysis are the same. */
+enum class TestDevice(val title: String, val result: String, val ok: String, val soundNote: String) {
+    REMOTE("Remote test", "Your remote", "OK", "TVs often play sound a little late."),
+    CONTROLLER("Controller test", "Your controller", "A", "Phones and Bluetooth headphones often play sound a little late."),
+}
+
+private val OK_WORD = Regex("\\bOK\\b")
+
 class RemoteTestActivity : Activity() {
     companion object {
         const val EXTRA_THEN_PLAY = "then_play"
+        const val EXTRA_DEVICE = "device"
     }
 
     private enum class Phase { LOADING, TITLE, SYNC, RUNNING, RETRY, RESULT }
@@ -82,16 +91,20 @@ class RemoteTestActivity : Activity() {
     private var holdArrow: Int? = null
     private var holdOk: Int? = null
     private var profile: RemoteProfile? = null
+    private val device by lazy {
+        TestDevice.entries.firstOrNull { it.name == intent.getStringExtra(EXTRA_DEVICE) } ?: TestDevice.REMOTE
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         testView = RemoteTestView(this)
-        titleView = text(30f, TEXT).apply { typeface = Typeface.DEFAULT_BOLD }
-        bodyView = text(20f, DIM_TEXT)
+        val phone = device == TestDevice.CONTROLLER
+        titleView = text(if (phone) 24f else 30f, TEXT).apply { typeface = Typeface.DEFAULT_BOLD }
+        bodyView = text(if (phone) 17f else 20f, DIM_TEXT)
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(96), dp(48), dp(96), 0)
+            setPadding(dp(if (phone) 24 else 96), dp(if (phone) 24 else 48), dp(if (phone) 24 else 96), 0)
             addView(titleView)
             addView(bodyView)
         }
@@ -104,7 +117,7 @@ class RemoteTestActivity : Activity() {
             addView(footer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(32) })
         })
-        show("Remote test", "Getting ready...")
+        show(device.title, "Getting ready...")
         click = Click(this) { if (phase == Phase.LOADING) showTitle(0) }
     }
 
@@ -224,7 +237,7 @@ class RemoteTestActivity : Activity() {
         profile = p
         fun cooldown(ms: Int) = if (ms == 0) "none" else "$ms ms"
         fun hold(gap: Int?) = if (gap == null) "steady" else "stutters (gaps up to $gap ms)"
-        show("Your remote", listOf(
+        show(device.result, listOf(
             "Arrow lag: ${p.arrowLagMs} ms",
             "OK lag: ${p.okLagMs} ms",
             "Sound delay: ${p.soundDelayMs} ms",
@@ -239,11 +252,13 @@ class RemoteTestActivity : Activity() {
     private fun finishTest() {
         profile?.let { GameStore.saveRemote(this, it) }
         setResult(RESULT_OK)
-        if (thenPlay) startActivity(Intent(this, GameActivity::class.java))
+        if (thenPlay) startActivity(gameIntent())
         finish()
     }
 
     /** Opened from Play, the game starts after the test whether it was finished or skipped. */
+    private fun gameIntent() = Intent().setClassName(this, "com.bydesigninteractive.labyrinth.play.GameActivity")
+
     private val thenPlay: Boolean get() = intent.getBooleanExtra(EXTRA_THEN_PLAY, false)
 
     // --- keys ------------------------------------------------------------------------
@@ -252,7 +267,7 @@ class RemoteTestActivity : Activity() {
         val key = remoteKey(keyCode)
         if (key == RemoteKey.BACK) {
             if (event.repeatCount != 0) return true // a held Back skips once, not into the game too
-            if (thenPlay) startActivity(Intent(this, GameActivity::class.java))
+            if (thenPlay) startActivity(gameIntent())
             finish()
             return true
         }
@@ -295,8 +310,16 @@ class RemoteTestActivity : Activity() {
     // --- views -----------------------------------------------------------------------
 
     private fun show(title: String, body: String) {
-        titleView.text = title
-        bodyView.text = body
+        val t = words(title)
+        val b = words(body)
+        titleView.text = t
+        bodyView.text = b
+    }
+
+    /** The TV's wording, turned into the device's: its sound note, and its name for the OK button. */
+    private fun words(text: String): String {
+        if (device == TestDevice.REMOTE) return text
+        return text.replace(TestDevice.REMOTE.soundNote, device.soundNote).replace(OK_WORD, device.ok)
     }
 
     private fun text(sizeSp: Float, color: Int) = TextView(this).apply {

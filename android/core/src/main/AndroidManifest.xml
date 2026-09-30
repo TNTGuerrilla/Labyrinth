@@ -10,5 +10,11 @@
             android:exported="false"
             android:noHistory="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!-- The rhythm test of a remote (TV) or a controller (phone). -->
+        <activity
+            android:name="com.bydesigninteractive.labyrinth.play.RemoteTestActivity"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|uiMode"
+            android:exported="false"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
     </application>
 </manifest>
