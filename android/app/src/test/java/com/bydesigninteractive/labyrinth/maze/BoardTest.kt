@@ -1,6 +1,7 @@
 package com.bydesigninteractive.labyrinth.maze
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -238,5 +239,18 @@ class BoardTest {
         runUntil(source as Board, Phase.SOLVE)
         assertTrue(source.grid != null && source.start != null && source.end != null)
         assertTrue(source.headCells.isEmpty())
+    }
+
+    @Test
+    fun perfectSolverNeverBacktracks() {
+        val settings = Settings(genSpeed = 1000.0, solveSpeed = 500.0, holdSeconds = 0.0, solver = "perfect")
+        val board = Board(400, 300, settings, Random(3))
+        var sawSolve = false
+        repeat(20000) {
+            board.update(DT)
+            if (board.phase == Phase.SOLVE) sawSolve = true
+            if (sawSolve) assertFalse(board.trail.values.any { !it })
+        }
+        assertTrue(sawSolve)
     }
 }

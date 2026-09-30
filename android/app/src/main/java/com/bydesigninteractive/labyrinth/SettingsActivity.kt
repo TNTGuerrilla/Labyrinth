@@ -28,7 +28,10 @@ import android.widget.ScrollView
 import android.widget.TextView
 import com.bydesigninteractive.labyrinth.game.Mode
 import com.bydesigninteractive.labyrinth.maze.Field
+import com.bydesigninteractive.labyrinth.maze.SOLVER_LABELS
 import com.bydesigninteractive.labyrinth.maze.Settings
+import com.bydesigninteractive.labyrinth.maze.nextSolver
+import com.bydesigninteractive.labyrinth.maze.solverFrom
 import com.bydesigninteractive.labyrinth.play.GameActivity
 import com.bydesigninteractive.labyrinth.play.GameStore
 import com.bydesigninteractive.labyrinth.play.RemoteTestActivity
@@ -57,6 +60,7 @@ class SettingsActivity : Activity() {
     private lateinit var mode: Mode
     private lateinit var playButton: TextView
     private lateinit var modeValue: TextView
+    private lateinit var solverValue: TextView
     private val screensaverViews = ArrayList<View>()
     private val valueViews = HashMap<Field, TextView>()
     private lateinit var column: LinearLayout
@@ -104,6 +108,7 @@ class SettingsActivity : Activity() {
             column.addView(row)
             screensaverViews.add(row)
             if (first == null) first = row
+            if (field == Field.SOLVE_SPEED) column.addView(solverRow().also { screensaverViews.add(it) })
         }
         column.addView(button("Preview screensaver") { startActivity(Intent(this, PreviewActivity::class.java)) }
             .also { screensaverViews.add(it) })
@@ -338,6 +343,34 @@ class SettingsActivity : Activity() {
         if (focus) block.requestFocus()
     }
 
+    /** Which solver the screensaver uses, changed with left and right like the other rows. */
+    private fun solverRow(): LinearLayout {
+        solverValue = text("", 17f, ACCENT).apply {
+            gravity = Gravity.END
+            typeface = Typeface.MONOSPACE
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(6), dp(16), dp(6))
+            isFocusable = true
+            background = focusBackground()
+            addView(text("Solver", 17f, TEXT), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(solverValue)
+            setOnKeyListener { _, keyCode, event ->
+                val sign = when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_LEFT -> -1
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> 1
+                    else -> return@setOnKeyListener false
+                }
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                    update(settings.copy(solver = nextSolver(settings.solver, sign)))
+                }
+                true
+            }
+        }
+    }
+
     /** Use as: game and screensaver / game only / screensaver only, changed with left and right like the other rows. */
     private fun modeRow(): LinearLayout {
         modeValue = text("", 17f, ACCENT).apply {
@@ -449,6 +482,7 @@ class SettingsActivity : Activity() {
 
     private fun refresh() {
         for ((field, view) in valueViews) view.text = "<  ${field.format(field.get(settings))}  >"
+        solverValue.text = "<  ${SOLVER_LABELS.getValue(solverFrom(settings.solver))}  >"
     }
 
     /**

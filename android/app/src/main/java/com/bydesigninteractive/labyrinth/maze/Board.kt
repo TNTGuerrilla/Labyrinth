@@ -283,7 +283,7 @@ class Board(
         heads.clear()
         val s = start!!
         dot = s
-        solveEvents = solve(grid!!, s, end!!, rng, settings.lookahead)
+        solveEvents = solveWith(settings.solver, grid!!, s, end!!, rng, settings.lookahead)
         steps = StepAccumulator(settings.solveSpeed)
         changes.cells.add(s)
     }

@@ -52,4 +52,30 @@ class SettingsTest {
         assertEquals("60", Field.GEN_SPEED.format(60.0))
         assertEquals("4.5", Field.HOLD_SECONDS.format(4.5))
     }
+
+    @Test
+    fun solverDefaultsToHumanLikeAndKeepsKnownNames() {
+        assertEquals("human", Settings().solver)
+        for (name in listOf("human", "dfs", "wall", "perfect")) assertEquals(name, solverFrom(name))
+    }
+
+    @Test
+    fun unknownOrMissingSolverFallsBack() {
+        assertEquals("human", solverFrom(null))
+        assertEquals("human", solverFrom(""))
+        assertEquals("human", solverFrom("fast"))
+    }
+
+    @Test
+    fun nextSolverCyclesInLabelOrder() {
+        assertEquals("dfs", nextSolver("human", 1))
+        assertEquals("perfect", nextSolver("human", -1))
+        assertEquals("human", nextSolver("perfect", 1))
+        assertEquals("dfs", nextSolver("nope", 1)) // an unknown value counts as human
+    }
+
+    @Test
+    fun lookaheadLabelNamesTheSolversThatUseIt() {
+        assertEquals("Look-ahead (cells, Human-like and Depth-first)", Field.LOOKAHEAD.label)
+    }
 }
