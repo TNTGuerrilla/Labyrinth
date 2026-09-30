@@ -491,7 +491,7 @@ class SettingsActivity : Activity() {
      */
     private fun play() {
         if (GameStore.loadRemote(this) == null) {
-            startActivity(Intent(this, RemoteTestActivity::class.java).putExtra(RemoteTestActivity.EXTRA_THEN_PLAY, true))
+            startActivity(Intent(this, RemoteTestActivity::class.java).putExtra(RemoteTestActivity.EXTRA_THEN_START, ComponentName(this, GameActivity::class.java)))
         } else {
             startActivity(Intent(this, GameActivity::class.java))
         }

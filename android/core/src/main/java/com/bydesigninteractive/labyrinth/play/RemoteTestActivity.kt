@@ -8,8 +8,10 @@
 package com.bydesigninteractive.labyrinth.play
 
 import android.app.Activity
+import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -64,7 +66,7 @@ private val OK_WORD = Regex("\\bOK\\b")
 
 class RemoteTestActivity : Activity() {
     companion object {
-        const val EXTRA_THEN_PLAY = "then_play"
+        const val EXTRA_THEN_START = "then_start"
         const val EXTRA_DEVICE = "device"
     }
 
@@ -252,14 +254,25 @@ class RemoteTestActivity : Activity() {
     private fun finishTest() {
         profile?.let { GameStore.saveRemote(this, it) }
         setResult(RESULT_OK)
-        if (thenPlay) startActivity(gameIntent())
+        startNext()
         finish()
     }
 
-    /** Opened from Play, the game starts after the test whether it was finished or skipped. */
-    private fun gameIntent() = Intent().setClassName(this, "com.bydesigninteractive.labyrinth.play.GameActivity")
+    /** Opened from Play, the caller names what starts after the test, whether it was finished or skipped. */
+    private val thenStart: ComponentName? by lazy {
+        if (Build.VERSION.SDK_INT >= 33) {
+            intent.getParcelableExtra(EXTRA_THEN_START, ComponentName::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(EXTRA_THEN_START)
+        }
+    }
 
-    private val thenPlay: Boolean get() = intent.getBooleanExtra(EXTRA_THEN_PLAY, false)
+    private val thenPlay: Boolean get() = thenStart != null
+
+    private fun startNext() {
+        thenStart?.let { startActivity(Intent().setComponent(it)) }
+    }
 
     // --- keys ------------------------------------------------------------------------
 
@@ -267,7 +280,7 @@ class RemoteTestActivity : Activity() {
         val key = remoteKey(keyCode)
         if (key == RemoteKey.BACK) {
             if (event.repeatCount != 0) return true // a held Back skips once, not into the game too
-            if (thenPlay) startActivity(gameIntent())
+            startNext()
             finish()
             return true
         }
