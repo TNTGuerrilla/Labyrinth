@@ -38,6 +38,7 @@ class MenuPanel(context: Context, private val host: Host) : LinearLayout(context
         val game: GameSettings
         val phone: PhoneSettings
         val version: String
+        val controllerUsed: Boolean
         /** "Explored N . M:SS" while a maze is being played, else null. */
         fun readout(): String?
         fun changeGame(next: GameSettings)
@@ -117,7 +118,7 @@ class MenuPanel(context: Context, private val host: Host) : LinearLayout(context
     // Being clickable would press every child slider with the panel; they must not show as pressed.
     override fun dispatchSetPressed(pressed: Boolean) {}
 
-    private fun rowsNow() = phoneRows(tab, host.game, host.phone, host.version)
+    private fun rowsNow() = phoneRows(tab, host.game, host.phone, host.version, host.controllerUsed)
 
     private fun setGame(next: GameSettings) {
         host.changeGame(next)

@@ -98,6 +98,8 @@ class MobileGameActivity : Activity() {
     /** Pixels per inch for the render thread's maze sizer. */
     @Volatile private var ppi = 160.0
     private var menuOpen = false
+    /** Set once a controller has been used; the menu then offers the controller test. */
+    private var controllerUsed = false
     private var firstWinButton: View? = null
     private var winShown = false
     /** The win panel was just dismissed; ignore stale win snapshots until one without winScreen arrives. */
@@ -112,6 +114,7 @@ class MobileGameActivity : Activity() {
         override val game: GameSettings get() = settings
         override val phone: PhoneSettings get() = this@MobileGameActivity.phone
         override val version: String get() = appVersion
+        override val controllerUsed: Boolean get() = this@MobileGameActivity.controllerUsed
 
         override fun readout(): String? {
             val snap = view.snapshot ?: return null
@@ -127,6 +130,7 @@ class MobileGameActivity : Activity() {
                     closeMenu(null)
                     showHowToPlay()
                 }
+                MenuLink.CONTROLLER_TEST -> closeMenu(null)
             }
         }
 

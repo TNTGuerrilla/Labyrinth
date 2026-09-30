@@ -9,6 +9,8 @@ object PhoneStore {
     private const val TOUCH = "touch"
     private const val HOLD = "hold"
     private const val HIDE_BARS = "hide_bars"
+    private const val HAND = "hand"
+    private const val CONTROLLER_USED = "controller_used"
     private const val HOW_TO_PLAY_SEEN = "how_to_play_seen"
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -19,6 +21,7 @@ object PhoneStore {
             p.getString(TOUCH, null),
             p.getString(HOLD, null),
             if (p.contains(HIDE_BARS)) p.getBoolean(HIDE_BARS, true) else null,
+            p.getString(HAND, null),
         )
     }
 
@@ -27,7 +30,14 @@ object PhoneStore {
             .putString(TOUCH, s.touch.name)
             .putString(HOLD, s.hold.name)
             .putBoolean(HIDE_BARS, s.hideBars)
+            .putString(HAND, s.hand.name)
             .apply()
+    }
+
+    fun controllerUsed(context: Context): Boolean = prefs(context).getBoolean(CONTROLLER_USED, false)
+
+    fun markControllerUsed(context: Context) {
+        prefs(context).edit().putBoolean(CONTROLLER_USED, true).apply()
     }
 
     fun howToPlaySeen(context: Context): Boolean = prefs(context).getBoolean(HOW_TO_PLAY_SEEN, false)

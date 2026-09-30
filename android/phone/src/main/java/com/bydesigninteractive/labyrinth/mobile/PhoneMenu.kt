@@ -15,11 +15,11 @@ enum class PhoneTab(val title: String) {
     CONTROLS("Controls"), PLAY("Play"), MAZE("Maze"), ASSISTS("Assists"), MOVEMENT("Movement"), LOOK("Look"), ABOUT("About"),
 }
 
-enum class PhoneChoice(val label: String) { TOUCH("Touch controls"), ORIENTATION("Orientation") }
+enum class PhoneChoice(val label: String) { TOUCH("Touch controls"), ORIENTATION("Orientation"), JOYSTICK_HAND("Joystick hand") }
 
 enum class PhoneToggle(val label: String) { HIDE_BARS("Hide system bars") }
 
-enum class MenuLink(val label: String) { HOW_TO_PLAY("How to play") }
+enum class MenuLink(val label: String) { HOW_TO_PLAY("How to play"), CONTROLLER_TEST("Controller test") }
 
 sealed interface MenuRow {
     data class Note(val text: String) : MenuRow
@@ -53,8 +53,13 @@ val HOW_TO_PLAY = listOf(
 
 private val HOLD_LABELS = mapOf(Hold.AUTO to "Auto", Hold.PORTRAIT to "Portrait", Hold.LANDSCAPE to "Landscape")
 
-fun phoneRows(tab: PhoneTab, s: GameSettings, p: PhoneSettings, version: String): List<MenuRow> = when (tab) {
-    PhoneTab.CONTROLS -> listOf(MenuRow.Choice(PhoneChoice.TOUCH), MenuRow.Note(p.touch.help)) + KEY_HELP.map { MenuRow.Note(it) }
+fun phoneRows(tab: PhoneTab, s: GameSettings, p: PhoneSettings, version: String, controllerUsed: Boolean = false): List<MenuRow> = when (tab) {
+    PhoneTab.CONTROLS -> listOfNotNull(
+        MenuRow.Choice(PhoneChoice.TOUCH),
+        if (p.touch == TouchScheme.JOYSTICK) MenuRow.Choice(PhoneChoice.JOYSTICK_HAND) else null,
+        MenuRow.Note(p.touch.help),
+        if (controllerUsed) MenuRow.Link(MenuLink.CONTROLLER_TEST) else null,
+    ) + KEY_HELP.map { MenuRow.Note(it) }
     PhoneTab.PLAY -> PLAY_ACTIONS.map { MenuRow.Action(it) }
     PhoneTab.MAZE -> listOfNotNull(
         MenuRow.Game(GameField.SIZE),
@@ -99,16 +104,19 @@ fun reopenTab(last: PhoneTab, closedAt: Double?, now: Double): PhoneTab =
 fun choiceOptions(c: PhoneChoice): List<String> = when (c) {
     PhoneChoice.TOUCH -> TouchScheme.entries.map { it.label }
     PhoneChoice.ORIENTATION -> Hold.entries.map { HOLD_LABELS.getValue(it) }
+    PhoneChoice.JOYSTICK_HAND -> Hand.entries.map { it.label }
 }
 
 fun choiceIndex(c: PhoneChoice, p: PhoneSettings): Int = when (c) {
     PhoneChoice.TOUCH -> p.touch.ordinal
     PhoneChoice.ORIENTATION -> p.hold.ordinal
+    PhoneChoice.JOYSTICK_HAND -> p.hand.ordinal
 }
 
 fun choose(c: PhoneChoice, p: PhoneSettings, i: Int): PhoneSettings = when (c) {
     PhoneChoice.TOUCH -> p.copy(touch = TouchScheme.entries[i])
     PhoneChoice.ORIENTATION -> p.copy(hold = Hold.entries[i])
+    PhoneChoice.JOYSTICK_HAND -> p.copy(hand = Hand.entries[i])
 }
 
 fun toggleValue(t: PhoneToggle, p: PhoneSettings): Boolean = when (t) {

@@ -115,7 +115,7 @@ class PhoneMenuTest {
 
     @Test
     fun choicesReadAndSetThePhoneSettings() {
-        assertEquals(listOf("Swipe"), choiceOptions(PhoneChoice.TOUCH))
+        assertEquals(listOf("Swipe", "Drag", "Joystick", "Tap to go"), choiceOptions(PhoneChoice.TOUCH))
         assertEquals(listOf("Auto", "Portrait", "Landscape"), choiceOptions(PhoneChoice.ORIENTATION))
         assertEquals(0, choiceIndex(PhoneChoice.ORIENTATION, p))
         val landscape = choose(PhoneChoice.ORIENTATION, p, 2)
@@ -130,9 +130,32 @@ class PhoneMenuTest {
         assertEquals(PhoneSettings(), phoneSettingsFrom(null, null, null))
         assertEquals(PhoneSettings(), phoneSettingsFrom("NOPE", "sideways", null))
         assertEquals(
-            PhoneSettings(TouchScheme.SWIPE, Hold.PORTRAIT, false),
-            phoneSettingsFrom("SWIPE", "PORTRAIT", false),
+            PhoneSettings(TouchScheme.TAP, Hold.PORTRAIT, false, Hand.LEFT),
+            phoneSettingsFrom("TAP", "PORTRAIT", false, "LEFT"),
         )
+    }
+
+    @Test
+    fun joystickHandShowsOnlyForTheJoystick() {
+        assertFalse(MenuRow.Choice(PhoneChoice.JOYSTICK_HAND) in phoneRows(PhoneTab.CONTROLS, s, p, "1.0.0"))
+        val joystick = p.copy(touch = TouchScheme.JOYSTICK)
+        val rows = phoneRows(PhoneTab.CONTROLS, s, joystick, "1.0.0")
+        assertEquals(listOf(MenuRow.Choice(PhoneChoice.TOUCH), MenuRow.Choice(PhoneChoice.JOYSTICK_HAND)), rows.take(2))
+        assertEquals(listOf("Left", "Right"), choiceOptions(PhoneChoice.JOYSTICK_HAND))
+        assertEquals(1, choiceIndex(PhoneChoice.JOYSTICK_HAND, joystick))
+        assertEquals(Hand.LEFT, choose(PhoneChoice.JOYSTICK_HAND, joystick, 0).hand)
+    }
+
+    @Test
+    fun theControllerTestAppearsOnceAControllerWasUsed() {
+        val link = MenuRow.Link(MenuLink.CONTROLLER_TEST)
+        assertFalse(link in phoneRows(PhoneTab.CONTROLS, s, p, "1.0.0"))
+        assertTrue(link in phoneRows(PhoneTab.CONTROLS, s, p, "1.0.0", controllerUsed = true))
+    }
+
+    @Test
+    fun everySchemeHasHelp() {
+        for (t in TouchScheme.entries) assertTrue(t.help.isNotBlank())
     }
 
     @Test
