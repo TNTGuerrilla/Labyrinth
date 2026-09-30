@@ -279,6 +279,29 @@ def test_path_steer_gives_up_when_not_adjacent():
     assert p.choose((0, 0)) is None and p.done
 
 
+def test_path_steer_pulls_cells_from_a_generator_as_it_needs_them():
+    drawn = []
+
+    def cells():
+        for c in [(1, 0), (2, 0), (3, 0)]:
+            drawn.append(c)
+            yield c
+
+    p = PathSteer(cells())
+    assert drawn == []
+    assert not p.done and len(drawn) == 1  # one cell of look-ahead answers done
+    assert p.choose((0, 0)) == (1, 0) and len(drawn) == 1
+    assert p.choose((1, 0)) == (2, 0) and len(drawn) == 2
+    assert not p.done and len(drawn) == 3
+    assert p.choose((2, 0)) == (3, 0)
+    assert p.done and p.choose((3, 0)) is None
+
+
+def test_path_steer_from_a_generator_gives_up_when_not_adjacent():
+    p = PathSteer(iter([(2, 0), (3, 0)]))
+    assert p.choose((0, 0)) is None and p.done
+
+
 def test_auto_steer_follows_the_shortest_route():
     g = fork_grid()
     end = (2, 1)

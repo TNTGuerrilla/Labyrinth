@@ -1,3 +1,4 @@
+import itertools
 import random
 from dataclasses import replace
 
@@ -876,8 +877,8 @@ def test_the_screensaver_button_toggles_it(saver):
 def test_screensaver_mode_uses_the_chosen_solver(saver, monkeypatch):
     from maze_game import app as app_module
     seen = []
-    real = app_module.solver_cells
-    monkeypatch.setattr(app_module, "solver_cells",
+    real = app_module.iter_solver_cells
+    monkeypatch.setattr(app_module, "iter_solver_cells",
                         lambda grid, start, end, solver, lookahead, rng: (
                             seen.append((solver, lookahead)),
                             real(grid, start, end, solver, lookahead, rng))[1])
@@ -905,8 +906,9 @@ def test_toolbar_shows_screensaver_instead_of_stats(saver, monkeypatch):
 
 
 def test_a_solve_that_stops_short_moves_on_to_the_next_maze(saver, monkeypatch):
-    real = game_app.solver_cells
-    monkeypatch.setattr(game_app, "solver_cells", lambda *a, **kw: real(*a, **kw)[:1])
+    real = game_app.iter_solver_cells
+    monkeypatch.setattr(game_app, "iter_solver_cells",
+                        lambda *a, **kw: itertools.islice(real(*a, **kw), 1))
     saver.start_screensaver()
     first = saver.round
     until_play(saver)

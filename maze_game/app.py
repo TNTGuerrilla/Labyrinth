@@ -25,7 +25,7 @@ from .config import GameSettings
 from .game_render import GameRenderer
 from .keymap import FIXED_KEYS, Keymap
 from .round import Phase, Round
-from .screensaver import solver_cells
+from .screensaver import iter_solver_cells
 from .steering import AutoSteer, KeyboardSteer, PathSteer, dash_path, is_reverse, steer_toward
 from .ui.custom_dialog import CustomDialog
 from .ui.settings_model import InfoState, SettingsModel
@@ -469,7 +469,7 @@ class Game:
                     and time.monotonic() - self.press[0] > CLICK_SECONDS):
                 self.dragging = True
             if self.screensaver and self.saver_path is None:
-                self.saver_path = PathSteer(solver_cells(
+                self.saver_path = PathSteer(iter_solver_cells(
                     r.grid, r.start, r.end, s.screensaver_solver, s.screensaver_lookahead,
                     self.rng))
             choose, speed, assisted = self._driver()

@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import math
-from collections import deque
-from typing import Iterable, Optional
+from typing import Iterable, Iterator, Optional
 
 from maze_saver.maze import Cell, Grid, direction, step
 
 from .assist import dead_end_within
+
+_UNREAD = object()  # PathSteer has not drawn its next cell yet
 
 
 class KeyboardSteer:
@@ -192,23 +193,32 @@ def dash_path(grid: Grid, frm: Cell, target: Cell) -> Optional[list[Cell]]:
 
 
 class PathSteer:
-    """Follows a fixed list of cells (a dash, or the benchmark's perfect run)."""
+    """Follows a sequence of cells (a dash, the benchmark's perfect run, or screensaver
+    mode's solve). Cells are drawn from it only as needed, at most one ahead of the
+    dot, so a generator is not run up front."""
 
     def __init__(self, cells: Iterable[Cell]):
-        self._cells = deque(cells)
+        self._cells: Iterator[Cell] = iter(cells)
+        self._next: object = _UNREAD
+
+    def _peek(self) -> Optional[Cell]:
+        if self._next is _UNREAD:
+            self._next = next(self._cells, None)
+        return self._next  # type: ignore[return-value]
 
     @property
     def done(self) -> bool:
-        return not self._cells
+        return self._peek() is None
 
     def choose(self, cell: Cell, came_from: Optional[Cell] = None) -> Optional[Cell]:
-        if not self._cells:
+        nxt = self._peek()
+        if nxt is None:
             return None
-        nxt = self._cells[0]
         if abs(nxt[0] - cell[0]) + abs(nxt[1] - cell[1]) != 1:
-            self._cells.clear()
+            self._cells = iter(())
+            self._next = None
             return None
-        self._cells.popleft()
+        self._next = _UNREAD
         return nxt
 
 

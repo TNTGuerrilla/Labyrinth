@@ -2,7 +2,7 @@ import random
 
 import pytest
 
-from maze_game.screensaver import solver_cells
+from maze_game.screensaver import iter_solver_cells, solver_cells
 from maze_game.trail import Trail
 from maze_saver.maze import Grid, single_snake
 from tests.mazeutil import bfs_path
@@ -36,3 +36,10 @@ def test_perfect_cells_are_the_route_after_the_start():
 def test_start_equals_end_gives_no_moves():
     g = make_maze(4, 4, 1)
     assert solver_cells(g, (1, 1), (1, 1), "wall", 4, random.Random(1)) == []
+
+
+def test_iter_solver_cells_is_lazy_and_matches_the_list():
+    g = make_maze(12, 9, 3)
+    it = iter_solver_cells(g, (0, 0), (11, 8), "dfs", 4, random.Random(2))
+    assert not isinstance(it, list) and iter(it) is it
+    assert list(it) == solver_cells(g, (0, 0), (11, 8), "dfs", 4, random.Random(2))
