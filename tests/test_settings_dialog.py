@@ -120,3 +120,17 @@ def test_note_segments():
     assert note_segments(lines) == [("New\n", "heading"), ("- Faster\n", "item"),
                                      ("\n", "text"), ("Thanks", "text")]
     assert note_segments([]) == []
+
+
+def test_parse_fields_reads_the_solver_label():
+    settings, error = parse_fields(VALID, FPS_LABELS[120], solver_label="Wall follower")
+    assert error is None and settings.solver == "wall"
+    settings, _ = parse_fields(VALID, FPS_LABELS[120], solver_label="Nonsense")
+    assert settings.solver == "human"
+    settings, _ = parse_fields(VALID, FPS_LABELS[120])
+    assert settings.solver == "human"
+
+
+def test_lookahead_label_names_the_solvers_that_use_it():
+    from maze_saver.settings_dialog import FIELDS
+    assert dict(FIELDS)["lookahead"] == "Look-ahead (cells, Human-like and Depth-first)"

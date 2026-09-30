@@ -8,6 +8,8 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Optional, Union
 
+from .solver import DEFAULT_SOLVER, SOLVERS
+
 FpsCap = Union[str, int]
 
 
@@ -19,6 +21,7 @@ class Settings:
     solve_speed: float = 20.0
     lookahead: int = 4
     hold_seconds: float = 4.0
+    solver: str = DEFAULT_SOLVER  # a maze_saver.solver.SOLVERS key
     max_leads: int = 12
     coverage: int = 100  # percent of each monitor side a maze may cover
     fps_cap: FpsCap = "auto"
@@ -77,6 +80,8 @@ def from_dict(raw: Any) -> Settings:
         cap = _fps_cap(raw["fps_cap"])
         if cap is not None:
             values["fps_cap"] = cap
+    if isinstance(raw.get("solver"), str) and raw["solver"] in SOLVERS:
+        values["solver"] = raw["solver"]
     if isinstance(raw.get("check_updates"), bool):
         values["check_updates"] = raw["check_updates"]
     settings = replace(Settings(), **values)

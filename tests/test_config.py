@@ -1,4 +1,5 @@
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from maze_saver.config import Settings, app_data, default_path, from_dict, load, save
@@ -193,3 +194,20 @@ def test_a_failed_save_keeps_the_old_settings_and_leaves_no_temp_file(tmp_path, 
         save(Settings(gen_speed=30.0), path)
     assert list(tmp_path.iterdir()) == [path]
     assert load(path).gen_speed == 70.0
+
+
+def test_solver_defaults_to_human_like_and_loads_known_names():
+    assert Settings().solver == "human"
+    for name in ("human", "dfs", "wall", "perfect"):
+        assert from_dict({"solver": name}).solver == name
+
+
+def test_unknown_or_bad_solver_falls_back():
+    for bad in ("fast", "", None, 3, ["wall"]):
+        assert from_dict({"solver": bad}).solver == "human"
+
+
+def test_solver_round_trips_through_save(tmp_path):
+    path = tmp_path / "config.json"
+    save(replace(Settings(), solver="wall"), path)
+    assert load(path).solver == "wall"

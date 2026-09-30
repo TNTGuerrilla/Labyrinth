@@ -93,17 +93,24 @@ Run `Labyrinth.exe` (on Linux, see [Install on Linux](#install-on-linux)). Hold 
 | Flash the finish | F |
 | New maze | R |
 | Replay this maze | T |
-| Skip growth, or New maze on the win screen | Space |
+| Skip growth, or New maze on the win screen | Space (fixed) |
 | Small, Medium, Large, XL maze | 1, 2, 3, 4 |
 | Custom size | 5 |
 | Multi-color on/off | C |
+| Screensaver mode | M (or the Screensaver button) |
 | Zoom in, out, reset | +, -, Z (or the mouse wheel) |
 | Settings | Esc |
 | Fullscreen | F11 |
 
 Mouse: hold the left button to steer the dot toward the cursor (it never passes through walls). Click a cell in a straight open line from the dot to dash there.
 
-Every key can be changed in Settings, Controls tab.
+Every key can be changed in Settings, Controls tab, except Space, which is fixed: it skips growth and picks New maze on the win panel, and it cannot be bound to anything else.
+
+### Screensaver mode
+
+The **Screensaver** toolbar button (or M) turns the game window into a screensaver: it grows a maze at the size currently selected, solves it with the solver chosen in Settings > Screensaver, pauses on the solved maze, then starts the next one. Nothing is scored. Space or Esc stops it and starts a fresh maze; a toolbar button stops it and does its action; F11 toggles fullscreen while it runs. Every other key, click and mouse movement is ignored.
+
+The **Screensaver** settings tab (the game's settings, separate from the Windows screensaver) has Solver, Solve speed, Look-ahead and **Pause on solved maze**. Look-ahead applies to the Human-like and Depth-first solvers. The solver choices are listed under [Windows screensaver](#windows-screensaver).
 
 ### Difficulty
 
@@ -131,12 +138,22 @@ The screensaver is a separate download from the game:
 
 1. Right-click `Labyrinth.scr` and choose **Install**.
 2. In Screen Saver Settings, pick **Labyrinth**. Its Settings button controls maze density, speeds, hold time and the frame rate cap. Screen coverage sets how much of the screen the maze fills, from 50% to edge to edge (the default); larger mazes always grow from several leads at once.
+The **Solver** dropdown, next to the frame rate cap, chooses how the maze is solved:
+
+| Solver | Behavior |
+|---|---|
+| Human-like (default) | Traces like a person, with wrong turns and limited detours. |
+| Depth-first | Skips dead ends it can see, heads toward the finish, and follows wrong branches to their end. |
+| Wall follower | Keeps its left hand on the wall. |
+| Perfect | Goes straight to the finish. |
+
+Look-ahead applies to Human-like and Depth-first only.
 
 If **Install** is missing from the right-click menu, another program has claimed `.scr` files (AutoCAD does this). Copy `Labyrinth.scr` into `C:\Windows\System32` instead, then pick it in Screen Saver Settings.
 
 ## Google TV
 
-Labyrinth TV runs as a real Android screensaver and adds a **Labyrinth** app to the TV's app list, where you can play the game with the remote. The app also has the same settings as the Windows screensaver, a Preview button, and a status line showing whether it is the active screensaver. Screen coverage sets how much of the screen the maze fills, from 50% to edge to edge (the default); larger mazes always grow from several leads at once.
+Labyrinth TV runs as a real Android screensaver and adds a **Labyrinth** app to the TV's app list, where you can play the game with the remote. The app also has the same settings as the Windows screensaver, a Preview button, and a status line showing whether it is the active screensaver. Screen coverage sets how much of the screen the maze fills, from 50% to edge to edge (the default); larger mazes always grow from several leads at once. Its **Solver** row, under **Solve speed** and changed with left and right, offers the same four choices as the [Windows screensaver](#windows-screensaver): Human-like (default), Depth-first, Wall follower and Perfect.
 
 It is tested on a TCL QM6K running Google TV (Android 14), and on Google's Google TV emulator. It should work on other Google TV and Android TV devices, but it has not been tested on them, and some manufacturers add their own limits on apps starting in the background (TCL does; see [Brand-specific setup](#brand-specific-setup)). If it does not start on your TV, please [report your model](https://github.com/TNTGuerrilla/Labyrinth/issues/new?template=tv-compatibility.yml).
 

@@ -11,6 +11,7 @@ from labyrinth_update.updater import (AVAILABLE, CHECK_FAILED, CHECKING, DOWNLOA
 
 from .config import NUMERIC_RANGES, FpsCap, Settings, from_dict, load, save
 from .icon import ICON_PATH
+from .solver import SOLVER_LABELS
 
 open_browser = webbrowser.open
 
@@ -23,7 +24,7 @@ FIELDS = [
     ("coverage", "Screen coverage (%)"),
     ("gen_speed", "Growth speed per lead (steps per second)"),
     ("solve_speed", "Solve speed (steps per second)"),
-    ("lookahead", "Look-ahead distance (cells)"),
+    ("lookahead", "Look-ahead (cells, Human-like and Depth-first)"),
     ("hold_seconds", "Show solved maze for (seconds)"),
 ]
 INCREMENTS = {"min_cells": 1, "max_cells": 1, "gen_speed": 5, "solve_speed": 1, "lookahead": 1,
@@ -31,8 +32,9 @@ INCREMENTS = {"min_cells": 1, "max_cells": 1, "gen_speed": 5, "solve_speed": 1, 
 FPS_LABELS: dict[FpsCap, str] = {"auto": "Match fastest monitor", 60: "60", 120: "120"}
 
 
-def parse_fields(texts: dict[str, str], fps_label: str,
-                 check_updates: bool = True) -> tuple[Optional[Settings], Optional[str]]:
+def parse_fields(texts: dict[str, str], fps_label: str, check_updates: bool = True,
+                 solver_label: str = SOLVER_LABELS["human"]
+                 ) -> tuple[Optional[Settings], Optional[str]]:
     """Validate dialog text. Returns (settings, None) or (None, error message)."""
     raw: dict = {}
     for name, label in FIELDS:
@@ -48,6 +50,7 @@ def parse_fields(texts: dict[str, str], fps_label: str,
         raw[name] = int(value) if is_int else value
     raw["fps_cap"] = {v: k for k, v in FPS_LABELS.items()}.get(fps_label, "auto")
     raw["check_updates"] = check_updates
+    raw["solver"] = {v: k for k, v in SOLVER_LABELS.items()}.get(solver_label, "human")
     return from_dict(raw), None
 
 
@@ -162,10 +165,16 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
     ttk.Label(frame, text="Frame rate cap").grid(row=fps_row, column=0, sticky="w", padx=(0, 12), pady=4)
     ttk.Combobox(frame, textvariable=fps_var, values=list(FPS_LABELS.values()), state="readonly",
                  width=22).grid(row=fps_row, column=1, sticky="e", pady=4)
+    solver_row = fps_row + 1
+    solver_var = tk.StringVar(value=SOLVER_LABELS.get(current.solver, SOLVER_LABELS["human"]))
+    ttk.Label(frame, text="Solver").grid(row=solver_row, column=0, sticky="w", padx=(0, 12),
+                                         pady=4)
+    ttk.Combobox(frame, textvariable=solver_var, values=list(SOLVER_LABELS.values()),
+                 state="readonly", width=22).grid(row=solver_row, column=1, sticky="e", pady=4)
 
     version = updater.current if updater is not None else (running_version("screensaver") or "")
     info = ttk.LabelFrame(frame, text="Info", padding=10)
-    info.grid(row=fps_row + 1, column=0, columnspan=2, sticky="we", pady=(12, 0))
+    info.grid(row=fps_row + 2, column=0, columnspan=2, sticky="we", pady=(12, 0))
     info.columnconfigure(1, weight=1)
     ttk.Label(info, text=f"Labyrinth Screensaver {version}".rstrip()).grid(
         row=0, column=0, columnspan=2, sticky="w")
@@ -266,7 +275,7 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
 
     def on_ok() -> None:
         settings, error = parse_fields({n: v.get() for n, v in variables.items()},
-                                       fps_var.get(), check_var.get())
+                                       fps_var.get(), check_var.get(), solver_var.get())
         if error:
             messagebox.showerror("Labyrinth Screensaver", error, parent=root)
             return
@@ -283,10 +292,11 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
         for n, v in variables.items():
             v.set(_fmt(getattr(defaults, n)))
         fps_var.set(FPS_LABELS[defaults.fps_cap])
+        solver_var.set(SOLVER_LABELS[defaults.solver])
         check_var.set(defaults.check_updates)
 
     buttons = ttk.Frame(frame)
-    buttons.grid(row=fps_row + 2, column=0, columnspan=2, sticky="e", pady=(12, 0))
+    buttons.grid(row=fps_row + 3, column=0, columnspan=2, sticky="e", pady=(12, 0))
     ttk.Button(buttons, text="Reset to defaults", command=on_reset).grid(row=0, column=0, padx=(0, 8))
     ttk.Button(buttons, text="Cancel", command=close).grid(row=0, column=1, padx=(0, 8))
     ttk.Button(buttons, text="OK", command=on_ok).grid(row=0, column=2)
