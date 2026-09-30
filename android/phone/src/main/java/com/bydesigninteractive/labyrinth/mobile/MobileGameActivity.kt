@@ -451,7 +451,7 @@ class MobileGameActivity : Activity() {
         playPanel.removeAllViews()
         val snap = view.snapshot
         if (snap != null && snap.phase != RoundPhase.GROW) {
-            playPanel.addView(label("Explored ${snap.explored} · ${formatTime(snap.elapsed)}", 15f, DIM_TEXT).apply {
+            playPanel.addView(label("Explored ${snap.explored} \u00b7 ${formatTime(snap.elapsed)}", 15f, DIM_TEXT).apply {
                 gravity = Gravity.CENTER
                 setPadding(0, 0, 0, dp(8))
             }, LinearLayout.LayoutParams(MATCH, WRAP))

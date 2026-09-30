@@ -68,7 +68,7 @@ class GameToolbar(context: Context, onHint: () -> Unit, onMenu: () -> Unit) : Li
         val text = when {
             e == null -> ""
             vertical == true -> "${formatTime(elapsed)}\n$e"
-            else -> "Explored $e · ${formatTime(elapsed)}"
+            else -> "Explored $e \u00b7 ${formatTime(elapsed)}"
         }
         if (text != shown) {
             shown = text
