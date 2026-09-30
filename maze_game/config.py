@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from maze_saver.config import adopt_legacy, app_data
+from maze_saver.solver import DEFAULT_SOLVER, SOLVERS
 
 from .difficulty import DIFFICULTIES, MIN_CUSTOM
 from .keymap import Keymap
@@ -38,6 +39,10 @@ class GameSettings:
     check_updates: bool = True
     grid_strength: int = 20  # percent brightness of the grid lines
     coverage: int = 100  # percent of the screen the maze fills at 100% zoom
+    screensaver_solver: str = DEFAULT_SOLVER  # screensaver mode: a SOLVERS key
+    screensaver_speed: float = 20.0  # screensaver mode: solver steps per second
+    screensaver_lookahead: int = 4  # screensaver mode: used by Human-like and Depth-first
+    screensaver_pause: float = 4.0  # screensaver mode: seconds on the solved maze
 
 
 # name -> (low, high, is_int); both bounds inclusive.
@@ -51,6 +56,9 @@ NUMERIC_RANGES = {
     "hint_length": (2, 40, True),
     "grid_strength": (10, 100, True),
     "coverage": (50, 100, True),
+    "screensaver_speed": (2, 500, False),
+    "screensaver_lookahead": (0, 12, True),
+    "screensaver_pause": (0, 30, False),
     "custom_min": (MIN_CUSTOM, MAX_CUSTOM, True),
     "custom_max": (MIN_CUSTOM, MAX_CUSTOM, True),
 }
@@ -108,6 +116,8 @@ def from_dict(raw: Any) -> GameSettings:
             values[name] = raw[name]
     if raw.get("difficulty") in DIFFICULTIES:
         values["difficulty"] = raw["difficulty"]
+    if isinstance(raw.get("screensaver_solver"), str) and raw["screensaver_solver"] in SOLVERS:
+        values["screensaver_solver"] = raw["screensaver_solver"]
     values.update(_bench(raw))
     return replace(GameSettings(), **values)
 

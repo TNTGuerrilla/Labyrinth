@@ -1,6 +1,6 @@
 from maze_game.config import GameSettings
 from maze_game.keymap import ACTIONS, SLOTS, Keymap
-from maze_game.ui.settings_model import SettingsModel
+from maze_game.ui.settings_model import TABS, SettingsModel
 
 
 def model(**kw):
@@ -13,7 +13,7 @@ def row_index(m, name):
 
 def test_every_tab_ends_with_apply_and_cancel():
     m = model()
-    for tab in range(4):
+    for tab in range(len(TABS)):
         m.set_tab(tab)
         assert [row.name for row in m.rows()[-2:]] == ["apply", "cancel"]
 
@@ -57,7 +57,7 @@ def test_headers_are_never_selected():
         assert m.selected.kind != "header"
     m.select(0)
     assert m.selected.kind != "header"
-    m.set_tab(3)
+    m.set_tab(TABS.index("Info"))
     for _ in range(len(m.rows()) * 2):
         m.handle("down")
         assert m.selected.kind != "header" and m.selected.kind != "info"
@@ -225,7 +225,7 @@ def test_result_orders_the_custom_range_and_leaves_the_original_alone():
 
 def test_check_updates_toggles():
     m = model()
-    m.set_tab(3)
+    m.set_tab(TABS.index("Info"))
     m.select(row_index(m, "check_updates"))
     assert m.value_text(m.selected) == "On"
     m.activate()
@@ -238,7 +238,7 @@ from maze_game.ui.settings_model import InfoState  # noqa: E402
 def test_info_tab_in_a_build():
     m = model()
     m.set_info(InfoState("1.2.0", True, "Up to date", False))
-    m.set_tab(3)
+    m.set_tab(TABS.index("Info"))
     assert [r.label for r in m.rows() if r.kind == "info"] == [
         "Labyrinth 1.2.0", "\u00a9 2026 ByDesign Interactive"]
     assert names(m) == ["version", "copyright", "github", "license", "check_updates",
@@ -255,7 +255,7 @@ def test_info_tab_in_a_build():
 
 def test_info_tab_from_source():
     m = model()
-    m.set_tab(3)
+    m.set_tab(TABS.index("Info"))
     labels = [r.label for r in m.rows() if r.kind == "info"]
     assert "Updates are only available in released builds." in labels
     assert "check_updates" in names(m)
@@ -265,7 +265,7 @@ def test_info_tab_from_source():
 def test_update_row_appears_without_moving_the_selection():
     m = model()
     m.set_info(InfoState("1.0.0", True))
-    m.set_tab(3)
+    m.set_tab(TABS.index("Info"))
     m.select(row_index(m, "whats_new"))
     m.set_info(InfoState("1.0.0", True, "Version 1.1.0 is available", True))
     assert m.selected.name == "whats_new"
@@ -311,3 +311,25 @@ def test_capture_refuses_space():
     m.capture("space")
     assert m.capturing and m.keys == Keymap()
     assert m.message == "Space is fixed: it skips growth and confirms."
+
+
+def test_screensaver_tab_rows():
+    m = model()
+    m.set_tab(TABS.index("Screensaver"))
+    rows = {r.name: r for r in m.rows() if r.kind != "header"}
+    assert rows["screensaver_solver"].kind == "choice"
+    assert [label for _, label in rows["screensaver_solver"].choices] == [
+        "Human-like", "Depth-first", "Wall follower", "Perfect"]
+    assert rows["screensaver_lookahead"].label == "Look-ahead (cells, Human-like and Depth-first)"
+    assert (rows["screensaver_speed"].lo, rows["screensaver_speed"].hi) == (2, 500)
+    assert (rows["screensaver_pause"].lo, rows["screensaver_pause"].hi) == (0, 30)
+
+
+def test_screensaver_solver_cycles():
+    m = model()
+    m.set_tab(TABS.index("Screensaver"))
+    m.select(row_index(m, "screensaver_solver"))
+    m.change(1)
+    assert m.draft.screensaver_solver == "dfs"
+    m.change(-2)
+    assert m.draft.screensaver_solver == "perfect"

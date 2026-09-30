@@ -74,13 +74,13 @@ def test_keyboard_calls_pass_through():
     assert not p.capturing and p.model.keys.keys_for("up")[0] == "h"
 
 
-from maze_game.ui.settings_model import InfoState  # noqa: E402
+from maze_game.ui.settings_model import TABS, InfoState  # noqa: E402
 
 
 def test_info_links_are_clickable_and_info_lines_are_not():
     p = SettingsPanel(SettingsModel(GameSettings(), Keymap(), 800, (1920, 1040),
                                     info=InfoState("1.2.0", True, "Up to date")))
-    p.model.set_tab(3)
+    p.model.set_tab(TABS.index("Info"))
     p.draw(pygame.Surface((1280, 720)))
     rows = p.model.rows()
     github = next(i for i, row in enumerate(rows) if row.name == "github")
@@ -92,7 +92,7 @@ def test_info_links_are_clickable_and_info_lines_are_not():
 def test_check_now_button_hit_area_is_the_button_not_the_row():
     p = SettingsPanel(SettingsModel(GameSettings(), Keymap(), 800, (1920, 1040),
                                     info=InfoState("1.2.0", True, "Up to date")))
-    p.model.set_tab(3)
+    p.model.set_tab(TABS.index("Info"))
     surface = pygame.Surface((1280, 720))
     p.draw(surface)
     rows = p.model.rows()
@@ -108,7 +108,7 @@ def test_check_now_button_hit_area_is_the_button_not_the_row():
 def test_selected_info_button_row_draws_no_full_row_highlight():
     p = SettingsPanel(SettingsModel(GameSettings(), Keymap(), 800, (1920, 1040),
                                     info=InfoState("1.2.0", True, "Up to date")))
-    p.model.set_tab(3)
+    p.model.set_tab(TABS.index("Info"))
     surface = pygame.Surface((1280, 720))
     p.draw(surface)
     rows = p.model.rows()

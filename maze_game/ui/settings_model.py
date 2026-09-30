@@ -7,9 +7,10 @@ from typing import Optional
 from ..config import GameSettings
 from ..difficulty import DIFFICULTIES, LABELS as DIFFICULTY_LABELS, MIN_CUSTOM, PRESETS
 from ..keymap import FIXED_KEYS, LABELS as ACTION_LABELS, SLOTS, Keymap, key_label
+from maze_saver.solver import SOLVER_LABELS
 from labyrinth_update.info import COPYRIGHT, LICENSE_TEXT, REPO_TEXT, SOURCE_ONLY
 
-TABS = ("Gameplay", "Difficulty", "Controls", "Info")
+TABS = ("Gameplay", "Difficulty", "Controls", "Screensaver", "Info")
 UNSELECTABLE = ("header", "info", "fixed")
 LINK_TEXT = {"github": REPO_TEXT, "license": LICENSE_TEXT}
 
@@ -60,6 +61,14 @@ GAMEPLAY_ROWS = (
     Row("number", "Solver look-ahead (cells)", "lookahead", 0, 12, 1),
     Row("number", "Hint length (cells)", "hint_length", 2, 40, 1),
 )
+SCREENSAVER_ROWS = (
+    header("Screensaver mode"),
+    Row("choice", "Solver", "screensaver_solver", choices=tuple(SOLVER_LABELS.items())),
+    Row("number", "Solve speed (steps/s)", "screensaver_speed", 2, 500, 2),
+    Row("number", "Look-ahead (cells, Human-like and Depth-first)", "screensaver_lookahead",
+        0, 12, 1),
+    Row("number", "Pause on solved maze (s)", "screensaver_pause", 0, 30, 0.5),
+)
 CONTROL_GROUPS = (
     ("Movement", ("up", "left", "down", "right")),
     ("Assists", ("hint", "autosolve", "flash")),
@@ -102,9 +111,10 @@ class SettingsModel:
         return list(self._tab_rows()) + list(FOOTER_ROWS)
 
     def _tab_rows(self) -> tuple:
-        if self.tab == 0:
+        name = TABS[self.tab]
+        if name == "Gameplay":
             return GAMEPLAY_ROWS
-        if self.tab == 1:
+        if name == "Difficulty":
             return (
                 header("Maze size"),
                 Row("choice", "Difficulty", "difficulty",
@@ -114,7 +124,7 @@ class SettingsModel:
                 header("Performance"),
                 Row("button", "Run benchmark", "benchmark"),
             )
-        if self.tab == 2:
+        if name == "Controls":
             rows = []
             for title, actions in CONTROL_GROUPS:
                 rows.append(header(title))
@@ -123,6 +133,8 @@ class SettingsModel:
                 rows.extend(FIXED_ROWS.get(title, ()))
             rows.append(Row("button", "Reset to defaults", "reset_keys"))
             return tuple(rows)
+        if name == "Screensaver":
+            return SCREENSAVER_ROWS
         return self._info_rows()
 
     def _info_rows(self) -> tuple:

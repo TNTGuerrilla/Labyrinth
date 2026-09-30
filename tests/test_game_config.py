@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 import os
 from pathlib import Path
 
@@ -174,3 +175,26 @@ def test_benchmark_coverage_round_trips_and_validates(tmp_path):
     assert from_dict(dict(bench, bench_coverage=60)).bench_coverage == 60
     for bad in (49, 101, 80.5, "80", True, None):
         assert from_dict(dict(bench, bench_coverage=bad)).bench_size is None
+
+
+def test_screensaver_settings_defaults():
+    s = GameSettings()
+    assert (s.screensaver_solver, s.screensaver_speed, s.screensaver_lookahead,
+            s.screensaver_pause) == ("human", 20.0, 4, 4.0)
+
+
+def test_screensaver_settings_load_and_fall_back():
+    s = from_dict({"screensaver_solver": "wall", "screensaver_speed": 80,
+                   "screensaver_lookahead": 0, "screensaver_pause": 0.5})
+    assert (s.screensaver_solver, s.screensaver_speed, s.screensaver_lookahead,
+            s.screensaver_pause) == ("wall", 80.0, 0, 0.5)
+    bad = from_dict({"screensaver_solver": "zig", "screensaver_speed": 1,
+                     "screensaver_lookahead": 13, "screensaver_pause": 31})
+    assert bad == GameSettings()
+
+
+def test_screensaver_settings_round_trip(tmp_path):
+    path = tmp_path / "config.json"
+    s = replace(GameSettings(), screensaver_solver="dfs", screensaver_pause=2.5)
+    save(s, Keymap(), path)
+    assert load(path)[0] == s
