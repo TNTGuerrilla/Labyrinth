@@ -226,6 +226,7 @@ class MenuPanel(context: Context, private val host: Host) : LinearLayout(context
             max = sliderSteps(f)
             keyProgressIncrement = 1
             isFocusable = true
+            background = context.focusBackground(Color.TRANSPARENT)
             tag = row
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {

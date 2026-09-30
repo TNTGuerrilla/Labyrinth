@@ -7,6 +7,7 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.util.TypedValue
 import android.view.Gravity
+import android.widget.ScrollView
 import android.widget.TextView
 import com.bydesigninteractive.labyrinth.ACCENT
 import com.bydesigninteractive.labyrinth.FOCUSED
@@ -70,5 +71,14 @@ fun Context.focusBackground(color: Int): StateListDrawable {
         addState(intArrayOf(android.R.attr.state_pressed), rounded(FOCUSED, radius))
         addState(intArrayOf(android.R.attr.state_focused), rounded(color, radius, dp(2), ACCENT))
         addState(intArrayOf(), rounded(color, radius))
+    }
+}
+
+/** A ScrollView no wider than [maxWidthPx]: with MATCH width and margins it also fits narrow screens. */
+class CappedScroll(context: Context, private val maxWidthPx: Int) : ScrollView(context) {
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val size = MeasureSpec.getSize(widthMeasureSpec)
+        val w = if (size > maxWidthPx) MeasureSpec.makeMeasureSpec(maxWidthPx, MeasureSpec.EXACTLY) else widthMeasureSpec
+        super.onMeasure(w, heightMeasureSpec)
     }
 }

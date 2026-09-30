@@ -7,6 +7,7 @@
 package com.bydesigninteractive.labyrinth.mobile
 
 import android.app.Activity
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
@@ -21,12 +22,12 @@ import android.view.MotionEvent
 import android.view.OrientationEventListener
 import android.view.ScaleGestureDetector
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import com.bydesigninteractive.labyrinth.BACKGROUND
 import com.bydesigninteractive.labyrinth.DIM_TEXT
@@ -47,13 +48,17 @@ import com.bydesigninteractive.labyrinth.play.GameRenderer
 import com.bydesigninteractive.labyrinth.play.GameStore
 import com.bydesigninteractive.labyrinth.play.GameView
 import com.bydesigninteractive.labyrinth.play.MazeSizer
+import com.bydesigninteractive.labyrinth.play.RemoteTestActivity
+import com.bydesigninteractive.labyrinth.play.TestDevice
 import com.bydesigninteractive.labyrinth.play.formatTime
 import com.bydesigninteractive.labyrinth.touch.SWIPE_DP
 import com.bydesigninteractive.labyrinth.touch.Strip
 import com.bydesigninteractive.labyrinth.touch.SwipeTracker
 import com.bydesigninteractive.labyrinth.touch.rotateKey
+import com.bydesigninteractive.labyrinth.touch.toMaze
 import com.bydesigninteractive.labyrinth.touch.toolbarStrip
 import com.bydesigninteractive.labyrinth.touch.turnsFor
+import kotlin.math.hypot
 
 private const val TICK_MS = 100L
 private const val BACK_HINT_MS = 2000L
@@ -82,13 +87,24 @@ class MobileGameActivity : Activity() {
     private var menuSettingsBefore: GameSettings? = null
     private lateinit var winPanel: LinearLayout
     /** The win panel sits in a scroller, so a phone held sideways can reach all of it. */
-    private lateinit var winScroll: ScrollView
+    private lateinit var winScroll: CappedScroll
     private lateinit var howPanel: LinearLayout
-    private lateinit var howScroll: ScrollView
+    private lateinit var howScroll: CappedScroll
     private var howOpen = false
     private var howButton: View? = null
     private lateinit var backHint: TextView
     private lateinit var swipes: SwipeTracker
+    private lateinit var joystick: JoystickView
+    /** The maze direction the joystick is holding, turned when it was pressed. */
+    private var stickDir: Int? = null
+    private var downX = 0f
+    private var downY = 0f
+    /** The finger moved beyond a tap. */
+    private var moved = false
+    private var tapSlop = 0
+    /** The orientation sensor's last reading, so switching to Auto follows it at once. */
+    private var lastDegrees = -1
+    private var remote = RemoteProfile()
     private lateinit var scale: ScaleGestureDetector
     private lateinit var orientation: OrientationEventListener
     /** Clockwise quarter turns from the natural up to the player's up (see touch/Rotation.kt). */
@@ -130,7 +146,15 @@ class MobileGameActivity : Activity() {
                     closeMenu(null)
                     showHowToPlay()
                 }
-                MenuLink.CONTROLLER_TEST -> closeMenu(null)
+                MenuLink.CONTROLLER_TEST -> {
+                    closeMenu(null)
+                    view.send { paused = true }
+                    startActivityForResult(
+                        Intent(this@MobileGameActivity, RemoteTestActivity::class.java)
+                            .putExtra(RemoteTestActivity.EXTRA_DEVICE, TestDevice.CONTROLLER.name),
+                        REQUEST_TEST,
+                    )
+                }
             }
         }
 
@@ -151,7 +175,9 @@ class MobileGameActivity : Activity() {
         phone = PhoneStore.load(this)
         appVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         updatePpi()
-        view = GameView(this, settings, RemoteProfile(), startPaused = !PhoneStore.howToPlaySeen(this),
+        remote = GameStore.loadRemote(this) ?: RemoteProfile()
+        controllerUsed = PhoneStore.controllerUsed(this)
+        view = GameView(this, settings, remote, startPaused = !PhoneStore.howToPlaySeen(this),
             sizer = MazeSizer { s, w, h, rng -> phoneGrid(s, w, h, ppi, rng) })
         toolbar = GameToolbar(this, onHint = { view.send { hint() } }, onMenu = ::openMenu)
         startStrip = RotatedFrame(this).apply { setBackgroundColor(BACKGROUND) }
@@ -168,29 +194,30 @@ class MobileGameActivity : Activity() {
         }
         menu = MenuPanel(this, menuHost)
         winPanel = panel()
-        winScroll = scroller(winPanel)
+        winScroll = scroller(winPanel, 340)
         howPanel = panel()
-        howScroll = scroller(howPanel)
+        howScroll = scroller(howPanel, 360)
         backHint = label("Press Back again to leave", 16f, TEXT).apply {
             setPadding(dp(20), dp(10), dp(20), dp(10))
             background = rounded(PANEL, dp(10).toFloat())
             visibility = View.GONE
         }
+        joystick = JoystickView(this) { seen ->
+            stickDir?.let { d -> view.send { releaseTouch(d) } }
+            stickDir = seen?.let { toMaze(it, turns) }
+            stickDir?.let { d -> view.send { holdTouch(d) } }
+        }
         overlay.content.apply {
+            addView(joystick, 0, FrameLayout.LayoutParams(dp(150), dp(150)))
             addView(scrim, FrameLayout.LayoutParams(MATCH, MATCH))
             addView(menu, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.CENTER).apply { setMargins(dp(12), dp(12), dp(12), dp(12)) })
-            addView(winScroll, FrameLayout.LayoutParams(dp(340), WRAP, Gravity.CENTER).apply {
-                topMargin = dp(12)
-                bottomMargin = dp(12)
-            })
-            addView(howScroll, FrameLayout.LayoutParams(dp(360), WRAP, Gravity.CENTER).apply {
-                topMargin = dp(12)
-                bottomMargin = dp(12)
-            })
+            addView(winScroll, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.CENTER).apply { setMargins(dp(12), dp(12), dp(12), dp(12)) })
+            addView(howScroll, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.CENTER).apply { setMargins(dp(12), dp(12), dp(12), dp(12)) })
             addView(backHint, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
                 bottomMargin = dp(88)
             })
         }
+        placeJoystick()
         menu.visibility = View.GONE
         winScroll.visibility = View.GONE
         howScroll.visibility = View.GONE
@@ -213,6 +240,7 @@ class MobileGameActivity : Activity() {
         setContentView(root)
 
         swipes = SwipeTracker(SWIPE_DP * resources.displayMetrics.density)
+        tapSlop = ViewConfiguration.get(this).scaledTouchSlop
         scale = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                 pinchScale = 1f
@@ -242,6 +270,7 @@ class MobileGameActivity : Activity() {
         }
         orientation = object : OrientationEventListener(this) {
             override fun onOrientationChanged(degrees: Int) {
+                lastDegrees = degrees
                 val next = turnsFor(degrees, turns, phone.hold, tall)
                 if (next != turns) setTurns(next)
             }
@@ -262,6 +291,7 @@ class MobileGameActivity : Activity() {
         handler.removeCallbacks(tick)
         orientation.disable()
         heldKeys.clear()
+        letGoOfStick()
         releaseScreen()
         view.onPause()
         super.onPause()
@@ -350,25 +380,72 @@ class MobileGameActivity : Activity() {
 
     // --- touch -------------------------------------------------------------------------------
 
+    /** Shows the joystick for the Joystick scheme, in the player's lower corner on the chosen hand. */
+    private fun placeJoystick() {
+        val params = joystick.layoutParams as FrameLayout.LayoutParams
+        params.gravity = Gravity.BOTTOM or (if (phone.hand == Hand.LEFT) Gravity.START else Gravity.END)
+        params.setMargins(dp(24), dp(24), dp(24), dp(24))
+        joystick.layoutParams = params
+        joystick.visibility = if (phone.touch == TouchScheme.JOYSTICK) View.VISIBLE else View.GONE
+        letGoOfStick()
+    }
+
+    /** The joystick's hold ends when a panel opens or the app goes away. */
+    private fun letGoOfStick() {
+        stickDir?.let { d -> view.send { releaseTouch(d) } }
+        stickDir = null
+        joystick.reset()
+    }
+
     private fun onBoardTouch(e: MotionEvent) {
         scale.onTouchEvent(e)
+        val scheme = phone.touch
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 pinching = false
-                swipes.down(e.x, e.y)
+                moved = false
+                downX = e.x
+                downY = e.y
+                when (scheme) {
+                    TouchScheme.SWIPE -> swipes.down(e.x, e.y)
+                    TouchScheme.DRAG -> dragTo(e.x, e.y)
+                    TouchScheme.JOYSTICK, TouchScheme.TAP -> {}
+                }
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 pinching = true // two fingers zoom; they never steer
                 swipes.cancel()
+                if (scheme == TouchScheme.DRAG) view.send { dragEnd() }
             }
-            MotionEvent.ACTION_MOVE -> if (!pinching) swipes.move(e.x, e.y)?.let { d -> view.send { swipe(d) } }
+            MotionEvent.ACTION_MOVE -> if (!pinching) {
+                if (hypot(e.x - downX, e.y - downY) > tapSlop) moved = true
+                when (scheme) {
+                    TouchScheme.SWIPE -> swipes.move(e.x, e.y)?.let { d -> view.send { swipe(d) } }
+                    TouchScheme.DRAG -> dragTo(e.x, e.y)
+                    TouchScheme.JOYSTICK, TouchScheme.TAP -> {}
+                }
+            }
             MotionEvent.ACTION_UP -> {
-                val steered = swipes.up()
-                if (!steered && !pinching && view.snapshot?.phase == RoundPhase.GROW) view.send { skipGrowth() }
+                val steered = scheme == TouchScheme.SWIPE && swipes.up()
+                if (scheme == TouchScheme.DRAG) view.send { dragEnd() }
+                if (!pinching && !moved && !steered) {
+                    val x = e.x
+                    val y = e.y
+                    if (view.snapshot?.phase == RoundPhase.GROW) {
+                        view.send { skipGrowth() }
+                    } else if (scheme == TouchScheme.TAP) {
+                        view.send { tapAt(x, y) }
+                    }
+                }
             }
-            MotionEvent.ACTION_CANCEL -> swipes.cancel()
+            MotionEvent.ACTION_CANCEL -> {
+                swipes.cancel()
+                if (scheme == TouchScheme.DRAG) view.send { dragEnd() }
+            }
         }
     }
+
+    private fun dragTo(x: Float, y: Float) = view.send { dragAt(x, y) }
 
     private fun zoomBy(steps: Int) {
         changeSettings(settings.copy(zoomSteps = (settings.zoomSteps + steps).coerceIn(0, MAX_ZOOM_STEPS)))
@@ -395,6 +472,10 @@ class MobileGameActivity : Activity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         val key = phoneKey(keyCode)
+        if (!controllerUsed && (key in ARROWS || key == RemoteKey.OK || key == RemoteKey.VOLUME_UP || key == RemoteKey.VOLUME_DOWN)) {
+            controllerUsed = true
+            PhoneStore.markControllerUsed(this)
+        }
         if (key == RemoteKey.BACK) {
             if (event.repeatCount == 0) {
                 when {
@@ -490,9 +571,10 @@ class MobileGameActivity : Activity() {
 
     // --- the menu ----------------------------------------------------------------------------
 
-    private fun openMenu() {
+    private fun openMenu(first: PhoneTab? = null) {
         if (menuOpen) return
         menuOpen = true
+        letGoOfStick()
         menuSettingsBefore = settings
         heldKeys.clear()
         view.send {
@@ -501,7 +583,7 @@ class MobileGameActivity : Activity() {
         }
         if (screenHeld) releaseScreen()
         if (winShown) hideWin()
-        menu.show(reopenTab(menu.tab, menuClosedAt, now()))
+        menu.show(first ?: reopenTab(menu.tab, menuClosedAt, now()))
         scrim.visibility = View.VISIBLE
         menu.visibility = View.VISIBLE
     }
@@ -536,7 +618,11 @@ class MobileGameActivity : Activity() {
         val before = phone
         phone = next
         PhoneStore.save(this, next)
-        if (next.hold != before.hold) setTurns(turnsFor(-1, turns, next.hold, tall))
+        if (next.hold != before.hold) setTurns(turnsFor(lastDegrees, turns, next.hold, tall))
+        if (next.touch != before.touch || next.hand != before.hand) {
+            if (before.touch == TouchScheme.DRAG) view.send { dragEnd() }
+            placeJoystick()
+        }
         if (next.hideBars != before.hideBars) applySystemBars()
     }
 
@@ -546,6 +632,7 @@ class MobileGameActivity : Activity() {
         if (howOpen) return
         howOpen = true
         heldKeys.clear()
+        letGoOfStick()
         view.send {
             paused = true
             clearKeys()
@@ -661,13 +748,23 @@ class MobileGameActivity : Activity() {
         isClickable = true
     }
 
-    private fun scroller(panel: LinearLayout) = ScrollView(this).apply {
+    private fun scroller(panel: LinearLayout, maxWidthDp: Int) = CappedScroll(this, dp(maxWidthDp)).apply {
         isFillViewport = false
         isVerticalScrollBarEnabled = false
         addView(panel, FrameLayout.LayoutParams(MATCH, WRAP))
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_TEST) return
+        remote = GameStore.loadRemote(this) ?: remote
+        val r = remote
+        view.send { setRemote(r) }
+        openMenu(PhoneTab.CONTROLS)
+    }
+
     private companion object {
+        const val REQUEST_TEST = 1
         const val WRAP = FrameLayout.LayoutParams.WRAP_CONTENT
         const val MATCH = FrameLayout.LayoutParams.MATCH_PARENT
     }
