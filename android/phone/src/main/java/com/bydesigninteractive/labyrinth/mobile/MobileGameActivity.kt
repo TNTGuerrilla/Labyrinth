@@ -75,6 +75,7 @@ class MobileGameActivity : Activity() {
     private lateinit var scrim: View
     private lateinit var menu: MenuPanel
     private lateinit var phone: PhoneSettings
+    private lateinit var appVersion: String
     /** When the menu last closed, for reopening on the same tab within a minute. */
     private var menuClosedAt: Double? = null
     /** The game settings when the menu opened: closing it starts a new maze if the size changed. */
@@ -110,7 +111,7 @@ class MobileGameActivity : Activity() {
     private val menuHost = object : MenuPanel.Host {
         override val game: GameSettings get() = settings
         override val phone: PhoneSettings get() = this@MobileGameActivity.phone
-        override val version: String get() = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+        override val version: String get() = appVersion
 
         override fun readout(): String? {
             val snap = view.snapshot ?: return null
@@ -144,6 +145,7 @@ class MobileGameActivity : Activity() {
         super.onCreate(savedInstanceState)
         settings = GameStore.load(this)
         phone = PhoneStore.load(this)
+        appVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         updatePpi()
         view = GameView(this, settings, RemoteProfile(), startPaused = !PhoneStore.howToPlaySeen(this),
             sizer = MazeSizer { s, w, h, rng -> phoneGrid(s, w, h, ppi, rng) })

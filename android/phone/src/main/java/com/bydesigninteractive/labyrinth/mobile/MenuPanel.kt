@@ -114,6 +114,9 @@ class MenuPanel(context: Context, private val host: Host) : LinearLayout(context
         if (rowsNow() != rendered) render() else refreshers.forEach { it() }
     }
 
+    // Being clickable would press every child slider with the panel; they must not show as pressed.
+    override fun dispatchSetPressed(pressed: Boolean) {}
+
     private fun rowsNow() = phoneRows(tab, host.game, host.phone, host.version)
 
     private fun setGame(next: GameSettings) {
@@ -220,6 +223,7 @@ class MenuPanel(context: Context, private val host: Host) : LinearLayout(context
         }
         val bar = SeekBar(context).apply {
             max = sliderSteps(f)
+            keyProgressIncrement = 1
             isFocusable = true
             tag = row
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -279,7 +283,7 @@ class MenuPanel(context: Context, private val host: Host) : LinearLayout(context
             val button = context.panelButton(option) {
                 expanded = null
                 pick(i)
-                render()
+                if (rowsNow() == rendered) render() // a changed row set was already rebuilt by pick
             }.apply {
                 tag = row to i
                 if (i == index()) setTextColor(ACCENT)

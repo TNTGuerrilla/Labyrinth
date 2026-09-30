@@ -39,7 +39,7 @@ const val BENDS_NOTE = "Swipes always follow bends. Bend assist and Pause at for
 val KEY_HELP = listOf(
     "Keyboards and controllers: the arrows, WASD, the D-pad or the left stick steer.",
     "A, Enter or Start opens the menu. B or Esc closes it; during a maze, press Back twice to leave.",
-    "Shoulder buttons or + and - zoom, and in this menu they switch tabs.",
+    "Shoulder buttons or + and - zoom. In this menu the shoulder buttons switch tabs.",
 )
 
 val HOW_TO_PLAY = listOf(
