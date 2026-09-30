@@ -257,4 +257,85 @@ class GameControllerTest {
         assertTrue(g.round.fastForward)
         assertNull(g.keys.request)
     }
+
+    @Test
+    fun aTapWalksToAnUnvisitedForkButNoFurther() {
+        val g = controller(end = c(1, 0))
+        assertFalse(g.goTo(c(3, 1)))
+        assertTrue(g.goTo(c(1, 1)))
+        g.frames(100)
+        assertEquals(c(1, 1), g.round.dot)
+        assertFalse(g.dotMoving)
+    }
+
+    @Test
+    fun aTapRunsBackThroughVisitedCellsAndDownACorridor() {
+        val g = controller(end = c(1, 0))
+        g.goTo(c(1, 1))
+        g.frames(100)
+        assertTrue(g.goTo(c(3, 1)))
+        g.frames(100)
+        assertEquals(c(3, 1), g.round.dot)
+        assertEquals(3, g.round.explored)
+    }
+
+    @Test
+    fun aRefusedTapLeavesTheDotAlone() {
+        val g = controller(end = c(1, 0))
+        assertFalse(g.goTo(c(3, 1)))
+        assertFalse(g.routing)
+        g.frames(50)
+        assertEquals(c(0, 1), g.round.dot)
+    }
+
+    @Test
+    fun aTapBehindTheDotTurnsItAround() {
+        val g = controller(settings = TEST.copy(turnPause = 0.0), end = c(1, 0))
+        g.goTo(c(1, 1))
+        g.frames(2)
+        assertTrue(g.goTo(c(0, 1)))
+        assertEquals(c(0, 1), g.round.mover.to)
+    }
+
+    @Test
+    fun aDragStopsAtTheFirstUnvisitedForkAndEndsWhenLifted() {
+        val g = GameController(TEST, RemoteProfile()).apply { start(Round.ofMaze(forkGrid(), c(0, 1), c(2, 1), TEST)) }
+        g.dragTo(c(2, 1))
+        g.frames(100)
+        assertEquals(c(1, 0), g.round.dot)
+        g.dragTo(null)
+        assertFalse(g.routing)
+    }
+
+    @Test
+    fun keysSwipesAndTheJoystickCancelARoute() {
+        val g = controller(end = c(1, 0))
+        g.goTo(c(1, 1))
+        g.pressArrow(E)
+        assertFalse(g.routing)
+        g.goTo(c(1, 1))
+        g.swipe(E)
+        assertFalse(g.routing)
+        g.goTo(c(1, 1))
+        g.holdTouch(E)
+        assertFalse(g.routing)
+    }
+
+    @Test
+    fun theJoystickHasNoRemoteLagAndDoesNotCoast() {
+        val g = controller(settings = TEST.copy(followBends = false), remote = RemoteProfile(arrowLagMs = 100, arrowRepeatCooldownMs = 50))
+        g.holdTouch(E)
+        assertTrue(g.touch)
+        assertEquals(0.2, g.forkPause, 1e-9)
+        g.releaseTouch(E)
+        assertNull(g.keys.wanted)
+    }
+
+    @Test
+    fun theJoystickHeldThroughTheForkCarriesOnLikeARemote() {
+        val g = controller(settings = TEST.copy(followBends = false, pauseAtForks = false), end = c(1, 0))
+        g.holdTouch(E)
+        g.frames(100)
+        assertEquals(c(3, 1), g.round.dot)
+    }
 }

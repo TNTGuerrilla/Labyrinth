@@ -46,6 +46,7 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
@@ -58,6 +59,8 @@ private const val MAX_TEXTURE = 4096
 private const val MAX_CELL_UPLOADS = 64
 private const val REDRAW_BUDGET_NANOS = 8_000_000L // cell redraws per frame after a full invalidate
 private const val REDRAW_CHUNK = 64
+private const val DENIED_SECONDS = 0.5
+private val DRAG_RING = Color.WHITE
 private val HINT_COLOR = Color.rgb(120, 200, 255)
 private const val ARROW_INSET = 28f // at 720 px of screen height; scaled up on bigger screens
 private const val ARROW_SIZE = 14f
@@ -209,6 +212,12 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
     private val redraw = ArrayDeque<Cell>()
     private var lastFrameNanos = 0L
 
+    /** Seconds since the surface started, for the refused-tap ring. */
+    private var clock = 0.0
+    private var dragging = false
+    private var deniedCell: Cell? = null
+    private var deniedAt = 0.0
+
     private var mazeProgram = 0
     private var circleProgram = 0
     private var triangleProgram = 0
@@ -278,6 +287,38 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
     fun pressArrow(d: Int) { if (started) controller.pressArrow(d) }
     fun releaseArrow(d: Int) { if (started) controller.releaseArrow(d) }
     fun swipe(d: Int) { if (started) controller.swipe(d) }
+    fun holdTouch(d: Int) { if (started) controller.holdTouch(d) }
+    fun releaseTouch(d: Int) { if (started) controller.releaseTouch(d) }
+
+    /** A tap at view pixel (x, y): walk there, or flash the cell if the route is not allowed. */
+    fun tapAt(x: Float, y: Float) {
+        if (!started || round.phase != RoundPhase.PLAY) return
+        val cell = cellAt(x, y) ?: return
+        if (!controller.goTo(cell)) {
+            deniedCell = cell
+            deniedAt = clock
+        }
+    }
+
+    fun dragAt(x: Float, y: Float) {
+        if (!started || round.phase != RoundPhase.PLAY) return
+        dragging = true
+        cellAt(x, y)?.let { controller.dragTo(it) }
+    }
+
+    fun dragEnd() {
+        dragging = false
+        if (started) controller.dragTo(null)
+    }
+
+    /** The cell under view pixel (x, y), or null outside the maze. */
+    private fun cellAt(x: Float, y: Float): Cell? {
+        val cam = camera ?: return null
+        val (ox, oy) = cam.origin()
+        val cx = floor((x - ox) / cam.cellPx).toInt()
+        val cy = floor((y - oy) / cam.cellPx).toInt()
+        return if (cx in 0 until cam.cols && cy in 0 until cam.rows) Cell(cx, cy) else null
+    }
     fun skipGrowth() { if (started) controller.skipGrowth() }
     fun hint() { if (started) controller.hint() }
     fun flash() { if (started) controller.flash() }
@@ -337,6 +378,7 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
         val now = System.nanoTime()
         val dt = if (lastFrameNanos == 0L) 0.0 else ((now - lastFrameNanos) / 1e9).coerceIn(0.0, MAX_FRAME_SECONDS)
         lastFrameNanos = now
+        clock += dt
         val cam = camera!!
         val changed = when {
             !paused -> controller.frame(dt)
@@ -458,6 +500,17 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
         val (dx, dy) = cam.toScreen(r.mover.position().first, r.mover.position().second)
         val dotRadius = if (r.dot == r.end && !r.mover.moving) max(1f, radius * DOT_AT_END_SCALE.toFloat()) else radius
         circle(dx, dy, dotRadius, 0f, START_COLOR, 1f)
+        if (dragging) ring(dx, dy, dotRadius * 2.2f, max(2f, px / 10f), DRAG_RING, 0.6f)
+        val denied = deniedCell
+        if (denied != null) {
+            val age = clock - deniedAt
+            if (age < DENIED_SECONDS) {
+                val (x, y) = center(denied)
+                ring(x, y, max(3f, px * 0.45f), max(2f, px / 8f), END_COLOR, (1 - age / DENIED_SECONDS).toFloat())
+            } else {
+                deniedCell = null
+            }
+        }
     }
 
     /** A triangle at the screen edge pointing from the center toward (tx, ty). */

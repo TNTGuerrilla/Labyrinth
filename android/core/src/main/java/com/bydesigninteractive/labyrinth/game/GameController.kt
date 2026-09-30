@@ -4,6 +4,8 @@
 package com.bydesigninteractive.labyrinth.game
 
 import com.bydesigninteractive.labyrinth.maze.Cell
+import com.bydesigninteractive.labyrinth.touch.allowedPrefix
+import com.bydesigninteractive.labyrinth.touch.uniquePath
 
 class GameController(var settings: GameSettings, var remote: RemoteProfile) {
     lateinit var round: Round
@@ -22,10 +24,18 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
     var touch = false
         private set
 
+    /** The last steering was a swipe: coast through corridors and bends, and always follow bends. */
+    private var swiping = false
+    /** The cells a tap or a drag still has the dot walk; while not empty, nothing else steers. */
+    private val route = ArrayDeque<Cell>()
+
+    val routing: Boolean get() = route.isNotEmpty()
+
     fun start(r: Round) {
         round = r
         auto = null
         keys.resetRound()
+        route.clear()
         pendingRelease.clear()
     }
 
@@ -34,6 +44,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
         round.replay()
         auto = null
         keys.resetRound()
+        route.clear()
     }
 
     /** Turn pause plus, for keys, the remote's lag and cooldown, in seconds. */
@@ -46,6 +57,8 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
 
     fun pressArrow(d: Int) {
         touch = false
+        swiping = false
+        route.clear()
         // A stuttering remote reports a hold as press, release, press...: a press inside
         // the grace after a release continues the same hold.
         if (pendingRelease.remove(d) != null) return
@@ -79,6 +92,8 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
      */
     fun swipe(d: Int) {
         touch = true
+        swiping = true
+        route.clear()
         val r = round
         if (r.phase == RoundPhase.GROW) {
             r.skipGrowth()
@@ -92,6 +107,82 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
             r.reverse()
             keys.request = null
         }
+    }
+
+    /** The touch joystick pressed [d]: held like a remote arrow, without the remote's lag. */
+    fun holdTouch(d: Int) {
+        touch = true
+        swiping = false
+        route.clear()
+        val r = round
+        if (r.phase == RoundPhase.GROW) {
+            r.skipGrowth()
+            return
+        }
+        keys.press(d)
+        auto = null
+        if (r.phase != RoundPhase.PLAY) return
+        if (!r.mover.returning && isReverse(r.mover.frm, r.mover.to, d)) {
+            r.reverse()
+            keys.request = null
+        }
+    }
+
+    fun releaseTouch(d: Int) = keys.release(d)
+
+    /** A tap: walks to [target] when its whole route is allowed (see touch/Route.kt), else false. */
+    fun goTo(target: Cell): Boolean {
+        val r = round
+        if (r.phase != RoundPhase.PLAY) return false
+        val path = pathFromDot(target)
+        if (path.isEmpty() || allowedPrefix(r.grid, path, r.visitedCells).size != path.size) return false
+        follow(path)
+        return true
+    }
+
+    /** A drag toward [target], as far as allowed; null (the finger lifted) ends it. */
+    fun dragTo(target: Cell?) {
+        if (target == null) {
+            route.clear()
+            return
+        }
+        val r = round
+        if (r.phase != RoundPhase.PLAY) return
+        val path = pathFromDot(target)
+        if (path.isNotEmpty()) follow(allowedPrefix(r.grid, path, r.visitedCells))
+    }
+
+    /**
+     * The path to [target] from where the dot is heading, or, when [target] lies behind a moving
+     * dot, from the cell it came from (the dot turns around; see follow).
+     */
+    private fun pathFromDot(target: Cell): List<Cell> {
+        val m = round.mover
+        val to = m.to ?: return uniquePath(round.grid, m.frm, target)
+        val ahead = uniquePath(round.grid, to, target)
+        if (!m.returning && ahead.size >= 2 && ahead[1] == m.frm) return uniquePath(round.grid, m.frm, target)
+        return ahead
+    }
+
+    private fun follow(path: List<Cell>) {
+        touch = true
+        swiping = false
+        auto = null
+        keys.clear()
+        route.clear()
+        val m = round.mover
+        if (m.to != null && !m.returning && path.first() == m.frm) round.reverse() // the route starts back the way the dot came
+        route.addAll(path)
+    }
+
+    private fun routeChoose(cell: Cell): Cell? {
+        while (route.firstOrNull() == cell) route.removeFirst()
+        val next = route.firstOrNull() ?: return null
+        if (next !in round.grid.openNeighbors(cell)) {
+            route.clear()
+            return null
+        }
+        return next
     }
 
     /** Forget every held arrow, including releases still waiting out a stutter's grace. */
@@ -114,6 +205,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
         val r = round
         if (r.phase != RoundPhase.PLAY) return
         keys.forgetPosition()
+        route.clear()
         auto = AutoSteer(r.towardEnd, r.end)
         r.assisted = true
     }
@@ -139,11 +231,13 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
             val s = settings
             changed += if (a != null) {
                 r.move(dt * s.solveSpeed, a::choose, assisted = true)
+            } else if (route.isNotEmpty()) {
+                r.move(dt * s.glideSpeed, { cell, _ -> routeChoose(cell) })
             } else {
                 val stops = listOf(r.start, r.end)
-                keys.coast = touch
+                keys.coast = swiping
                 r.move(dt * s.glideSpeed, { cell, came ->
-                    keys.choose(r.grid, cell, came, s.followBends || touch, stops, r.end, s.lookahead, forkPause, s.pauseAtForks)
+                    keys.choose(r.grid, cell, came, s.followBends || swiping, stops, r.end, s.lookahead, forkPause, s.pauseAtForks)
                 })
             }
             if (r.phase != RoundPhase.PLAY || auto?.done == true) auto = null
