@@ -88,6 +88,8 @@ class Round private constructor(
     var autoExplored = 0
         private set
     private val visited = HashSet<Cell>()
+    /** Cells the dot has entered this round, the start included (read-only). */
+    val visitedCells: Set<Cell> get() = visited
     var hints = 0
         private set
     var elapsed = 0.0
