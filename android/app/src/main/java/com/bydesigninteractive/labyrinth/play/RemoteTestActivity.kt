@@ -2,7 +2,9 @@
 // latency setting: no button timing, just move the click until it lands on the bounce).
 // Steps 2 to 5 run blocks of beats (see RemoteScript) and record when keys went down and
 // up; the analysis (RemoteAnalysis) turns that into a RemoteProfile, saved on OK at the end.
-// Back leaves at any point without saving. Leaving the app mid-step restarts that step.
+// Back leaves at any point without saving; opened from Play, it skips the test and starts
+// the game with default timings, so the test is a recommendation, not a gate. Leaving the
+// app mid-step restarts that step.
 package com.bydesigninteractive.labyrinth.play
 
 import android.app.Activity
@@ -93,7 +95,9 @@ class RemoteTestActivity : Activity() {
             addView(titleView)
             addView(bodyView)
         }
-        val footer = text(16f, DIM_TEXT).apply { text = "Back leaves the test." }
+        val footer = text(16f, DIM_TEXT).apply {
+            text = if (thenPlay) "Back skips the test and starts the game." else "Back leaves the test."
+        }
         setContentView(FrameLayout(this).apply {
             addView(testView)
             addView(column, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT))
@@ -235,15 +239,20 @@ class RemoteTestActivity : Activity() {
     private fun finishTest() {
         profile?.let { GameStore.saveRemote(this, it) }
         setResult(RESULT_OK)
-        if (intent.getBooleanExtra(EXTRA_THEN_PLAY, false)) startActivity(Intent(this, GameActivity::class.java))
+        if (thenPlay) startActivity(Intent(this, GameActivity::class.java))
         finish()
     }
+
+    /** Opened from Play, the game starts after the test whether it was finished or skipped. */
+    private val thenPlay: Boolean get() = intent.getBooleanExtra(EXTRA_THEN_PLAY, false)
 
     // --- keys ------------------------------------------------------------------------
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         val key = remoteKey(keyCode)
         if (key == RemoteKey.BACK) {
+            if (event.repeatCount != 0) return true // a held Back skips once, not into the game too
+            if (thenPlay) startActivity(Intent(this, GameActivity::class.java))
             finish()
             return true
         }

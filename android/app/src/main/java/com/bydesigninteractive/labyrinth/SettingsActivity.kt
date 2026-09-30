@@ -451,7 +451,10 @@ class SettingsActivity : Activity() {
         for ((field, view) in valueViews) view.text = "<  ${field.format(field.get(settings))}  >"
     }
 
-    /** The first Play tests the remote, then starts the game; after that, straight into a game. */
+    /**
+     * Until the remote test has been finished once, Play offers it first (Back there skips it),
+     * then starts the game; after that, straight into a game.
+     */
     private fun play() {
         if (GameStore.loadRemote(this) == null) {
             startActivity(Intent(this, RemoteTestActivity::class.java).putExtra(RemoteTestActivity.EXTRA_THEN_PLAY, true))
