@@ -30,7 +30,7 @@ sealed interface MenuRow {
     data class Link(val link: MenuLink) : MenuRow
 }
 
-const val COPYRIGHT = "© 2026 ByDesign Interactive"
+const val COPYRIGHT = "\u00a9 2026 ByDesign Interactive"
 const val LICENSE_LINE = "Licensed under Apache 2.0"
 const val PROJECT_ADDRESS = "github.com/TNTGuerrilla/Labyrinth"
 const val SIZE_NOTE = "Sizes are cell widths on your screen: Small 8 mm, Medium 5 mm, Large 3.5 mm, XL 2.5 mm."
