@@ -200,7 +200,7 @@ class MobileGameActivity : Activity() {
         updates = UpdateFlow(this) { onUpdateChange() }
         remote = GameStore.loadRemote(this) ?: RemoteProfile()
         controllerUsed = PhoneStore.controllerUsed(this)
-        view = GameView(this, settings, remote, startPaused = !PhoneStore.howToPlaySeen(this),
+        view = GameView(this, settings, remote, startPaused = savedInstanceState == null && !PhoneStore.howToPlaySeen(this),
             sizer = MazeSizer { s, w, h, rng -> phoneGrid(s, w, h, ppi, rng) })
         toolbar = GameToolbar(this, onHint = { view.send { hint() } }, onMenu = ::openMenu)
         startStrip = RotatedFrame(this).apply { setBackgroundColor(BACKGROUND) }
@@ -729,7 +729,7 @@ class MobileGameActivity : Activity() {
     }
 
     private fun showHowToPlay() =
-        showCard(LaunchCard.HOW_TO_PLAY, "How to play", HOW_TO_PLAY, listOf("Play" to ::closeCard))
+        showCard(LaunchCard.HOW_TO_PLAY, "How to play", howToPlay(phone.touch), listOf("Play" to ::closeCard))
 
     private fun showWhatsNew(news: WhatsNew) {
         val notes = label("", 16f, DIM_TEXT)
@@ -775,7 +775,7 @@ class MobileGameActivity : Activity() {
         if (!Updates.takeInstallReport()) return false
         updates.installFailed()
         closeCard()
-        if (!menuOpen) openMenu(PhoneTab.ABOUT)
+        if (menuOpen) menu.show(PhoneTab.ABOUT) else openMenu(PhoneTab.ABOUT)
         return true
     }
 

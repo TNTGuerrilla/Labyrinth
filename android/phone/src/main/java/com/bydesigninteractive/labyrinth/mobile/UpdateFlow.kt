@@ -13,6 +13,8 @@ import com.bydesigninteractive.labyrinth.update.Release
 import com.bydesigninteractive.labyrinth.update.UpdateFailure
 import com.bydesigninteractive.labyrinth.update.UpdateStore
 import com.bydesigninteractive.labyrinth.update.Updates
+import com.bydesigninteractive.labyrinth.update.compareVersions
+import com.bydesigninteractive.labyrinth.update.parseVersion
 import com.bydesigninteractive.labyrinth.update.visibleUpdate
 import java.io.IOException
 import kotlin.concurrent.thread
@@ -63,7 +65,16 @@ class UpdateFlow(private val activity: Activity, private val onChange: () -> Uni
 
     private fun onCheck(release: Release?) {
         if (activity.isDestroyed || downloading || checkingNow) return
-        show(release ?: sessionOffer)
+        // A check that finds nothing must not drop an offer the player just chose on the card
+        // (the Install unknown apps round trip resumes the game): keep it while it is still newer
+        // than this install. Dismiss clears [offered], so a dismissed offer never survives here.
+        show(release ?: sessionOffer ?: offered?.takeIf { newerThanCurrent(it) })
+    }
+
+    private fun newerThanCurrent(release: Release): Boolean {
+        val offer = parseVersion(release.version) ?: return false
+        val installed = parseVersion(current) ?: return true
+        return compareVersions(offer, installed) > 0
     }
 
     /** InstallStatusActivity reported that the installer did not install the update. */

@@ -43,17 +43,16 @@ const val BENDS_NOTE = "Swipes always follow bends. Bend assist and Pause at for
 
 val KEY_HELP = listOf(
     "Keyboards and controllers: the arrows, WASD, the D-pad or the left stick steer.",
-    "A, Enter or Start opens the menu. B or Esc closes it; during a maze, press Back twice to leave.",
-    "Shoulder buttons or + and - zoom. In this menu the shoulder buttons switch tabs.",
+    "A controller's A or Start button, or Enter, opens the menu. B or Esc closes it; during a maze, press Back twice to leave.",
+    "Shoulder buttons, + and - zoom during a maze and switch tabs in this menu.",
 )
 
-val HOW_TO_PLAY = listOf(
+fun howToPlay(scheme: TouchScheme): List<String> = listOf(
     "Get the green dot to the red one.",
-    "Swipe on the maze to send the dot running. It follows the corridor and stops at the next fork.",
-    "Swipe again while it runs to choose the turn at the next fork.",
+    scheme.help,
     "Pinch to zoom. Tap while the maze grows to skip to the finished maze.",
     "Menu has hints, auto-solve, new mazes and settings. Other ways to steer are under Menu > Controls.",
-    "Keyboards and controllers work too: the arrows or the D-pad steer, and A or Enter opens the menu.",
+    "Keyboards and controllers work too: the arrows or the D-pad steer, and a controller's A button or Enter opens the menu.",
 )
 
 private val HOLD_LABELS = mapOf(Hold.AUTO to "Auto", Hold.PORTRAIT to "Portrait", Hold.LANDSCAPE to "Landscape")

@@ -168,7 +168,14 @@ class PhoneMenuTest {
 
     @Test
     fun howToPlayNamesTheGoalAndTheMenu() {
-        assertTrue(HOW_TO_PLAY.first().contains("green dot"))
-        assertTrue(HOW_TO_PLAY.any { it.contains("Menu > Controls") })
+        val lines = howToPlay(TouchScheme.SWIPE)
+        assertTrue(lines.first().contains("green dot"))
+        assertTrue(lines.any { it.contains("Menu > Controls") })
+    }
+
+    @Test
+    fun howToPlayFollowsTheTouchScheme() {
+        assertTrue(howToPlay(TouchScheme.JOYSTICK).contains(TouchScheme.JOYSTICK.help))
+        assertTrue(howToPlay(TouchScheme.SWIPE).contains(TouchScheme.SWIPE.help))
     }
 }
