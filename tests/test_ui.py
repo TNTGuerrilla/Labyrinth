@@ -262,12 +262,15 @@ def test_toolbar_buttons_never_overlap_and_the_right_side_stays_clear(monkeypatc
 
 
 def test_update_control_is_hidden_when_even_the_short_form_does_not_fit():
-    hidden = False
-    for width in range(960, 1400, 20):
-        toolbar = Toolbar()
-        toolbar.draw(pygame.Surface((width, 700)), Keymap(), update_state(), (-1, -1))
-        hidden = hidden or toolbar.hits.rect_for("update") is None
-    assert hidden
+    # Measured from the drawn buttons, since text widths differ between platforms' fonts.
+    probe = Toolbar()
+    probe.draw(pygame.Surface((1600, 700)), Keymap(), ToolbarState("medium", False, True, 0, 0.0),
+               (-1, -1))
+    buttons_end = probe.hits.rect_for("settings").right
+    toolbar = Toolbar()
+    toolbar.draw(pygame.Surface((buttons_end + 40, 700)), Keymap(), update_state(), (-1, -1))
+    assert toolbar.hits.rect_for("update") is None
+    assert toolbar.hits.rect_for("update_dismiss") is None
 
 
 def test_wide_window_still_draws_the_full_update_control():
