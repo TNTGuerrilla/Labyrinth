@@ -1,4 +1,4 @@
-﻿"""The game's screensaver mode: the chosen screensaver solver's moves, as the cells the
+"""The game's screensaver mode: the chosen screensaver solver's moves, as the cells the
 dot follows. Pure logic with no pygame dependency."""
 from __future__ import annotations
 
