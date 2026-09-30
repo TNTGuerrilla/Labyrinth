@@ -31,6 +31,7 @@ fun Context.label(value: String, sizeSp: Float, color: Int) = TextView(this).app
 /** A toolbar button. Not focusable, so a controller's arrows keep steering the dot. */
 fun Context.chip(value: String, onClick: () -> Unit) = label(value, 14f, TEXT).apply {
     gravity = Gravity.CENTER
+    maxLines = 1
     setPadding(dp(12), dp(8), dp(12), dp(8))
     background = rounded(FOCUSED, dp(8).toFloat())
     isFocusable = false
@@ -50,4 +51,11 @@ fun Context.panelButton(value: String, onClick: () -> Unit) = label(value, 18f, 
         addState(intArrayOf(), rounded(BUTTON, radius))
     }
     setOnClickListener { onClick() }
+}
+
+/** Sizes a [chip] for the narrow vertical toolbar (or back for the horizontal one). */
+fun TextView.compactChip(compact: Boolean) {
+    setTextSize(TypedValue.COMPLEX_UNIT_SP, if (compact) 13f else 14f)
+    val h = context.dp(if (compact) 6 else 12)
+    setPadding(h, context.dp(8), h, context.dp(8))
 }

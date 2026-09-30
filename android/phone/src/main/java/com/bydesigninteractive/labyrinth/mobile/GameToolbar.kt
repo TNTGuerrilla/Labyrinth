@@ -32,6 +32,8 @@ class GameToolbar(context: Context, onHint: () -> Unit, onMenu: () -> Unit) : Li
         vertical = value
         removeAllViews()
         val gap = context.dp(8)
+        hint.compactChip(value)
+        menu.compactChip(value)
         if (value) {
             orientation = VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL

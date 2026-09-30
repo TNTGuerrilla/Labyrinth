@@ -26,6 +26,7 @@ import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import com.bydesigninteractive.labyrinth.BACKGROUND
 import com.bydesigninteractive.labyrinth.DIM_TEXT
@@ -76,6 +77,9 @@ class MobileGameActivity : Activity() {
     private lateinit var scrim: View
     private lateinit var playPanel: LinearLayout
     private lateinit var winPanel: LinearLayout
+    /** Each panel sits in a scroller, so a phone held sideways can reach all of it. */
+    private lateinit var playScroll: ScrollView
+    private lateinit var winScroll: ScrollView
     private lateinit var backHint: TextView
     private lateinit var swipes: SwipeTracker
     private lateinit var scale: ScaleGestureDetector
@@ -127,6 +131,8 @@ class MobileGameActivity : Activity() {
         }
         playPanel = panel()
         winPanel = panel()
+        playScroll = scroller(playPanel)
+        winScroll = scroller(winPanel)
         backHint = label("Press Back again to leave", 16f, TEXT).apply {
             setPadding(dp(20), dp(10), dp(20), dp(10))
             background = rounded(PANEL, dp(10).toFloat())
@@ -134,14 +140,20 @@ class MobileGameActivity : Activity() {
         }
         overlay.content.apply {
             addView(scrim, FrameLayout.LayoutParams(MATCH, MATCH))
-            addView(playPanel, FrameLayout.LayoutParams(dp(320), WRAP, Gravity.CENTER))
-            addView(winPanel, FrameLayout.LayoutParams(dp(340), WRAP, Gravity.CENTER))
+            addView(playScroll, FrameLayout.LayoutParams(dp(320), WRAP, Gravity.CENTER).apply {
+                topMargin = dp(12)
+                bottomMargin = dp(12)
+            })
+            addView(winScroll, FrameLayout.LayoutParams(dp(340), WRAP, Gravity.CENTER).apply {
+                topMargin = dp(12)
+                bottomMargin = dp(12)
+            })
             addView(backHint, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
                 bottomMargin = dp(88)
             })
         }
-        playPanel.visibility = View.GONE
-        winPanel.visibility = View.GONE
+        playScroll.visibility = View.GONE
+        winScroll.visibility = View.GONE
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(board, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -182,6 +194,8 @@ class MobileGameActivity : Activity() {
                 return true
             }
         })
+        // A tap followed by a one-finger drag steers; it must not also zoom.
+        scale.isQuickScaleEnabled = false
         view.setOnTouchListener { _, e ->
             onBoardTouch(e)
             true
@@ -229,6 +243,8 @@ class MobileGameActivity : Activity() {
 
     private fun hideSystemBars() {
         if (Build.VERSION.SDK_INT >= 30) {
+            // Still needed below API 35, where edge-to-edge is not the default.
+            @Suppress("DEPRECATION")
             window.setDecorFitsSystemWindows(false)
             window.insetsController?.let {
                 it.hide(WindowInsets.Type.systemBars())
@@ -386,13 +402,13 @@ class MobileGameActivity : Activity() {
         if (winShown) hideWin()
         renderPlayPanel()
         scrim.visibility = View.VISIBLE
-        playPanel.visibility = View.VISIBLE
+        playScroll.visibility = View.VISIBLE
     }
 
     private fun closePanel(action: MenuAction?) {
         if (!panelOpen) return
         panelOpen = false
-        playPanel.visibility = View.GONE
+        playScroll.visibility = View.GONE
         scrim.visibility = View.GONE
         val newMaze = action == MenuAction.NEW_MAZE
         view.send {
@@ -459,7 +475,7 @@ class MobileGameActivity : Activity() {
     private fun renderWin() {
         val snap = view.snapshot ?: return
         winPanel.removeAllViews()
-        winPanel.visibility = View.VISIBLE
+        winScroll.visibility = View.VISIBLE
         winPanel.addView(label("Solved!", 28f, TEXT).apply {
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
@@ -503,13 +519,21 @@ class MobileGameActivity : Activity() {
 
     private fun hideWin() {
         winShown = false
-        winPanel.visibility = View.GONE
+        winScroll.visibility = View.GONE
     }
 
     private fun panel() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(20), dp(18), dp(20), dp(18))
         background = rounded(PANEL, dp(12).toFloat())
+        // Takes its own taps: the padding and header must not fall through to the scrim or the maze.
+        isClickable = true
+    }
+
+    private fun scroller(panel: LinearLayout) = ScrollView(this).apply {
+        isFillViewport = false
+        isVerticalScrollBarEnabled = false
+        addView(panel, FrameLayout.LayoutParams(MATCH, WRAP))
     }
 
     private companion object {
