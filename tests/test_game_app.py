@@ -867,6 +867,33 @@ def test_a_toolbar_size_click_stops_it_and_starts_that_size(saver):
     assert not saver.screensaver and saver.settings.difficulty == "large"
 
 
+def test_a_pause_shorter_than_the_win_pulse_lets_the_pulse_finish(saver):
+    from maze_game.round import WIN_PULSE_SECONDS
+    saver.settings = replace(saver.settings, screensaver_pause=0)
+    saver.start_screensaver()
+    first = saver.round
+    for _ in range(20000):
+        saver.frame(1 / 60)
+        if first.phase is Phase.WON:
+            break
+    while saver.round is first:
+        assert first.time - first.won_at < WIN_PULSE_SECONDS + 0.1
+        saver.frame(1 / 60)
+    assert first.time - first.won_at >= WIN_PULSE_SECONDS and saver.screensaver
+
+
+@pytest.mark.parametrize("action", ["large", "new"])
+def test_a_toolbar_round_click_builds_one_maze(saver, monkeypatch, action):
+    saver.start_screensaver()
+    saver.frame(1 / 60)
+    built = []
+    real = game_app.Round
+    monkeypatch.setattr(game_app, "Round", lambda *a, **kw: built.append(1) or real(*a, **kw))
+    click(saver, action)
+    assert len(built) == 1 and not saver.screensaver and saver.saver_path is None
+    assert action != "large" or saver.settings.difficulty == "large"
+
+
 def test_the_screensaver_button_toggles_it(saver):
     click(saver, "screensaver")
     assert saver.screensaver

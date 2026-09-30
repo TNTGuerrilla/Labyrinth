@@ -24,7 +24,7 @@ from .camera import Camera
 from .config import GameSettings
 from .game_render import GameRenderer
 from .keymap import FIXED_KEYS, Keymap
-from .round import Phase, Round
+from .round import WIN_PULSE_SECONDS, Phase, Round
 from .screensaver import iter_solver_cells
 from .steering import AutoSteer, KeyboardSteer, PathSteer, dash_path, is_reverse, steer_toward
 from .ui.custom_dialog import CustomDialog
@@ -50,6 +50,8 @@ DIRS = {"up": N, "left": W, "down": S, "right": E}
 GROW_ACTIONS = frozenset({"new", "small", "medium", "large", "xl", "custom",
                           "settings", "fullscreen", "colors", "update", "update_dismiss",
                           "screensaver"})
+# toolbar actions that start a new round themselves
+ROUND_ACTIONS = frozenset({"new", *difficulty.PRESETS})
 # the only keys that stop screensaver mode (fixed, whatever the bindings)
 SAVER_STOP_KEYS = frozenset({"space", "escape"})
 NAV_KEYS = {"up": "up", "down": "down", "left": "left", "right": "right", "return": "confirm",
@@ -367,7 +369,12 @@ class Game:
         action = self.toolbar.action_at(pos)
         if action is not None:
             if self.screensaver:
-                self.stop_screensaver()
+                if action in ROUND_ACTIONS:
+                    # the action builds the next maze itself: just leave the mode
+                    self.screensaver = False
+                    self.saver_path = None
+                else:
+                    self.stop_screensaver()
                 if action == "screensaver":
                     return  # the Screensaver button toggles the mode off
             self.do(action)
@@ -450,7 +457,8 @@ class Game:
         s = self.settings
         if (self.screensaver and self.round.phase is Phase.WON
                 and self.round.won_at is not None
-                and self.round.time - self.round.won_at >= s.screensaver_pause):
+                and self.round.time - self.round.won_at
+                >= max(s.screensaver_pause, WIN_PULSE_SECONDS)):
             self.new_round()
         if (self.screensaver and self.round.phase is Phase.PLAY
                 and self.saver_path is not None and self.saver_path.done
