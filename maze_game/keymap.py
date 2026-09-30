@@ -63,6 +63,10 @@ LABELS = {
 # rebindable.
 FIXED_KEYS = frozenset({"space"})
 
+# Keys an action falls back to, in order, when its saved keys are missing or refused
+# and another action already has every one of its defaults.
+SPARE_KEYS = tuple(k for k in "abcdefghijklmnopqrstuvwxyz0123456789" if k not in FIXED_KEYS)
+
 
 def key_label(name: str) -> str:
     """Human-readable key name: "q" -> "Q", "space" -> "Space", "[+]" -> "Num +"."""
@@ -133,9 +137,10 @@ class Keymap:
     def from_json(cls, raw: Any, valid_key: Optional[Callable[[str], bool]] = None) -> "Keymap":
         """Bindings from untrusted data, checked per action. An action that is missing or
         wrong (wrong slot count, unknown key, a fixed key, or a key another action also uses) gets its
-        default keys, less any a kept action already uses; so an action added in a later
-        release does not reset the user's other keys. If that leaves an action with no
-        key, the result is the full default keymap."""
+        default keys, less any another action already has; so an action added in a later
+        release does not reset the user's other keys. If every default is taken, it gets the
+        first free key in SPARE_KEYS instead. Only if none is free is the result the full
+        default keymap."""
         if not isinstance(raw, dict):
             return cls()
         wanted: dict[str, list[str]] = {}
@@ -154,6 +159,10 @@ class Keymap:
         for action in ACTIONS:
             keys = kept.get(action) or [k for k in DEFAULTS[action] if k not in taken]
             if not keys:
+                keys = [k for k in SPARE_KEYS if k not in taken
+                        and (valid_key is None or valid_key(k))][:1]
+            if not keys:
                 return cls()
             bindings[action] = keys
+            taken.update(keys)
         return cls(bindings)

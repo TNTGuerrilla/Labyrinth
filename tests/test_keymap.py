@@ -136,11 +136,13 @@ def test_actions_sharing_a_key_both_fall_back():
     assert k.keys_for("up") == ("i", "up")
 
 
-def test_an_action_left_with_no_key_gives_the_full_defaults():
+def test_an_action_left_with_no_key_gets_a_spare_and_the_rest_are_kept():
     raw = _custom_json()
     raw["hint"] = ["f11"]
     del raw["fullscreen"]
-    assert Keymap.from_json(raw) == Keymap()
+    k = Keymap.from_json(raw)
+    assert k.keys_for("hint") == ("f11",) and k.keys_for("up") == ("i", "up")
+    assert k.keys_for("fullscreen") == ("b",)
 
 
 def test_key_label():
@@ -183,3 +185,32 @@ def test_a_saved_keymap_from_before_the_screensaver_action_keeps_its_keys():
     saved["hint"] = ["h"]
     loaded = Keymap.from_json(saved)
     assert loaded.keys_for("hint") == ("h",) and loaded.keys_for("screensaver") == ("m",)
+
+
+def _assert_whole(k):
+    keys = [key for a in ACTIONS for key in k.keys_for(a)]
+    assert all(k.keys_for(a) for a in ACTIONS)
+    assert len(keys) == len(set(keys))
+
+
+def test_a_new_action_whose_default_is_taken_gets_a_spare_key():
+    saved = Keymap().to_json()
+    del saved["screensaver"]
+    saved["hint"] = ["m"]
+    saved["new"] = ["n"]
+    loaded = Keymap.from_json(saved)
+    assert loaded.keys_for("hint") == ("m",) and loaded.keys_for("new") == ("n",)
+    spare = loaded.keys_for("screensaver")
+    assert len(spare) == 1 and loaded.owner(spare[0]) == ("screensaver", 0)
+    _assert_whole(loaded)
+
+
+def test_the_spare_key_is_the_first_free_letter_then_digit():
+    saved = Keymap().to_json()
+    del saved["screensaver"]
+    saved["hint"] = ["m"]
+    saved["new"] = ["b"]
+    loaded = Keymap.from_json(saved)
+    # a (left) and b (new) are taken; g is the first letter nobody uses.
+    assert loaded.keys_for("screensaver") == ("g",)
+    _assert_whole(loaded)
