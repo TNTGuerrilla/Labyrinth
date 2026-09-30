@@ -19,11 +19,17 @@ Procedurally grown pipe mazes in three forms: a playable game for Windows and Li
   - [3. Make it the screensaver](#3-make-it-the-screensaver)
   - [Brand-specific setup](#brand-specific-setup)
   - [Updating and cleanup](#updating-and-cleanup)
+- [Labyrinth Mobile](#labyrinth-mobile)
+  - [Installing on a phone](#installing-on-a-phone)
+  - [Playing on a phone](#playing-on-a-phone)
+  - [Menu and settings](#menu-and-settings)
+  - [Updating Labyrinth Mobile](#updating-labyrinth-mobile)
 - [Build from source](#build-from-source)
   - [Windows game and screensaver](#windows-game-and-screensaver)
   - [Linux game](#linux-game)
   - [Icons](#icons)
   - [Google TV app](#google-tv-app)
+  - [Labyrinth Mobile app](#labyrinth-mobile-app)
 - [Develop](#develop)
 - [License](#license)
 
@@ -37,6 +43,7 @@ Each product has its own releases on the [Releases page](https://github.com/TNTG
 | Labyrinth (the game) | `Labyrinth-<version>-linux-x86_64.tar.gz` | 64-bit Linux with glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 and later) |
 | Labyrinth Screensaver | `Labyrinth.scr` | Windows 10 or 11, 64-bit |
 | Labyrinth TV | `LabyrinthTV.apk` | Google TV and Android TV, Android 8 or newer |
+| Labyrinth Mobile | `LabyrinthMobile.apk` | Android phones and tablets, Android 8 or newer |
 
 The Windows files are single programs with nothing to install. Windows SmartScreen may warn about them because they are not code-signed; choose **More info**, then **Run anyway**.
 
@@ -248,6 +255,45 @@ Once it is set up, USB debugging can be turned off; the screensaver keeps workin
 
 To go back to Google's Ambient mode, run `& $adb shell settings delete secure screensaver_components`, then uninstall Labyrinth from the TV if you no longer want it.
 
+## Labyrinth Mobile
+
+Labyrinth Mobile is the maze game for Android phones, tablets and foldables. It is a game only: it has no screensaver. It adds a **Labyrinth Mobile** app to your app list, and you play with your finger, or with a keyboard or controller if you have one connected. The mazes, solver and most settings are the same as in the TV version.
+
+It is tested on Google's Pixel Fold emulator (Android 15). It has not been tested on real phones yet.
+
+### Installing on a phone
+
+1. On the phone, download `LabyrinthMobile.apk` from the [Releases page](https://github.com/TNTGuerrilla/Labyrinth/releases).
+2. Open the file. When Android asks, allow your browser or file manager to install apps, then confirm the install.
+3. Open **Labyrinth Mobile** from the app list.
+
+Nothing else is needed, and no PC or `adb`. Android only installs an update signed with the same key as the installed app, so a build of your own has to be uninstalled first (see [Labyrinth Mobile app](#labyrinth-mobile-app)).
+
+### Playing on a phone
+
+Guide the green dot to the red one. The first time, a short **How to play** card appears. Pick how you steer under **Menu > Controls**:
+
+| Touch controls | How it works |
+|---|---|
+| Swipe (default) | Swipe on the maze to run the dot to the next fork. Swipe again while it runs to choose the turn there. |
+| Drag | Touch and drag: the dot follows your finger along the corridors, up to the next fork it has not reached. Lift to stop. |
+| Joystick | Hold the joystick in the corner and slide your thumb around it to steer. Lift to let go. Joystick hand puts it on the left or the right. |
+| Tap to go | Tap a cell: the dot walks there through places it has been, or down a corridor as far as its next fork. |
+
+Pinch to zoom. Tap while the maze grows to skip to the finished maze. The **Menu** button opens the menu. Press Back twice during a maze to leave the game.
+
+Keyboards and controllers work too: the arrows, WASD, the D-pad or the left stick steer. A, Enter or Start opens the menu, and B or Esc closes it. Shoulder buttons or + and - zoom, and in the menu the shoulder buttons switch tabs. Once a controller has been used, **Menu > Controls** offers **Controller test**.
+
+### Menu and settings
+
+The menu has tabs: Controls (touch controls, joystick hand, and the keys for keyboards and controllers), Play (Hint, Auto-solve, Flash finish, Replay, New maze), Maze (size and growth), Assists (follow bends, pause at forks, look-ahead, hint length, auto-solve speed), Movement (glide speed and turn pause), Look (colors, grid, grid strength, screen coverage, zoom, orientation and hiding the system bars) and About (version, updates, What's new, How to play, license).
+
+Maze sizes are cell widths on your screen, in millimetres: Small 8 mm, Medium 5 mm, Large 3.5 mm and XL 2.5 mm, so a maze has similar cells on a phone and a tablet. **Orientation** is Auto, Portrait or Landscape. **Hide system bars** (on by default) hides the status and navigation bars while you play. Swipes always follow bends; Bend assist and Pause at forks are for keyboards and controllers.
+
+### Updating Labyrinth Mobile
+
+The app checks GitHub for a newer version once a week, like the other programs (see [Updates](#updates)). When one is found, a card offers it the next time you open the app, and **Menu > About** shows **Update**, **Check now** and **What's new**. The first time, Android asks you to allow Labyrinth Mobile to install apps (**Install unknown apps**). Every download is checked against the SHA-256 GitHub publishes for it, and Android asks you to confirm the install. The **Check for updates** row in About turns the weekly check off.
+
 ## Build from source
 
 Product versions live in `versions.json`; both builds read them from there.
@@ -315,6 +361,23 @@ keytool -genkeypair -v -keystore labyrinth-release.jks -alias labyrinth -keyalg 
 ```
 
 The signed APK is `android/app/build/outputs/apk/release/app-release.apk`. Without `keystore.properties`, the release build comes out unsigned (`app-release-unsigned.apk`), which Android will not install. Android only installs an update signed with the same key as the installed app, so an app built with a different key has to be uninstalled first.
+
+### Labyrinth Mobile app
+
+The phone app is the `phone` module in the same `android/` project, so the requirements above apply. With an emulator or a phone connected over `adb`:
+
+```powershell
+cd android
+.\gradlew.bat :phone:installDebug
+```
+
+For a release build, set up signing as described under [Google TV app](#google-tv-app), then:
+
+```powershell
+.\gradlew.bat :phone:assembleRelease
+```
+
+The signed APK is `android/phone/build/outputs/apk/release/phone-release.apk`.
 
 ## Develop
 
