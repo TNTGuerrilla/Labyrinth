@@ -438,9 +438,9 @@ def test_benchmark_cancelled_by_a_resize_event(game):
 
 def test_nav_for_fixed_keys_win_over_rebound_movement_keys():
     k = Keymap()
-    assert k.set_key("up", 0, "space")
-    assert nav_for("space", k) == "confirm"
-    assert "space" in k.keys_for("up")
+    assert k.set_key("up", 0, "return")
+    assert nav_for("return", k) == "confirm"
+    assert "return" in k.keys_for("up")
     assert nav_for("up", k) == "up"
 
 
@@ -743,3 +743,25 @@ def test_whats_new_from_info_returns_to_settings(updated_game):
     assert updated_game.dialog.title == "Labyrinth updated to 1.0.0"
     press(updated_game, pygame.K_ESCAPE)
     assert updated_game.dialog is panel
+
+
+def test_space_starts_the_next_maze_from_the_win_panel(game):
+    until_play(game)
+    game.do("autosolve")
+    for _ in range(3000):
+        game.frame(1 / 60)
+        if game.round.win_overlay_visible:
+            break
+    first = game.round
+    press(game, pygame.K_SPACE)
+    assert game.round is not first
+
+
+def test_space_still_works_when_hint_is_bound_elsewhere(tmp_path):
+    pygame.init()
+    keys = Keymap()
+    keys.set_key("hint", 0, "h")
+    g = Game(GameSettings(), keys, tmp_path / "config.json")
+    press(g, pygame.K_SPACE)
+    assert g.round.fast_forward
+    pygame.quit()

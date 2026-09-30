@@ -6,19 +6,19 @@ from typing import Optional
 
 from ..config import GameSettings
 from ..difficulty import DIFFICULTIES, LABELS as DIFFICULTY_LABELS, MIN_CUSTOM, PRESETS
-from ..keymap import LABELS as ACTION_LABELS, SLOTS, Keymap, key_label
+from ..keymap import FIXED_KEYS, LABELS as ACTION_LABELS, SLOTS, Keymap, key_label
 from labyrinth_update.info import COPYRIGHT, LICENSE_TEXT, REPO_TEXT, SOURCE_ONLY
 
 TABS = ("Gameplay", "Difficulty", "Controls", "Info")
-UNSELECTABLE = ("header", "info")
+UNSELECTABLE = ("header", "info", "fixed")
 LINK_TEXT = {"github": REPO_TEXT, "license": LICENSE_TEXT}
 
 
 @dataclass(frozen=True)
 class Row:
-    kind: str  # "header", "bool", "choice", "number", "key", "button", "info" or "link"
+    kind: str  # "header", "bool", "choice", "number", "key", "button", "info", "link" or "fixed"
     label: str
-    name: str  # settings field, action (key rows) or button id
+    name: str  # settings field, action (key rows), button id or key text ("fixed" rows)
     lo: float = 0
     hi: float = 0
     step: float = 1
@@ -63,11 +63,16 @@ GAMEPLAY_ROWS = (
 CONTROL_GROUPS = (
     ("Movement", ("up", "left", "down", "right")),
     ("Assists", ("hint", "autosolve", "flash")),
-    ("Round", ("new", "replay", "confirm")),
+    ("Round", ("new", "replay")),
     ("Maze size", ("small", "medium", "large", "xl", "custom")),
     ("View", ("colors", "zoom_in", "zoom_out", "zoom_reset", "fullscreen")),
     ("Menu", ("settings",)),
 )
+# Keys with a fixed job, listed under their group but never selected or rebound. For a
+# "fixed" row, name is the key text shown.
+FIXED_ROWS = {
+    "Round": (Row("fixed", "Skip growth / next maze", "Space"),),
+}
 FOOTER_ROWS = (Row("button", "Apply", "apply"), Row("button", "Cancel", "cancel"))
 
 
@@ -115,6 +120,7 @@ class SettingsModel:
                 rows.append(header(title))
                 rows.extend(Row("key", ACTION_LABELS[a] + (" (alt)" if s else ""), a, slot=s)
                             for a in actions for s in range(SLOTS[a]))
+                rows.extend(FIXED_ROWS.get(title, ()))
             rows.append(Row("button", "Reset to defaults", "reset_keys"))
             return tuple(rows)
         return self._info_rows()
@@ -161,6 +167,8 @@ class SettingsModel:
         return "Not run for this screen size"
 
     def value_text(self, row: Row) -> str:
+        if row.kind == "fixed":
+            return row.name
         if row.kind == "bool":
             return "On" if getattr(self.draft, row.name) else "Off"
         if row.kind == "choice":
@@ -233,6 +241,9 @@ class SettingsModel:
         name for ("") cannot be saved, so the row keeps waiting for another key."""
         if not key_name:
             self.message = "That key cannot be used. Press another key."
+            return
+        if key_name in FIXED_KEYS:
+            self.message = "Space is fixed: it skips growth and confirms."
             return
         self.capturing = False
         self.message = ""

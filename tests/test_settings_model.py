@@ -290,3 +290,24 @@ def test_screen_coverage_row_steps_by_five():
     m.select(row_index(m, "coverage"))
     m.handle("left")
     assert m.draft.coverage == 95 and isinstance(m.draft.coverage, int)
+
+
+def test_controls_list_space_as_a_fixed_row():
+    m = model()
+    m.set_tab(2)
+    fixed = [r for r in m.rows() if r.kind == "fixed"]
+    assert ("Skip growth / next maze", "Space") in [(r.label, r.name) for r in fixed]
+    assert all(r.kind != "fixed" for r in [m.selected])
+    for i in range(len(m.rows())):
+        m.select(i)
+        assert m.selected.kind != "fixed"
+
+
+def test_capture_refuses_space():
+    m = model()
+    m.set_tab(2)
+    m.select(row_index(m, "hint"))
+    m.handle("confirm")
+    m.capture("space")
+    assert m.capturing and m.keys == Keymap()
+    assert m.message == "Space is fixed: it skips growth and confirms."

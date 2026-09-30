@@ -64,6 +64,12 @@ class SettingsPanel:
                 text(surface, row.label, (rect.x + 10, rect.centery), 15, color,
                      anchor="midleft")
                 continue  # text only: no highlight and no hit area
+            if row.kind == "fixed":
+                text(surface, row.label, (rect.x + 10, rect.centery), 15, MUTED,
+                     anchor="midleft")
+                text(surface, row.name, (rect.right - 10, rect.centery), 15, MUTED,
+                     anchor="midright")
+                continue  # a fixed key: shown, never selected or rebound
             if row.kind == "button" and row.name in INFO_BUTTON_ROWS:
                 btn = button_rect(row.label, (rect.x + 10, rect.centery), 15, anchor="midleft")
                 draw_button(surface, btn, row.label, 15, active=(i == m.index),

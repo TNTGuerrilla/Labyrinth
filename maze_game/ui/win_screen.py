@@ -37,7 +37,7 @@ class WinScreen:
             y += 30
         self.hits.clear()
         replay = f"Replay ({key_label(keymap.keys_for('replay')[0])})"
-        new = f"New maze ({key_label(keymap.keys_for('confirm')[0])})"
+        new = f"New maze ({key_label('space')})"
         replay_rect = button_rect(replay, (box.centerx - 8, box.bottom - 22), anchor="bottomright")
         new_rect = button_rect(new, (box.centerx + 8, box.bottom - 22), anchor="bottomleft")
         draw_button(surface, replay_rect, replay)

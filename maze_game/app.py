@@ -23,7 +23,7 @@ from .assist import route
 from .camera import Camera
 from .config import GameSettings
 from .game_render import GameRenderer
-from .keymap import Keymap
+from .keymap import FIXED_KEYS, Keymap
 from .round import Phase, Round
 from .steering import AutoSteer, KeyboardSteer, PathSteer, dash_path, is_reverse, steer_toward
 from .ui.custom_dialog import CustomDialog
@@ -46,7 +46,7 @@ CLICK_SECONDS = 0.2
 DRAG_PX = 6
 KEY_REPEAT = (350, 35)  # only while a dialog is open
 DIRS = {"up": N, "left": W, "down": S, "right": E}
-GROW_ACTIONS = frozenset({"confirm", "new", "small", "medium", "large", "xl", "custom",
+GROW_ACTIONS = frozenset({"new", "small", "medium", "large", "xl", "custom",
                           "settings", "fullscreen", "colors", "update", "update_dismiss"})
 NAV_KEYS = {"up": "up", "down": "down", "left": "left", "right": "right", "return": "confirm",
             "enter": "confirm", "space": "confirm", "escape": "cancel", "tab": "tab",
@@ -184,12 +184,7 @@ class Game:
         r = self.round
         if r.phase is Phase.GROW and action not in GROW_ACTIONS:
             return
-        if action == "confirm":
-            if r.phase is Phase.GROW:
-                r.skip_growth()
-            elif r.win_overlay_visible:
-                self.new_round()
-        elif action == "new":
+        if action == "new":
             self.new_round()
         elif action in difficulty.PRESETS:
             self.new_round(action)
@@ -223,6 +218,14 @@ class Game:
             self._open_settings()
         elif action == "fullscreen":
             self._toggle_fullscreen()
+
+    def _confirm(self) -> None:
+        """Space: skip growth while the maze grows, or start the next maze from the win panel."""
+        r = self.round
+        if r.phase is Phase.GROW:
+            r.skip_growth()
+        elif r.win_overlay_visible:
+            self.new_round()
 
     # --- updates ----------------------------------------------------------------
 
@@ -307,6 +310,9 @@ class Game:
     def _key_down(self, name: str) -> None:
         if self.dialog is not None:
             self._dialog_key(name)
+            return
+        if name in FIXED_KEYS:
+            self._confirm()
             return
         action = self.keymap.action_for(name)
         if action in DIRS:

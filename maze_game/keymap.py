@@ -19,7 +19,6 @@ DEFAULTS: dict[str, tuple[str, ...]] = {
     "flash": ("f",),
     "new": ("r",),
     "replay": ("t",),
-    "confirm": ("space",),
     "small": ("1",),
     "medium": ("2",),
     "large": ("3",),
@@ -44,7 +43,6 @@ LABELS = {
     "flash": "Flash finish",
     "new": "New maze",
     "replay": "Replay",
-    "confirm": "Skip growth / confirm",
     "small": "Small maze",
     "medium": "Medium maze",
     "large": "Large maze",
@@ -57,6 +55,11 @@ LABELS = {
     "settings": "Settings",
     "fullscreen": "Fullscreen",
 }
+
+# Keys with a fixed job that no action may take. Space skips growth and confirms (the
+# win panel's New maze); it does different things on different screens, so it is not
+# rebindable.
+FIXED_KEYS = frozenset({"space"})
 
 
 def key_label(name: str) -> str:
@@ -97,11 +100,11 @@ class Keymap:
         """Bind `key` to `action`'s slot. If another slot holds `key`, that slot gets this
         slot's old key (a swap). Returns False and changes nothing if the swap would leave
         an action with no key, or if `key` is empty (pygame has no name for it, and a
-        saved empty name would not load)."""
+        saved empty name would not load) or fixed (FIXED_KEYS)."""
         mine = self._keys[action]
         if not 0 <= slot < SLOTS[action] or slot > len(mine):
             raise ValueError(f"bad slot {slot} for {action}")
-        if not key:
+        if not key or key in FIXED_KEYS:
             return False
         old = mine[slot] if slot < len(mine) else None
         found = self.owner(key)
@@ -127,7 +130,7 @@ class Keymap:
     @classmethod
     def from_json(cls, raw: Any, valid_key: Optional[Callable[[str], bool]] = None) -> "Keymap":
         """Bindings from untrusted data, checked per action. An action that is missing or
-        wrong (wrong slot count, unknown key, or a key another action also uses) gets its
+        wrong (wrong slot count, unknown key, a fixed key, or a key another action also uses) gets its
         default keys, less any a kept action already uses; so an action added in a later
         release does not reset the user's other keys. If that leaves an action with no
         key, the result is the full default keymap."""
@@ -138,6 +141,7 @@ class Keymap:
             keys = raw.get(action)
             if (isinstance(keys, list) and 1 <= len(keys) <= SLOTS[action]
                     and all(isinstance(k, str) and k for k in keys)
+                    and not any(k in FIXED_KEYS for k in keys)
                     and len(set(keys)) == len(keys)
                     and (valid_key is None or all(valid_key(k) for k in keys))):
                 wanted[action] = keys

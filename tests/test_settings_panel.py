@@ -119,3 +119,14 @@ def test_selected_info_button_row_draws_no_full_row_highlight():
     sample = (btn.right + 60, btn.centery)
     from maze_game.ui.widgets import HILITE
     assert tuple(surface.get_at(sample))[:3] != HILITE
+
+
+def test_fixed_rows_are_drawn_without_a_hit_area():
+    p = panel()
+    p.model.set_tab(2)
+    p.draw(pygame.Surface((1280, 2000)))  # tall enough to draw every Controls row
+    rows = p.model.rows()
+    fixed = [i for i, r in enumerate(rows) if r.kind == "fixed"]
+    assert fixed
+    for i in fixed:
+        assert p.hits.rect_for(("row", i)) is None

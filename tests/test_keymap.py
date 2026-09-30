@@ -148,3 +148,24 @@ def test_key_label():
     assert key_label("space") == "Space"
     assert key_label("f11") == "F11"
     assert key_label("[+]") == "Num +"
+
+
+def test_space_is_fixed_and_confirm_is_gone():
+    from maze_game.keymap import ACTIONS, FIXED_KEYS
+    assert "space" in FIXED_KEYS and "confirm" not in ACTIONS
+    assert Keymap().owner("space") is None
+
+
+def test_space_cannot_be_bound():
+    k = Keymap()
+    assert k.set_key("hint", 0, "space") is False
+    assert k == Keymap()
+
+
+def test_a_saved_space_binding_resets_only_that_action():
+    saved = Keymap().to_json()
+    saved["hint"] = ["space"]
+    saved["confirm"] = ["x"]  # an old action: ignored
+    loaded = Keymap.from_json(saved)
+    assert loaded.keys_for("hint") == Keymap().keys_for("hint")
+    assert loaded.owner("space") is None and loaded.owner("x") is None
