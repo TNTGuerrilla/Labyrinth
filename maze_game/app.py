@@ -25,6 +25,7 @@ from .config import GameSettings
 from .game_render import GameRenderer
 from .keymap import FIXED_KEYS, Keymap
 from .round import Phase, Round
+from .screensaver import solver_cells
 from .steering import AutoSteer, KeyboardSteer, PathSteer, dash_path, is_reverse, steer_toward
 from .ui.custom_dialog import CustomDialog
 from .ui.settings_model import InfoState, SettingsModel
@@ -47,7 +48,9 @@ DRAG_PX = 6
 KEY_REPEAT = (350, 35)  # only while a dialog is open
 DIRS = {"up": N, "left": W, "down": S, "right": E}
 GROW_ACTIONS = frozenset({"new", "small", "medium", "large", "xl", "custom",
-                          "settings", "fullscreen", "colors", "update", "update_dismiss"})
+                          "settings", "fullscreen", "colors", "update", "update_dismiss",
+                          "screensaver"})
+SAVER_STOP_KEYS = frozenset({"space", "escape"})  # the only keys that stop screensaver mode (fixed, whatever the bindings)
 NAV_KEYS = {"up": "up", "down": "down", "left": "left", "right": "right", "return": "confirm",
             "enter": "confirm", "space": "confirm", "escape": "cancel", "tab": "tab",
             "backspace": "backspace"}
@@ -116,6 +119,8 @@ class Game:
         self.renderer = GameRenderer(self.play_rect.size)
         self.renderer.show_grid = self.settings.show_grid
         self.renderer.grid_strength = self.settings.grid_strength
+        self.screensaver = False
+        self.saver_path: Optional[PathSteer] = None
         self.new_round()
         self._dialog_below: Optional[Dialog] = None  # the dialog a What's new panel covers
         shown = updater.start_whats_new() if updater is not None else None
@@ -149,6 +154,7 @@ class Game:
         self.camera = Camera(cols, rows, pr.w, pr.h, s.coverage)
         self.renderer.invalidate()
         self._stop_assists()
+        self.saver_path = None
         self.keys.reset_round()
 
     def replay(self) -> None:
@@ -218,6 +224,11 @@ class Game:
             self._open_settings()
         elif action == "fullscreen":
             self._toggle_fullscreen()
+        elif action == "screensaver":
+            if self.screensaver:
+                self.stop_screensaver()
+            else:
+                self.start_screensaver()
 
     def _confirm(self) -> None:
         """Space: skip growth while the maze grows, or start the next maze from the win panel."""
@@ -226,6 +237,17 @@ class Game:
             r.skip_growth()
         elif r.win_overlay_visible:
             self.new_round()
+
+    def start_screensaver(self) -> None:
+        """Run the screensaver loop in the window: grow a maze at the current size, solve it
+        with the chosen solver, pause on it, then the next. Only Space, Esc or a toolbar
+        button stops it."""
+        self.screensaver = True
+        self.new_round()
+
+    def stop_screensaver(self) -> None:
+        self.screensaver = False
+        self.new_round()
 
     # --- updates ----------------------------------------------------------------
 
@@ -311,6 +333,12 @@ class Game:
         if self.dialog is not None:
             self._dialog_key(name)
             return
+        if self.screensaver:
+            if name in SAVER_STOP_KEYS:
+                self.stop_screensaver()
+            elif self.keymap.action_for(name) == "fullscreen":
+                self._toggle_fullscreen()
+            return  # every other key is ignored while the screensaver runs
         if name in FIXED_KEYS:
             self._confirm()
             return
@@ -337,8 +365,14 @@ class Game:
             return
         action = self.toolbar.action_at(pos)
         if action is not None:
+            if self.screensaver:
+                self.stop_screensaver()
+                if action == "screensaver":
+                    return  # the Screensaver button toggles the mode off
             self.do(action)
             return
+        if self.screensaver:
+            return  # clicks on the maze do not stop the screensaver
         r = self.round
         if r.win_overlay_visible:
             choice = self.win_screen.click(pos)
@@ -381,6 +415,8 @@ class Game:
             if wheel is not None and y:
                 wheel(y)
             return
+        if self.screensaver:
+            return
         if self.round.phase is not Phase.GROW and y:
             self.camera.zoom_by(y, self.round.mover.position())
 
@@ -390,6 +426,8 @@ class Game:
         """(chooser, speed in cells/s, counts as assisted) for this frame."""
         r = self.round
         s = self.settings
+        if self.saver_path is not None:
+            return self.saver_path.choose, s.screensaver_speed, True
         if self.auto is not None:
             return self.auto.choose, s.solve_speed, True
         if self.dash is not None:
@@ -408,6 +446,11 @@ class Game:
         if self.updater is not None and self.updater.snapshot.status == READY:
             self._restart()
             return
+        s = self.settings
+        if (self.screensaver and self.round.phase is Phase.WON
+                and self.round.won_at is not None
+                and self.round.time - self.round.won_at >= s.screensaver_pause):
+            self.new_round()
         r = self.round
         before = r.phase
         self.keys.tick(dt)
@@ -420,6 +463,10 @@ class Game:
             if (self.press is not None and not self.dragging
                     and time.monotonic() - self.press[0] > CLICK_SECONDS):
                 self.dragging = True
+            if self.screensaver and self.saver_path is None:
+                self.saver_path = PathSteer(solver_cells(
+                    r.grid, r.start, r.end, s.screensaver_solver, s.screensaver_lookahead,
+                    self.rng))
             choose, speed, assisted = self._driver()
             changed |= r.move(dt * speed, choose, assisted)
             if r.phase is not Phase.PLAY:
@@ -440,10 +487,11 @@ class Game:
         r = self.round
         pr = self.play_rect
         self.renderer.render(self.screen, pr, r, self.camera, changed)
-        if r.win_overlay_visible:
+        if r.win_overlay_visible and not self.screensaver:
             self.win_screen.draw(self.screen, pr, r, self.keymap)
         state = ToolbarState(self.settings.difficulty, self.auto is not None,
                              self.settings.multicolor, r.explored, r.elapsed,
+                             screensaver=self.screensaver,
                              **self._update_fields())
         mouse = pygame.mouse.get_pos() if self.dialog is None else (-1, -1)
         self.toolbar.draw(self.screen, self.keymap, state, mouse)

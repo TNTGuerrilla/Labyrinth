@@ -75,12 +75,14 @@ CONTROL_GROUPS = (
     ("Round", ("new", "replay")),
     ("Maze size", ("small", "medium", "large", "xl", "custom")),
     ("View", ("colors", "zoom_in", "zoom_out", "zoom_reset", "fullscreen")),
+    ("Screensaver", ("screensaver",)),
     ("Menu", ("settings",)),
 )
 # Keys with a fixed job, listed under their group but never selected or rebound. For a
 # "fixed" row, name is the key text shown.
 FIXED_ROWS = {
     "Round": (Row("fixed", "Skip growth / next maze", "Space"),),
+    "Screensaver": (Row("fixed", "Stop screensaver", "Space or Esc"),),
 }
 FOOTER_ROWS = (Row("button", "Apply", "apply"), Row("button", "Cancel", "cancel"))
 

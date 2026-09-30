@@ -40,7 +40,8 @@ def test_every_tab_is_split_into_sections():
     m.set_tab(1)
     assert headers(m) == ["Maze size", "Performance"]
     m.set_tab(2)
-    assert headers(m) == ["Movement", "Assists", "Round", "Maze size", "View", "Menu"]
+    assert headers(m) == ["Movement", "Assists", "Round", "Maze size", "View", "Screensaver",
+                         "Menu"]
     assert m.rows()[0].kind == "header"
     key_rows = [(row.name, row.slot) for row in m.rows() if row.kind == "key"]
     assert sorted(key_rows) == sorted((a, s) for a in ACTIONS for s in range(SLOTS[a]))
@@ -333,3 +334,12 @@ def test_screensaver_solver_cycles():
     assert m.draft.screensaver_solver == "dfs"
     m.change(-2)
     assert m.draft.screensaver_solver == "perfect"
+
+
+def test_controls_list_the_screensaver_keys():
+    m = model()
+    m.set_tab(2)
+    rows = m.rows()
+    names = [(r.kind, r.label, r.name) for r in rows]
+    assert ("key", "Start screensaver", "screensaver") in names
+    assert ("fixed", "Stop screensaver", "Space or Esc") in names

@@ -34,7 +34,7 @@ ITEMS = (
     ("new", "New maze"), ("replay", "Replay"), ("hint", "Hint"), ("autosolve", "Auto-solve"),
     ("flash", "Flash finish"), None,
     ("small", "S"), ("medium", "M"), ("large", "L"), ("xl", "XL"), ("custom", "Custom"), None,
-    ("colors", "Colors"), ("settings", "Settings"),
+    ("colors", "Colors"), ("screensaver", "Saver"), ("settings", "Settings"),
 )
 TIP_NAMES = {"small": "Small (8-12)", "medium": "Medium (13-24)", "large": "Large (25-48)",
              "xl": "XL (49-96)", "custom": "Custom size"}
@@ -47,6 +47,7 @@ class ToolbarState:
     multicolor: bool
     explored: int
     elapsed: float
+    screensaver: bool = False  # screensaver mode is running
     update_label: Optional[str] = None  # None hides the update button
     update_short: str = ""  # the label when the window is too narrow for update_label
     update_tip: str = ""
@@ -73,14 +74,16 @@ class Toolbar:
             rect = button_rect(label, (x, 6), size=15)
             active = (action == state.difficulty
                       or (action == "autosolve" and state.autosolve)
-                      or (action == "colors" and state.multicolor))
+                      or (action == "colors" and state.multicolor)
+                      or (action == "screensaver" and state.screensaver))
             hovered = rect.collidepoint(mouse)
             draw_button(surface, rect, label, size=15, active=active, hovered=hovered)
             self.hits.add(rect, action)
             if hovered:
                 tip = action
             x = rect.right + 6
-        stats = f"Explored {state.explored}     Time {format_time(state.elapsed)}"
+        stats = ("Screensaver" if state.screensaver
+                 else f"Explored {state.explored}     Time {format_time(state.elapsed)}")
         if state.update_label is None:
             text(surface, stats, (width - 12, TOOLBAR_H // 2), 15, anchor="midright")
         else:

@@ -169,3 +169,17 @@ def test_a_saved_space_binding_resets_only_that_action():
     loaded = Keymap.from_json(saved)
     assert loaded.keys_for("hint") == Keymap().keys_for("hint")
     assert loaded.owner("space") is None and loaded.owner("x") is None
+
+
+def test_screensaver_action_defaults_to_m():
+    from maze_game.keymap import LABELS
+    assert Keymap().keys_for("screensaver") == ("m",)
+    assert LABELS["screensaver"] == "Start screensaver"
+
+
+def test_a_saved_keymap_from_before_the_screensaver_action_keeps_its_keys():
+    saved = Keymap().to_json()
+    del saved["screensaver"]
+    saved["hint"] = ["h"]
+    loaded = Keymap.from_json(saved)
+    assert loaded.keys_for("hint") == ("h",) and loaded.keys_for("screensaver") == ("m",)

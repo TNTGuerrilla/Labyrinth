@@ -765,3 +765,131 @@ def test_space_still_works_when_hint_is_bound_elsewhere(tmp_path):
     press(g, pygame.K_SPACE)
     assert g.round.fast_forward
     pygame.quit()
+
+
+@pytest.fixture
+def saver(tmp_path):
+    pygame.init()
+    g = Game(GameSettings(animated=False, screensaver_speed=500, screensaver_pause=0.5),
+             Keymap(), tmp_path / "config.json")
+    yield g
+    pygame.quit()
+
+
+def saver_state(game, monkeypatch):
+    """The ToolbarState of the next drawn frame."""
+    seen = []
+    real = game.toolbar.draw
+    monkeypatch.setattr(game.toolbar, "draw",
+                        lambda surface, keymap, state, mouse: (seen.append(state),
+                                                               real(surface, keymap, state, mouse)))
+    game.frame(1 / 60)
+    return seen[-1]
+
+
+def test_m_starts_the_screensaver_with_a_new_maze(saver):
+    first = saver.round
+    press(saver, pygame.K_m)
+    assert saver.screensaver and saver.round is not first
+
+
+def test_screensaver_solves_pauses_and_starts_the_next_maze(saver, monkeypatch):
+    drawn = []
+    monkeypatch.setattr(saver.win_screen, "draw", lambda *a: drawn.append(a))
+    saver.start_screensaver()
+    first = saver.round
+    for _ in range(20000):
+        saver.frame(1 / 60)
+        if saver.round is not first:
+            break
+    assert first.phase is Phase.WON and saver.round is not first
+    assert saver.screensaver and drawn == []  # no win panel in screensaver mode
+
+
+def test_screensaver_pauses_on_the_solved_maze(saver):
+    saver.start_screensaver()
+    first = saver.round
+    for _ in range(20000):
+        saver.frame(1 / 60)
+        if first.phase is Phase.WON:
+            break
+    for _ in range(int(0.4 * 60)):
+        saver.frame(1 / 60)
+    assert saver.round is first  # still inside the 0.5 s pause
+
+
+def test_toolbar_shows_screensaver_instead_of_stats(saver, monkeypatch):
+    saver.start_screensaver()
+    assert saver_state(saver, monkeypatch).screensaver
+
+
+@pytest.mark.parametrize("key", [pygame.K_SPACE, pygame.K_ESCAPE])
+def test_space_or_escape_stops_it_without_skipping_or_opening_settings(tmp_path, key):
+    pygame.init()
+    g = Game(GameSettings(animated=True), Keymap(), tmp_path / "config.json")
+    g.start_screensaver()
+    running = g.round
+    press(g, key)
+    assert not g.screensaver and g.round is not running
+    assert g.round.phase is Phase.GROW and not g.round.fast_forward  # growth not skipped
+    assert g.dialog is None
+    pygame.quit()
+
+
+def test_other_input_does_not_stop_it(saver):
+    saver.start_screensaver()
+    running = saver.round
+    zoom = saver.camera.zoom
+    for key in (pygame.K_w, pygame.K_3, pygame.K_q, pygame.K_e, pygame.K_z):
+        press(saver, key)
+    centre = saver.play_rect.center
+    saver.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=centre))
+    saver.handle(pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=centre))
+    saver.handle(pygame.event.Event(pygame.MOUSEWHEEL, x=0, y=1))
+    saver.handle(pygame.event.Event(pygame.MOUSEMOTION, pos=(5, 300), rel=(1, 1), buttons=(0, 0, 0)))
+    saver.handle(pygame.event.Event(pygame.WINDOWFOCUSLOST))
+    saver.handle(pygame.event.Event(pygame.WINDOWSIZECHANGED, x=1000, y=700))
+    saver.handle(pygame.event.Event(pygame.WINDOWMINIMIZED))
+    saver.handle(pygame.event.Event(pygame.WINDOWRESTORED))
+    assert saver.screensaver and saver.round is running
+    assert saver.settings.difficulty == GameSettings().difficulty
+    assert saver.camera.zoom == zoom
+
+
+def test_f11_toggles_fullscreen_and_keeps_it_running(saver, monkeypatch):
+    calls = []
+    monkeypatch.setattr(saver, "_toggle_fullscreen", lambda: calls.append(1))
+    saver.start_screensaver()
+    press(saver, pygame.K_F11)
+    assert calls == [1] and saver.screensaver
+
+
+def test_a_toolbar_size_click_stops_it_and_starts_that_size(saver):
+    saver.start_screensaver()
+    click(saver, "large")
+    assert not saver.screensaver and saver.settings.difficulty == "large"
+
+
+def test_the_screensaver_button_toggles_it(saver):
+    click(saver, "screensaver")
+    assert saver.screensaver
+    click(saver, "screensaver")
+    assert not saver.screensaver
+
+
+def test_screensaver_mode_uses_the_chosen_solver(saver, monkeypatch):
+    from maze_game import app as app_module
+    seen = []
+    real = app_module.solver_cells
+    monkeypatch.setattr(app_module, "solver_cells",
+                        lambda grid, start, end, solver, lookahead, rng: (
+                            seen.append((solver, lookahead)),
+                            real(grid, start, end, solver, lookahead, rng))[1])
+    saver.settings = replace(saver.settings, screensaver_solver="wall",
+                             screensaver_lookahead=7)
+    saver.start_screensaver()
+    for _ in range(200):
+        saver.frame(1 / 60)
+        if seen:
+            break
+    assert seen[0] == ("wall", 7)
