@@ -250,3 +250,27 @@ def test_the_notice_leaves_a_smaller_coverage_alone():
     b.set_notice(True)
     run_until(b, Phase.DOTS)
     assert b.maze_notice is True and b.geometry.height == 900 * 60 // 100 // 12 * 12
+
+
+def test_board_solves_with_the_chosen_solver(monkeypatch):
+    import random as _random
+    from dataclasses import replace as _replace
+    from maze_saver import board as board_module
+    from maze_saver.config import Settings as _Settings
+
+    seen = []
+    real = board_module.solve_with
+
+    def spy(name, *args, **kwargs):
+        seen.append(name)
+        return real(name, *args, **kwargs)
+
+    monkeypatch.setattr(board_module, "solve_with", spy)
+    settings = _replace(_Settings(), solver="perfect", gen_speed=1000, solve_speed=500,
+                        hold_seconds=0)
+    b = board_module.Board(400, 300, settings, _random.Random(1))
+    for _ in range(20000):
+        b.update(1 / 60)
+        if seen:
+            break
+    assert seen == ["perfect"]

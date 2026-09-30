@@ -13,7 +13,7 @@ from typing import Iterator, Optional
 from .config import Settings
 from .maze import (Carve, Cell, Finish, GenEvent, Grid, Retreat, Start, Weld, choose_generator,
                    edge_key)
-from .solver import Advance, Solved, SolveEvent, solve
+from .solver import Advance, Solved, SolveEvent, solve_with
 
 NOTICE_COVERAGE = 85  # percent; the most a maze covers while the update notice shows
 MIN_CELL_PX = 4
@@ -273,8 +273,8 @@ class Board:
         self.phase = Phase.SOLVE
         self.heads.clear()
         self.dot = self.start
-        self._solve_events = solve(self.grid, self.start, self.end, self.rng,
-                                    lookahead=self.settings.lookahead)
+        self._solve_events = solve_with(self.settings.solver, self.grid, self.start, self.end,
+                                        self.rng, lookahead=self.settings.lookahead)
         self._steps = StepAccumulator(self.settings.solve_speed)
         changes.cells.add(self.start)
 
