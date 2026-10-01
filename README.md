@@ -276,7 +276,7 @@ Guide the green dot to the red one. The first time, a short **How to play** card
 | Touch controls | How it works |
 |---|---|
 | Swipe (default) | Swipe on the maze to run the dot to the next fork. Swipe again while it runs to choose the turn there. |
-| Drag | Touch and drag: the dot follows your finger along the corridors, up to the next fork it has not reached. Lift to stop. |
+| Drag | Trace the corridors with your finger: the dot follows the cells you draw through, and a wall stops the line. Drag back to erase. Let go and the dot finishes what you drew. |
 | Joystick | Hold the joystick in the corner and slide your thumb around it to steer. Lift to let go. Joystick hand puts it on the left or the right. |
 | Tap to go | Tap a cell: the dot walks there through places it has been, or down a corridor as far as its next fork. |
 
@@ -286,9 +286,9 @@ Keyboards and controllers work too: the arrows, WASD, the D-pad or the left stic
 
 ### Menu and settings
 
-The menu has tabs: Controls (touch controls, joystick hand, and the keys for keyboards and controllers), Play (Resume, Hint, Auto-solve, Flash finish, Replay, New maze), Maze (size, growth and max leads), Assists (Bend assist, Pause at forks, look-ahead, hint length, auto-solve speed), Movement (glide speed and turn pause), Look (colors, grid, grid strength, screen coverage, zoom, orientation and hiding the system bars) and About (version, updates, What's new, How to play, license).
+The menu has tabs: Controls (touch controls, Show traced path for Drag, joystick hand, and the keys for keyboards and controllers), Play (Resume, Hint, Auto-solve, Flash finish, Replay, New maze), Maze (size, growth and max leads), Assists (Bend assist, Pause at forks, look-ahead, hint length, auto-solve speed), Movement (glide speed and turn pause), Look (colors, grid, grid strength, screen coverage, zoom, orientation and hiding the system bars) and About (version, updates, What's new, How to play, license).
 
-Maze sizes are cell widths on your screen, in millimetres: Small 8 mm, Medium 5 mm, Large 3.5 mm and XL 2.5 mm, so a maze has similar cells on a phone and a tablet. **Orientation** is Auto, Portrait or Landscape. **Hide system bars** (on by default) hides the status and navigation bars while you play. Swipes always follow bends; Bend assist and Pause at forks are for keyboards and controllers.
+Maze sizes are cell widths on your screen, in millimetres: Small 8 mm, Medium 5 mm, Large 3.5 mm and XL 2.5 mm, so a maze has similar cells on a phone and a tablet. **Orientation** is Auto, Portrait or Landscape. **Hide system bars** (on by default) hides the status and navigation bars while you play. Swipes stop at every fork, and with Bend assist off also at bends; Pause at forks is for keyboards and controllers. **Show traced path** (Controls tab, shown for Drag, on by default) highlights the cells you have drawn ahead of the dot.
 
 ### Updating Labyrinth Mobile
 

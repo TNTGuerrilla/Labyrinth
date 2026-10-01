@@ -141,6 +141,18 @@ class PhoneMenuTest {
             PhoneSettings(TouchScheme.TAP, Hold.PORTRAIT, false, Hand.LEFT),
             phoneSettingsFrom("TAP", "PORTRAIT", false, "LEFT"),
         )
+        assertEquals(false, phoneSettingsFrom(null, null, null, null, false).showTrace)
+        assertEquals(true, phoneSettingsFrom(null, null, null).showTrace)
+    }
+
+    @Test
+    fun showTracedPathShowsOnlyForDrag() {
+        val toggle = MenuRow.Toggle(PhoneToggle.SHOW_TRACE)
+        assertFalse(toggle in phoneRows(PhoneTab.CONTROLS, s, p, "1.0.0"))
+        val drag = p.copy(touch = TouchScheme.DRAG)
+        assertEquals(listOf(MenuRow.Choice(PhoneChoice.TOUCH), toggle), phoneRows(PhoneTab.CONTROLS, s, drag, "1.0.0").take(2))
+        assertTrue(toggleValue(PhoneToggle.SHOW_TRACE, drag))
+        assertFalse(flip(PhoneToggle.SHOW_TRACE, drag).showTrace)
     }
 
     @Test

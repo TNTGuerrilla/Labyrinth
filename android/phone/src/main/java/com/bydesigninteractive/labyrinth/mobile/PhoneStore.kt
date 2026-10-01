@@ -10,6 +10,7 @@ object PhoneStore {
     private const val HOLD = "hold"
     private const val HIDE_BARS = "hide_bars"
     private const val HAND = "hand"
+    private const val SHOW_TRACE = "show_trace"
     private const val CONTROLLER_USED = "controller_used"
     private const val HOW_TO_PLAY_SEEN = "how_to_play_seen"
 
@@ -22,6 +23,7 @@ object PhoneStore {
             p.getString(HOLD, null),
             if (p.contains(HIDE_BARS)) p.getBoolean(HIDE_BARS, true) else null,
             p.getString(HAND, null),
+            if (p.contains(SHOW_TRACE)) p.getBoolean(SHOW_TRACE, true) else null,
         )
     }
 
@@ -31,6 +33,7 @@ object PhoneStore {
             .putString(HOLD, s.hold.name)
             .putBoolean(HIDE_BARS, s.hideBars)
             .putString(HAND, s.hand.name)
+            .putBoolean(SHOW_TRACE, s.showTrace)
             .apply()
     }
 

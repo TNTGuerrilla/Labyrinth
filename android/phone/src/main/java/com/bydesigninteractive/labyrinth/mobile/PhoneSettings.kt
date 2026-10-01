@@ -12,7 +12,7 @@ enum class TouchScheme(val label: String, val help: String) {
     ),
     DRAG(
         "Drag",
-        "Touch and drag: the dot follows your finger along the corridors, up to the next fork it has not reached. Lift to stop.",
+        "Trace the corridors with your finger: the dot follows the cells you draw through, and a wall stops the line. Drag back to erase. Let go and the dot finishes what you drew.",
     ),
     JOYSTICK(
         "Joystick",
@@ -31,15 +31,17 @@ data class PhoneSettings(
     val hold: Hold = Hold.AUTO,
     val hideBars: Boolean = true,
     val hand: Hand = Hand.RIGHT,
+    val showTrace: Boolean = true,
 )
 
 /** PhoneSettings from stored values; anything missing or unknown keeps its default. */
-fun phoneSettingsFrom(touch: String?, hold: String?, hideBars: Boolean?, hand: String? = null): PhoneSettings {
+fun phoneSettingsFrom(touch: String?, hold: String?, hideBars: Boolean?, hand: String? = null, showTrace: Boolean? = null): PhoneSettings {
     val d = PhoneSettings()
     return PhoneSettings(
         touch = TouchScheme.entries.firstOrNull { it.name == touch } ?: d.touch,
         hold = Hold.entries.firstOrNull { it.name == hold } ?: d.hold,
         hideBars = hideBars ?: d.hideBars,
         hand = Hand.entries.firstOrNull { it.name == hand } ?: d.hand,
+        showTrace = showTrace ?: d.showTrace,
     )
 }

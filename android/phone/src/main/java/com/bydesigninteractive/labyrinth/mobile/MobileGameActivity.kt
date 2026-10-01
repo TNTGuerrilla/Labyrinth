@@ -202,6 +202,7 @@ class MobileGameActivity : Activity() {
         controllerUsed = PhoneStore.controllerUsed(this)
         view = GameView(this, settings, remote, startPaused = savedInstanceState == null && !PhoneStore.howToPlaySeen(this),
             sizer = MazeSizer { s, w, h, rng -> phoneGrid(s, w, h, ppi, rng) })
+        view.send { setShowTrace(phone.showTrace) }
         toolbar = GameToolbar(this, onHint = { view.send { hint() } }, onMenu = ::openMenu)
         startStrip = RotatedFrame(this).apply { setBackgroundColor(BACKGROUND) }
         endStrip = RotatedFrame(this).apply { setBackgroundColor(BACKGROUND) }
@@ -457,7 +458,11 @@ class MobileGameActivity : Activity() {
                 downY = e.y
                 when (scheme) {
                     TouchScheme.SWIPE -> swipes.down(e.x, e.y)
-                    TouchScheme.DRAG -> dragTo(e.x, e.y)
+                    TouchScheme.DRAG -> {
+                        val x = e.x
+                        val y = e.y
+                        view.send { dragStart(x, y) }
+                    }
                     TouchScheme.JOYSTICK, TouchScheme.TAP -> {}
                 }
             }
@@ -470,7 +475,7 @@ class MobileGameActivity : Activity() {
                 if (hypot(e.x - downX, e.y - downY) > tapSlop) moved = true
                 when (scheme) {
                     TouchScheme.SWIPE -> swipes.move(e.x, e.y)?.let { d -> view.send { swipe(d) } }
-                    TouchScheme.DRAG -> dragTo(e.x, e.y)
+                    TouchScheme.DRAG -> traceAt(e.x, e.y)
                     TouchScheme.JOYSTICK, TouchScheme.TAP -> {}
                 }
             }
@@ -494,7 +499,7 @@ class MobileGameActivity : Activity() {
         }
     }
 
-    private fun dragTo(x: Float, y: Float) = view.send { dragAt(x, y) }
+    private fun traceAt(x: Float, y: Float) = view.send { dragAt(x, y) }
 
     private fun zoomBy(steps: Int) {
         changeSettings(settings.copy(zoomSteps = (settings.zoomSteps + steps).coerceIn(0, MAX_ZOOM_STEPS)))
@@ -672,6 +677,7 @@ class MobileGameActivity : Activity() {
             if (before.touch == TouchScheme.DRAG) view.send { dragEnd() }
             placeJoystick()
         }
+        if (next.showTrace != before.showTrace) view.send { setShowTrace(next.showTrace) }
         if (next.hideBars != before.hideBars) applySystemBars()
     }
 

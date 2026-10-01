@@ -17,7 +17,7 @@ enum class PhoneTab(val title: String) {
 
 enum class PhoneChoice(val label: String) { TOUCH("Touch controls"), ORIENTATION("Orientation"), JOYSTICK_HAND("Joystick hand") }
 
-enum class PhoneToggle(val label: String) { HIDE_BARS("Hide system bars"), CHECK_UPDATES("Check for updates") }
+enum class PhoneToggle(val label: String) { SHOW_TRACE("Show traced path"), HIDE_BARS("Hide system bars"), CHECK_UPDATES("Check for updates") }
 
 enum class MenuLink(val label: String) {
     HOW_TO_PLAY("How to play"), CONTROLLER_TEST("Controller test"),
@@ -39,7 +39,7 @@ const val COPYRIGHT = "\u00a9 2026 ByDesign Interactive"
 const val LICENSE_LINE = "Licensed under Apache 2.0"
 const val PROJECT_ADDRESS = "github.com/TNTGuerrilla/Labyrinth"
 const val SIZE_NOTE = "Sizes are cell widths on your screen: Small 8 mm, Medium 5 mm, Large 3.5 mm, XL 2.5 mm."
-const val BENDS_NOTE = "Swipes always follow bends. Bend assist and Pause at forks are for keys and controllers."
+const val BENDS_NOTE = "Swipes stop at every fork, and with Bend assist off also at bends. Pause at forks is for keys and controllers."
 
 val KEY_HELP = listOf(
     "Keyboards and controllers: the arrows, WASD, the D-pad or the left stick steer.",
@@ -60,6 +60,7 @@ private val HOLD_LABELS = mapOf(Hold.AUTO to "Auto", Hold.PORTRAIT to "Portrait"
 fun phoneRows(tab: PhoneTab, s: GameSettings, p: PhoneSettings, version: String, controllerUsed: Boolean = false, canUpdate: Boolean = false): List<MenuRow> = when (tab) {
     PhoneTab.CONTROLS -> listOfNotNull(
         MenuRow.Choice(PhoneChoice.TOUCH),
+        if (p.touch == TouchScheme.DRAG) MenuRow.Toggle(PhoneToggle.SHOW_TRACE) else null,
         if (p.touch == TouchScheme.JOYSTICK) MenuRow.Choice(PhoneChoice.JOYSTICK_HAND) else null,
         MenuRow.Note(p.touch.help),
         if (controllerUsed) MenuRow.Link(MenuLink.CONTROLLER_TEST) else null,
@@ -130,11 +131,13 @@ fun choose(c: PhoneChoice, p: PhoneSettings, i: Int): PhoneSettings = when (c) {
 }
 
 fun toggleValue(t: PhoneToggle, p: PhoneSettings): Boolean = when (t) {
+    PhoneToggle.SHOW_TRACE -> p.showTrace
     PhoneToggle.HIDE_BARS -> p.hideBars
     PhoneToggle.CHECK_UPDATES -> false // held by the updater, not PhoneSettings: MenuPanel asks its host
 }
 
 fun flip(t: PhoneToggle, p: PhoneSettings): PhoneSettings = when (t) {
+    PhoneToggle.SHOW_TRACE -> p.copy(showTrace = !p.showTrace)
     PhoneToggle.HIDE_BARS -> p.copy(hideBars = !p.hideBars)
     PhoneToggle.CHECK_UPDATES -> p // held by the updater, not PhoneSettings: MenuPanel asks its host
 }
