@@ -257,7 +257,7 @@ To go back to Google's Ambient mode, run `& $adb shell settings delete secure sc
 
 ## Labyrinth Mobile
 
-Labyrinth Mobile is the maze game for Android phones, tablets and foldables. It is a game only: it has no screensaver. It adds a **Labyrinth Mobile** app to your app list, and you play with your finger, or with a keyboard or controller if you have one connected. The mazes, solver and most settings are the same as in the TV version.
+Labyrinth Mobile is the maze game for Android phones, tablets and foldables. It is a game only: it has no screensaver. It adds a **Labyrinth** app to your app list, and you play with your finger, or with a keyboard or controller if you have one connected. The mazes, solver and most settings are the same as in the TV version.
 
 It is tested on Google's Pixel Fold emulator (Android 15). It has not been tested on real phones yet.
 
@@ -265,7 +265,7 @@ It is tested on Google's Pixel Fold emulator (Android 15). It has not been teste
 
 1. On the phone, download `LabyrinthMobile.apk` from the [Releases page](https://github.com/TNTGuerrilla/Labyrinth/releases).
 2. Open the file. When Android asks, allow your browser or file manager to install apps, then confirm the install.
-3. Open **Labyrinth Mobile** from the app list.
+3. Open **Labyrinth** from the app list.
 
 Nothing else is needed, and no PC or `adb`. Android only installs an update signed with the same key as the installed app, so a build of your own has to be uninstalled first (see [Labyrinth Mobile app](#labyrinth-mobile-app)).
 
@@ -282,17 +282,17 @@ Guide the green dot to the red one. The first time, a short **How to play** card
 
 Pinch to zoom. Tap while the maze grows to skip to the finished maze. The **Menu** button opens the menu. Press Back twice during a maze to leave the game.
 
-Keyboards and controllers work too: the arrows, WASD, the D-pad or the left stick steer. A, Enter or Start opens the menu, and B or Esc closes it. Shoulder buttons or + and - zoom, and in the menu the shoulder buttons switch tabs. Once a controller has been used, **Menu > Controls** offers **Controller test**.
+Keyboards and controllers work too: the arrows, WASD, the D-pad or the left stick steer. A controller's A or Start button, or Enter, opens the menu, and B or Esc closes it. Shoulder buttons or + and - zoom during a maze, and in the menu the shoulder buttons switch tabs. Once a controller has been used, **Menu > Controls** offers **Controller test**.
 
 ### Menu and settings
 
-The menu has tabs: Controls (touch controls, joystick hand, and the keys for keyboards and controllers), Play (Hint, Auto-solve, Flash finish, Replay, New maze), Maze (size and growth), Assists (follow bends, pause at forks, look-ahead, hint length, auto-solve speed), Movement (glide speed and turn pause), Look (colors, grid, grid strength, screen coverage, zoom, orientation and hiding the system bars) and About (version, updates, What's new, How to play, license).
+The menu has tabs: Controls (touch controls, joystick hand, and the keys for keyboards and controllers), Play (Resume, Hint, Auto-solve, Flash finish, Replay, New maze), Maze (size, growth and max leads), Assists (Bend assist, Pause at forks, look-ahead, hint length, auto-solve speed), Movement (glide speed and turn pause), Look (colors, grid, grid strength, screen coverage, zoom, orientation and hiding the system bars) and About (version, updates, What's new, How to play, license).
 
 Maze sizes are cell widths on your screen, in millimetres: Small 8 mm, Medium 5 mm, Large 3.5 mm and XL 2.5 mm, so a maze has similar cells on a phone and a tablet. **Orientation** is Auto, Portrait or Landscape. **Hide system bars** (on by default) hides the status and navigation bars while you play. Swipes always follow bends; Bend assist and Pause at forks are for keyboards and controllers.
 
 ### Updating Labyrinth Mobile
 
-The app checks GitHub for a newer version once a week, like the other programs (see [Updates](#updates)). When one is found, a card offers it the next time you open the app, and **Menu > About** shows **Update**, **Check now** and **What's new**. The first time, Android asks you to allow Labyrinth Mobile to install apps (**Install unknown apps**). Every download is checked against the SHA-256 GitHub publishes for it, and Android asks you to confirm the install. The **Check for updates** row in About turns the weekly check off.
+The app checks GitHub for a newer version once a week, like the other programs (see [Updates](#updates)). When one is found, a card offers it the next time you open the app, and **Menu > About** shows **Update**, **Check now** and **What's new**. The first time, Android asks you to allow Labyrinth to install apps (**Install unknown apps**). Every download is checked against the SHA-256 GitHub publishes for it, and Android asks you to confirm the install. The **Check for updates** row in About turns the weekly check off.
 
 ## Build from source
 
