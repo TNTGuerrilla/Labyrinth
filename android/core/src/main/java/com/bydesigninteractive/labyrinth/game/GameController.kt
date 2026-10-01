@@ -4,7 +4,7 @@
 package com.bydesigninteractive.labyrinth.game
 
 import com.bydesigninteractive.labyrinth.maze.Cell
-import com.bydesigninteractive.labyrinth.touch.allowedPrefix
+import com.bydesigninteractive.labyrinth.touch.Trace
 import com.bydesigninteractive.labyrinth.touch.tapRoute
 import com.bydesigninteractive.labyrinth.touch.uniquePath
 
@@ -19,8 +19,9 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
     private val pendingRelease = HashMap<Int, Double>()
 
     /**
-     * The last steering came from touch: bend assist is always on, and the pause at forks
-     * leaves out the remote's lag and cooldown, which touch does not have.
+     * The last steering came from touch: the pause at forks leaves out the remote's lag and
+     * cooldown, which touch does not have. Only the joystick, a tap and a drag are touch steering
+     * without coasting; a swipe follows the bend assist setting.
      */
     var touch = false
         private set
@@ -32,11 +33,17 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
 
     val routing: Boolean get() = route.isNotEmpty()
 
+    /** The cells a drag traced that the dot has not reached; while not empty, the dot walks them. */
+    private val trace = Trace()
+
+    val traced: List<Cell> get() = trace.cells
+
     fun start(r: Round) {
         round = r
         auto = null
         keys.resetRound()
         route.clear()
+        trace.clear()
         pendingRelease.clear()
     }
 
@@ -46,6 +53,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
         auto = null
         keys.resetRound()
         route.clear()
+        trace.clear()
     }
 
     /** Turn pause plus, for keys, the remote's lag and cooldown, in seconds. */
@@ -60,6 +68,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
         touch = false
         swiping = false
         route.clear()
+        trace.clear()
         // A stuttering remote reports a hold as press, release, press...: a press inside
         // the grace after a release continues the same hold.
         if (pendingRelease.remove(d) != null) return
@@ -87,14 +96,16 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
     }
 
     /**
-     * A swipe: the dot runs that way along corridors and through bends and stops at the next
-     * fork, dead end, start or finish. A swipe while it runs is the turn to take at the first
+     * A swipe: the dot runs that way along corridors and stops at the next fork, dead end, start
+     * or finish. It runs through bends when bend assist is on; with it off it runs straight and
+     * stops at bends too. A swipe while it runs is the turn to take at the first
      * cell where that way is open; one that cannot be taken at the next fork is dropped there.
      */
     fun swipe(d: Int) {
         touch = true
         swiping = true
         route.clear()
+        trace.clear()
         val r = round
         if (r.phase == RoundPhase.GROW) {
             r.skipGrowth()
@@ -115,6 +126,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
         touch = true
         swiping = false
         route.clear()
+        trace.clear()
         pendingRelease.remove(d)
         val r = round
         if (r.phase == RoundPhase.GROW) {
@@ -141,16 +153,36 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
         return true
     }
 
-    /** A drag toward [target], as far as allowed; null (the finger lifted) ends it. */
-    fun dragTo(target: Cell?) {
-        if (target == null) {
-            route.clear()
-            return
-        }
+    /**
+     * A drag began over [cell] (null: outside the maze). On the trace's last cell it extends the
+     * trace; anywhere else the rest of the trace is dropped and tracing starts again from the dot.
+     */
+    fun traceStart(cell: Cell?) {
+        if (cell == null || cell != trace.cells.lastOrNull()) trace.clear()
+        if (cell != null) traceEnter(cell)
+    }
+
+    /** The dragging finger entered [cell]. */
+    fun traceEnter(cell: Cell) {
         val r = round
         if (r.phase != RoundPhase.PLAY) return
-        val path = uniquePath(r.grid, startOf(target), target)
-        if (path.isNotEmpty()) follow(allowedPrefix(r.grid, path, r.visitedCells))
+        touch = true
+        swiping = false
+        auto = null
+        route.clear()
+        keys.clear()
+        pendingRelease.clear()
+        trace.enter(r.grid, cell, r.mover.to ?: r.mover.frm)
+    }
+
+    private fun traceChoose(cell: Cell): Cell? {
+        trace.reached(cell)
+        val next = trace.cells.firstOrNull() ?: return null
+        if (next !in round.grid.openNeighbors(cell)) {
+            trace.clear()
+            return null
+        }
+        return next
     }
 
     /**
@@ -173,6 +205,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
         keys.clear()
         pendingRelease.clear()
         route.clear()
+        trace.clear()
         val m = round.mover
         if (m.to != null && !m.returning && path.first() == m.frm) round.reverse() // the route starts back the way the dot came
         route.addAll(path)
@@ -213,6 +246,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
         if (r.phase != RoundPhase.PLAY) return
         keys.forgetPosition()
         route.clear()
+        trace.clear()
         auto = AutoSteer(r.towardEnd, r.end)
         r.assisted = true
     }
@@ -240,6 +274,8 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
                 r.move(dt * s.solveSpeed, a::choose, assisted = true)
             } else if (route.isNotEmpty()) {
                 r.move(dt * s.glideSpeed, { cell, _ -> routeChoose(cell) })
+            } else if (trace.cells.isNotEmpty()) {
+                r.move(dt * s.glideSpeed, { cell, _ -> traceChoose(cell) })
             } else {
                 val stops = listOf(r.start, r.end)
                 keys.coast = swiping
@@ -248,7 +284,10 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
                 })
             }
             if (r.phase != RoundPhase.PLAY || auto?.done == true) auto = null
-            if (r.phase != RoundPhase.PLAY) route.clear()
+            if (r.phase != RoundPhase.PLAY) {
+                route.clear()
+                trace.clear()
+            }
         }
         r.tickTimer(dt)
         return changed

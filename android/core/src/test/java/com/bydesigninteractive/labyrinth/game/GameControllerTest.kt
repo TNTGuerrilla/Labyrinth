@@ -331,14 +331,68 @@ class GameControllerTest {
         assertEquals(c(0, 1), g.round.mover.to)
     }
 
+    private fun forked() = GameController(TEST, RemoteProfile()).apply { start(Round.ofMaze(forkGrid(), c(0, 1), c(2, 1), TEST)) }
+
     @Test
-    fun aDragStopsAtTheFirstUnvisitedForkAndEndsWhenLifted() {
-        val g = GameController(TEST, RemoteProfile()).apply { start(Round.ofMaze(forkGrid(), c(0, 1), c(2, 1), TEST)) }
-        g.dragTo(c(2, 1))
+    fun theDotWalksTheTracedCells() {
+        val g = forked()
+        g.traceStart(c(0, 1))
+        g.traceEnter(c(0, 0))
+        g.traceEnter(c(1, 0))
         g.frames(100)
         assertEquals(c(1, 0), g.round.dot)
-        g.dragTo(null)
-        assertFalse(g.routing)
+        assertEquals(emptyList<Any>(), g.traced)
+    }
+
+    @Test
+    fun holdingAFingerOnTheFinishDoesNothing() {
+        val g = controller()
+        g.traceStart(c(3, 1))
+        g.frames(100)
+        assertEquals(c(0, 1), g.round.dot)
+    }
+
+    @Test
+    fun aWallStopsTheTrace() {
+        val g = forked()
+        g.traceStart(c(0, 1))
+        g.traceEnter(c(1, 1)) // across a wall from (0,1)
+        g.frames(50)
+        assertEquals(c(0, 1), g.round.dot)
+    }
+
+    @Test
+    fun backtrackingErasesCellsTheDotHasNotReached() {
+        val g = forked()
+        g.traceStart(c(0, 1))
+        g.traceEnter(c(0, 0))
+        g.traceEnter(c(1, 0))
+        g.traceEnter(c(2, 0))
+        g.traceEnter(c(1, 0))
+        assertEquals(listOf(c(0, 0), c(1, 0)), g.traced)
+        g.frames(100)
+        assertEquals(c(1, 0), g.round.dot)
+    }
+
+    @Test
+    fun aDragFromTheTraceEndExtendsItAndAnyOtherStartClearsIt() {
+        val g = forked()
+        g.traceStart(c(0, 1))
+        g.traceEnter(c(0, 0))
+        g.traceStart(c(0, 0)) // the last traced cell: extend
+        g.traceEnter(c(1, 0))
+        assertEquals(listOf(c(0, 0), c(1, 0)), g.traced)
+        g.traceStart(c(2, 1)) // elsewhere: start again
+        assertEquals(emptyList<Any>(), g.traced)
+    }
+
+    @Test
+    fun keysAndSwipesEndATrace() {
+        val g = forked()
+        g.traceStart(c(0, 1))
+        g.traceEnter(c(0, 0))
+        g.swipe(N)
+        assertEquals(emptyList<Any>(), g.traced)
     }
 
     @Test

@@ -39,6 +39,7 @@ import com.bydesigninteractive.labyrinth.game.pickShort
 import com.bydesigninteractive.labyrinth.maze.Cell
 import com.bydesigninteractive.labyrinth.maze.Changes
 import com.bydesigninteractive.labyrinth.maze.Geometry
+import com.bydesigninteractive.labyrinth.touch.cellsAlong
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -62,6 +63,7 @@ private const val REDRAW_CHUNK = 64
 private const val DENIED_SECONDS = 0.5
 private val DRAG_RING = Color.WHITE
 private val HINT_COLOR = Color.rgb(120, 200, 255)
+private val TRACE_COLOR = Color.rgb(120, 200, 255)
 private const val ARROW_INSET = 28f // at 720 px of screen height; scaled up on bigger screens
 private const val ARROW_SIZE = 14f
 
@@ -215,6 +217,11 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
     /** Seconds since the surface started, for the refused-tap ring. */
     private var clock = 0.0
     private var dragging = false
+
+    /** Where the dragging finger was, in cell units, for the cells it crosses next. */
+    private var fingerX = 0.0
+    private var fingerY = 0.0
+    private var showTrace = true
     private var deniedCell: Cell? = null
     private var deniedAt = 0.0
 
@@ -302,15 +309,36 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
         }
     }
 
-    fun dragAt(x: Float, y: Float) {
+    fun setShowTrace(on: Boolean) { showTrace = on }
+
+    /** A drag began at view pixel (x, y). */
+    fun dragStart(x: Float, y: Float) {
         if (!started || round.phase != RoundPhase.PLAY) return
+        val cam = camera ?: return
         dragging = true
-        cellAt(x, y)?.let { controller.dragTo(it) }
+        val (ox, oy) = cam.origin()
+        fingerX = (x - ox).toDouble() / cam.cellPx
+        fingerY = (y - oy).toDouble() / cam.cellPx
+        controller.traceStart(cellAt(x, y))
     }
 
+    /** The finger moved to view pixel (x, y): every cell it crossed may join the trace. */
+    fun dragAt(x: Float, y: Float) {
+        if (!started || !dragging || round.phase != RoundPhase.PLAY) return
+        val cam = camera ?: return
+        val (ox, oy) = cam.origin()
+        val nx = (x - ox).toDouble() / cam.cellPx
+        val ny = (y - oy).toDouble() / cam.cellPx
+        for (c in cellsAlong(fingerX, fingerY, nx, ny)) {
+            if (c.x in 0 until cam.cols && c.y in 0 until cam.rows) controller.traceEnter(c)
+        }
+        fingerX = nx
+        fingerY = ny
+    }
+
+    /** The finger lifted: the dot still finishes the trace. */
     fun dragEnd() {
         dragging = false
-        if (started) controller.dragTo(null)
     }
 
     /** The cell under view pixel (x, y), or null outside the maze. */
@@ -502,6 +530,13 @@ class GameRenderer(settings: GameSettings, remote: RemoteProfile, startPaused: B
                 ring(ex, ey, (radius + phase * reach).toFloat(), 2f, END_COLOR, ((1 - phase) * (1 - t)).toFloat())
             }
             if (ex < 0 || ey < 0 || ex > width || ey > height) arrow(ex, ey, (1 - t * 0.5).toFloat())
+        }
+        if (showTrace) {
+            val size = max(2f, (px * 0.18).toFloat())
+            for (c in controller.traced) {
+                val (x, y) = center(c)
+                circle(x, y, size, 0f, TRACE_COLOR, 0.75f)
+            }
         }
         val (dx, dy) = cam.toScreen(r.mover.position().first, r.mover.position().second)
         val dotRadius = if (r.dot == r.end && !r.mover.moving) max(1f, radius * DOT_AT_END_SCALE.toFloat()) else radius
