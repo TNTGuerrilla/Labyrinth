@@ -387,12 +387,66 @@ class GameControllerTest {
     }
 
     @Test
-    fun keysAndSwipesEndATrace() {
+    fun aSwipeEndsATrace() {
         val g = forked()
         g.traceStart(c(0, 1))
         g.traceEnter(c(0, 0))
         g.swipe(N)
         assertEquals(emptyList<Any>(), g.traced)
+    }
+
+    private fun tracing(g: GameController) = g.apply {
+        traceStart(c(0, 1))
+        traceEnter(c(0, 0))
+        assertEquals(listOf(c(0, 0)), traced)
+    }
+
+    @Test
+    fun otherSteeringEndsATrace() {
+        tracing(forked()).also { it.pressArrow(E); assertEquals(emptyList<Any>(), it.traced) }
+        tracing(forked()).also { it.holdTouch(E); assertEquals(emptyList<Any>(), it.traced) }
+        tracing(forked()).also { assertTrue(it.goTo(c(1, 0))); assertEquals(emptyList<Any>(), it.traced) }
+        tracing(forked()).also { it.toggleAuto(); assertEquals(emptyList<Any>(), it.traced) }
+        tracing(forked()).also { it.replay(); assertEquals(emptyList<Any>(), it.traced) }
+    }
+
+    @Test
+    fun clearKeysLeavesATrace() {
+        val g = tracing(forked())
+        g.clearKeys()
+        assertEquals(listOf(c(0, 0)), g.traced)
+    }
+
+    @Test
+    fun aTraceAnchorsAtTheCellABackingOutDotHeadsTo() {
+        val g = controller(settings = TEST.copy(turnPause = 0.0), remote = RemoteProfile(arrowLagMs = 200))
+        g.pressArrow(E)
+        repeat(200) { if (g.round.mover.to != c(2, 1)) g.frame(0.02) }
+        g.frames(3)
+        g.pressArrow(N)
+        assertTrue(g.round.mover.returning)
+        g.traceEnter(c(1, 0))
+        assertEquals(listOf(c(1, 0)), g.traced)
+        g.frames(100)
+        assertEquals(c(1, 0), g.round.dot)
+    }
+
+    @Test
+    fun aTraceBackTheWayTheDotCameTurnsItAroundAtOnce() {
+        val g = controller()
+        g.pressArrow(E)
+        g.frames(3)
+        assertEquals(c(1, 1), g.round.mover.to)
+        g.traceEnter(c(0, 1))
+        assertEquals(c(0, 1), g.round.mover.to)
+    }
+
+    @Test
+    fun aFingerOverNothingConnectedCancelsNothing() {
+        val g = controller()
+        g.toggleAuto()
+        g.traceEnter(c(3, 1))
+        assertTrue(g.autoSolving)
     }
 
     @Test

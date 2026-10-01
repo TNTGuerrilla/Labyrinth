@@ -28,7 +28,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
 
     /** The last steering was a swipe: coast through corridors (and bends, when bend assist is on). */
     private var swiping = false
-    /** The cells a tap or a drag still has the dot walk; while not empty, nothing else steers. */
+    /** The cells a tap still has the dot walk; while not empty, nothing else steers. */
     private val route = ArrayDeque<Cell>()
 
     val routing: Boolean get() = route.isNotEmpty()
@@ -166,13 +166,18 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
     fun traceEnter(cell: Cell) {
         val r = round
         if (r.phase != RoundPhase.PLAY) return
+        val m = r.mover
+        val wasEmpty = trace.cells.isEmpty()
+        // The dot is heading back to its frm while returning (after a late turn).
+        if (!trace.enter(r.grid, cell, m.nextCenter)) return
         touch = true
         swiping = false
         auto = null
         route.clear()
         keys.clear()
         pendingRelease.clear()
-        trace.enter(r.grid, cell, r.mover.to ?: r.mover.frm)
+        // A trace that starts back the way the dot came turns it around at once, like a tap.
+        if (wasEmpty && m.to != null && !m.returning && cell == m.frm) r.reverse()
     }
 
     private fun traceChoose(cell: Cell): Cell? {
@@ -228,7 +233,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
         clearRoute()
     }
 
-    /** End any tap or drag route, for when the finger's lift may have been lost. */
+    /** End any tap route, for when the finger's lift may have been lost. */
     fun clearRoute() = route.clear()
 
     fun skipGrowth() = round.skipGrowth()
