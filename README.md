@@ -259,7 +259,7 @@ To go back to Google's Ambient mode, run `& $adb shell settings delete secure sc
 
 Labyrinth Mobile is the maze game for Android phones, tablets and foldables. It is a game only: it has no screensaver. It adds a **Labyrinth** app to your app list, and you play with your finger, or with a keyboard or controller if you have one connected. The mazes, solver and most settings are the same as in the TV version.
 
-It is tested on Google's Pixel Fold emulator (Android 15). It has not been tested on real phones yet.
+It is tested on a Pixel 10 Pro XL (Android 17), a Samsung Galaxy S20 FE (Android 13) and a Motorola Moto Z2 (Android 8.0), and on Google's Pixel Fold emulator (Android 15). It should work on other phones and tablets with Android 8 or newer, but it has not been tested on them.
 
 ### Installing on a phone
 
