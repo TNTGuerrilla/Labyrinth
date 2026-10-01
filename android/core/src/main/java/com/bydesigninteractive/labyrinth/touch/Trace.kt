@@ -15,27 +15,35 @@ import kotlin.math.sign
  * in order and without gaps (side to side, never corner to corner).
  */
 fun cellsAlong(x0: Double, y0: Double, x1: Double, y1: Double): List<Cell> {
-    var cx = floor(x0).toInt()
-    var cy = floor(y0).toInt()
+    val cx0 = floor(x0).toInt()
+    val cy0 = floor(y0).toInt()
+    val out = arrayListOf(Cell(cx0, cy0))
+    if (!x0.isFinite() || !y0.isFinite() || !x1.isFinite() || !y1.isFinite()) {
+        return out
+    }
     val ex = floor(x1).toInt()
     val ey = floor(y1).toInt()
-    val out = arrayListOf(Cell(cx, cy))
+    var cx = cx0
+    var cy = cy0
     val dx = x1 - x0
     val dy = y1 - y0
     val stepX = sign(dx).toInt()
     val stepY = sign(dy).toInt()
+    var nx = abs(ex - cx)
+    var ny = abs(ey - cy)
     val tDeltaX = if (dx != 0.0) 1.0 / abs(dx) else Double.MAX_VALUE
     val tDeltaY = if (dy != 0.0) 1.0 / abs(dy) else Double.MAX_VALUE
     var tMaxX = if (dx != 0.0) (if (stepX > 0) cx + 1 - x0 else x0 - cx) / abs(dx) else Double.MAX_VALUE
     var tMaxY = if (dy != 0.0) (if (stepY > 0) cy + 1 - y0 else y0 - cy) / abs(dy) else Double.MAX_VALUE
-    var guard = 0
-    while ((cx != ex || cy != ey) && guard++ < 100_000) {
-        if (tMaxX <= tMaxY) {
+    while (nx > 0 || ny > 0) {
+        if (ny == 0 || (nx > 0 && tMaxX <= tMaxY)) {
             cx += stepX
             tMaxX += tDeltaX
+            nx--
         } else {
             cy += stepY
             tMaxY += tDeltaY
+            ny--
         }
         out.add(Cell(cx, cy))
     }
