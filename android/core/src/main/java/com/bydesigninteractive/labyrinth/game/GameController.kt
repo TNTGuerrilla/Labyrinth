@@ -25,7 +25,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
     var touch = false
         private set
 
-    /** The last steering was a swipe: coast through corridors and bends, and always follow bends. */
+    /** The last steering was a swipe: coast through corridors (and bends, when bend assist is on). */
     private var swiping = false
     /** The cells a tap or a drag still has the dot walk; while not empty, nothing else steers. */
     private val route = ArrayDeque<Cell>()
@@ -244,7 +244,7 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
                 val stops = listOf(r.start, r.end)
                 keys.coast = swiping
                 r.move(dt * s.glideSpeed, { cell, came ->
-                    keys.choose(r.grid, cell, came, s.followBends || swiping, stops, r.end, s.lookahead, forkPause, s.pauseAtForks)
+                    keys.choose(r.grid, cell, came, s.followBends, stops, r.end, s.lookahead, forkPause, s.pauseAtForks)
                 })
             }
             if (r.phase != RoundPhase.PLAY || auto?.done == true) auto = null

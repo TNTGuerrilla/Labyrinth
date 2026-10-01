@@ -219,13 +219,47 @@ class GameControllerTest {
     }
 
     @Test
-    fun aSwipeFollowsBendsEvenWithBendAssistOff() {
-        val s = TEST.copy(followBends = false)
-        val g = GameController(s, RemoteProfile()).apply { start(Round.ofMaze(forkGrid(), c(0, 1), c(2, 1), s)) }
-        g.swipe(N) // up to the bend at (0,0), then east to the fork at (1,0)
+    fun aSwipeFollowsBendsWithBendAssistOn() {
+        val g = GameController(TEST, RemoteProfile()).apply { start(Round.ofMaze(forkGrid(), c(0, 1), c(2, 1), TEST)) }
+        g.swipe(N)
         g.frames(100)
         assertEquals(c(1, 0), g.round.dot)
+    }
+
+    @Test
+    fun withBendAssistOffASwipeStopsAtTheBend() {
+        val s = TEST.copy(followBends = false)
+        val g = GameController(s, RemoteProfile()).apply { start(Round.ofMaze(forkGrid(), c(0, 1), c(2, 1), s)) }
+        g.swipe(N)
+        g.frames(100)
+        assertEquals(c(0, 0), g.round.dot)
         assertFalse(g.dotMoving)
+        g.swipe(E)
+        g.frames(100)
+        assertEquals(c(1, 0), g.round.dot) // straight on to the fork, where it stops
+    }
+
+    @Test
+    fun withBendAssistOffASwipeDuringTheRunTurnsAtTheBend() {
+        val s = TEST.copy(followBends = false)
+        val g = GameController(s, RemoteProfile()).apply { start(Round.ofMaze(forkGrid(), c(0, 1), c(2, 1), s)) }
+        g.swipe(N)
+        g.frames(2)
+        g.swipe(E)
+        g.frames(100)
+        assertEquals(c(1, 0), g.round.dot)
+    }
+
+    @Test
+    fun withBendAssistOffASwipeRunsStraightThroughACorridor() {
+        val s = TEST.copy(followBends = false)
+        val g = controller(settings = s, end = c(1, 0))
+        g.swipe(E)
+        g.frames(100)
+        assertEquals(c(1, 1), g.round.dot) // the fork
+        g.swipe(E)
+        g.frames(100)
+        assertEquals(c(3, 1), g.round.dot) // straight through (2,1) to the dead end
     }
 
     @Test

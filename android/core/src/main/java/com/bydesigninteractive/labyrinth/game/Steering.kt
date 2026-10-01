@@ -24,7 +24,7 @@ import com.bydesigninteractive.labyrinth.maze.direction
 class KeyboardSteer {
     val held = ArrayList<Int>()
 
-    /** Touch steering: nothing is held after a swipe, but the dot runs on through corridors and bends. */
+    /** Touch steering: a swipe holds nothing, but the dot runs on (through bends with bend assist on, straight with it off). */
     var coast = false
     var request: Int? = null
     var now = 0.0
@@ -80,7 +80,10 @@ class KeyboardSteer {
             stopped = false
         }
         lastCell = cell
-        if (!followBends) return classic(grid, cell, cameFrom, stops, end, lookahead, pause, pauseAtForks)
+        if (!followBends) {
+            return if (coast) straight(grid, cell, cameFrom, stops, end, lookahead)
+            else classic(grid, cell, cameFrom, stops, end, lookahead, pause, pauseAtForks)
+        }
         val result = guided(grid, cell, cameFrom, stops, end, lookahead, pause)
         if (result != null) stopped = false
         return result
@@ -107,6 +110,29 @@ class KeyboardSteer {
         request = null
         pauseCell = null
         return cell.step(d)
+    }
+
+    /**
+     * A swipe with bend assist off: the dot runs straight and stops at the first bend, wall or
+     * fork. A swipe (the request) turns it at the first cell where that way is open; at a stop
+     * where it is not open, it is dropped.
+     */
+    private fun straight(grid: Grid, cell: Cell, cameFrom: Cell?, stops: Collection<Cell>, end: Cell, lookahead: Int): Cell? {
+        val r = request
+        if (r != null && (grid.openDirs(cell) and r) != 0) {
+            request = null
+            return cell.step(r)
+        }
+        if (cameFrom == null || cell in stops) {
+            request = null
+            return null
+        }
+        val heading = direction(cameFrom, cell)
+        if ((grid.openDirs(cell) and heading) == 0 || exits(grid, cell, cameFrom, end, lookahead).size >= 2) {
+            request = null
+            return null
+        }
+        return cell.step(heading)
     }
 
     private fun exits(grid: Grid, cell: Cell, cameFrom: Cell, end: Cell, lookahead: Int): List<Cell> {
