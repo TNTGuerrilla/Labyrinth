@@ -81,7 +81,7 @@ class KeyboardSteer {
         }
         lastCell = cell
         if (!followBends) {
-            return if (coast) straight(grid, cell, cameFrom, stops, end, lookahead)
+            return if (coast) straight(grid, cell, cameFrom, stops)
             else classic(grid, cell, cameFrom, stops, end, lookahead, pause, pauseAtForks)
         }
         val result = guided(grid, cell, cameFrom, stops, end, lookahead, pause)
@@ -115,9 +115,10 @@ class KeyboardSteer {
     /**
      * A swipe with bend assist off: the dot runs straight and stops at the first bend, wall or
      * fork. A swipe (the request) turns it at the first cell where that way is open; at a stop
-     * where it is not open, it is dropped.
+     * where it is not open, it is dropped. Forks are counted from every opening except the way it
+     * came, without look-ahead, so a short dead end ahead does not hide a live branch.
      */
-    private fun straight(grid: Grid, cell: Cell, cameFrom: Cell?, stops: Collection<Cell>, end: Cell, lookahead: Int): Cell? {
+    private fun straight(grid: Grid, cell: Cell, cameFrom: Cell?, stops: Collection<Cell>): Cell? {
         val r = request
         if (r != null && (grid.openDirs(cell) and r) != 0) {
             request = null
@@ -128,7 +129,9 @@ class KeyboardSteer {
             return null
         }
         val heading = direction(cameFrom, cell)
-        if ((grid.openDirs(cell) and heading) == 0 || exits(grid, cell, cameFrom, end, lookahead).size >= 2) {
+        if ((grid.openDirs(cell) and heading) == 0 ||
+            grid.openNeighbors(cell).filter { it != cameFrom }.size >= 2
+        ) {
             request = null
             return null
         }

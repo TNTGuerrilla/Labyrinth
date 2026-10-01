@@ -262,6 +262,31 @@ class GameControllerTest {
         assertEquals(c(3, 1), g.round.dot) // straight through (2,1) to the dead end
     }
 
+    private fun deadEndForkGrid() = gridOf(
+        5, 2,
+        c(0, 1) to c(1, 1), c(1, 1) to c(2, 1), c(2, 1) to c(3, 1),
+        c(2, 1) to c(2, 0), c(2, 0) to c(3, 0), c(3, 0) to c(4, 0),
+    )
+
+    @Test
+    fun aStraightSwipeStopsAtAForkEvenWhenTheWayAheadIsAShortDeadEnd() {
+        val s = TEST.copy(followBends = false, lookahead = 2)
+        val g = GameController(s, RemoteProfile()).apply { start(Round.ofMaze(deadEndForkGrid(), c(0, 1), c(4, 0), s)) }
+        g.swipe(E)
+        g.frames(200)
+        assertEquals(c(2, 1), g.round.dot)
+        assertFalse(g.dotMoving)
+    }
+
+    @Test
+    fun aGuidedSwipeRunsPastTheDeadEndAlongTheLiveBranch() {
+        val s = TEST.copy(followBends = true, lookahead = 2)
+        val g = GameController(s, RemoteProfile()).apply { start(Round.ofMaze(deadEndForkGrid(), c(0, 1), c(4, 0), s)) }
+        g.swipe(E)
+        g.frames(200)
+        assertEquals(c(4, 0), g.round.dot)
+    }
+
     @Test
     fun aSwipeDuringTheRunIsTheTurnAtTheFork() {
         val g = controller()
