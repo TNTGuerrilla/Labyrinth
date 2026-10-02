@@ -291,6 +291,92 @@ class GameControllerTest {
         assertEquals(c(2, 0), g.round.dot)
     }
 
+    private val RUN_STRAIGHT = TEST.copy(followBends = false, runStraight = true, pauseAtForks = true, lookahead = 2)
+
+    private fun GameController.tap(d: Int) {
+        pressArrow(d)
+        releaseArrow(d)
+    }
+
+    @Test
+    fun runStraightOnePressRunsToTheJunctionAndStops() {
+        val g = GameController(RUN_STRAIGHT, RemoteProfile()).apply { start(Round.ofMaze(deadEndForkGrid(), c(0, 1), c(4, 0), RUN_STRAIGHT)) }
+        g.tap(E)
+        g.frames(200)
+        assertEquals(c(2, 1), g.round.dot) // not on into the short dead end
+        assertFalse(g.dotMoving)
+    }
+
+    @Test
+    fun runStraightAPressWhileRunningTurnsAtTheJunction() {
+        val g = GameController(RUN_STRAIGHT, RemoteProfile()).apply { start(Round.ofMaze(deadEndForkGrid(), c(0, 1), c(4, 0), RUN_STRAIGHT)) }
+        g.tap(E)
+        g.frames(5)
+        g.tap(N)
+        g.frames(200)
+        assertEquals(c(2, 0), g.round.dot) // turned at (2,1), then stopped at the bend
+        assertFalse(g.round.visitedCells.contains(c(3, 1)))
+    }
+
+    @Test
+    fun runStraightOnePressRunsDownACorridorWithNoKeyHeld() {
+        val g = controller(settings = RUN_STRAIGHT, end = c(1, 0))
+        g.tap(E)
+        g.frames(100)
+        assertEquals(c(1, 1), g.round.dot) // the junction
+        g.tap(E)
+        assertNull(g.keys.wanted)
+        g.frames(100)
+        assertEquals(c(3, 1), g.round.dot) // straight through (2,1) to the dead end
+    }
+
+    @Test
+    fun runStraightDropsAPressThatCannotBeTakenAtAStop() {
+        val g = controller(settings = RUN_STRAIGHT, end = c(1, 0))
+        g.tap(E)
+        g.frames(100)
+        g.tap(com.bydesigninteractive.labyrinth.maze.S)
+        g.frames(50)
+        assertEquals(c(1, 1), g.round.dot)
+        assertFalse(g.dotMoving)
+        assertNull(g.keys.request)
+    }
+
+    @Test
+    fun runStraightReversesOnTheOppositeArrow() {
+        val g = controller(settings = RUN_STRAIGHT.copy(turnPause = 0.0))
+        g.tap(E)
+        g.frames(2)
+        g.tap(W)
+        assertEquals(c(0, 1), g.round.mover.to)
+        assertNull(g.keys.request)
+    }
+
+    @Test
+    fun runStraightKeepsTheLateTurnGrace() {
+        val g = controller(settings = RUN_STRAIGHT.copy(turnPause = 0.0), remote = RemoteProfile(arrowLagMs = 200))
+        g.tap(E)
+        g.frames(100)
+        assertEquals(c(1, 1), g.round.dot)
+        g.tap(E)
+        repeat(200) { if (g.round.mover.to != c(2, 1)) g.frame(0.02) }
+        assertEquals(c(2, 1), g.round.mover.to) // just left the junction
+        g.frames(3)
+        g.tap(N)
+        assertTrue(g.round.mover.returning)
+        g.frames(50)
+        assertEquals(c(1, 0), g.round.dot)
+    }
+
+    @Test
+    fun runStraightLeavesATapAlone() {
+        val g = controller(settings = RUN_STRAIGHT, end = c(1, 0))
+        assertTrue(g.goTo(c(1, 1)))
+        g.frames(100)
+        assertEquals(c(1, 1), g.round.dot)
+        assertFalse(g.dotMoving)
+    }
+
     @Test
     fun aGuidedSwipeRunsPastTheDeadEndAlongTheLiveBranch() {
         val s = TEST.copy(followBends = true, lookahead = 2)

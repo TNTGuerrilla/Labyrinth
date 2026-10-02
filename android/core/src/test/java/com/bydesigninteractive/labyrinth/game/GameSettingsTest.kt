@@ -114,6 +114,61 @@ class GameSettingsTest {
     }
 
     @Test
+    fun steeringIsAChoiceOfThreeDefaultingToBendAssist() {
+        val f = GameField.STEERING
+        assertEquals("Steering", f.label)
+        assertEquals(Kind.CHOICE, f.kind)
+        assertEquals(listOf("Hold to move", "Run straight", "Bend assist"), f.choices())
+        assertEquals(listOf("Small", "Medium", "Large", "XL", "Custom"), GameField.SIZE.choices())
+        assertEquals(2.0, f.get(GameSettings()), 0.0)
+        assertFalse(GameSettings().runStraight)
+        assertEquals("Bend assist", f.format(f.get(GameSettings())))
+    }
+
+    @Test
+    fun steeringMapsToTheTwoStoredSwitches() {
+        val hold = GameField.STEERING.set(GameSettings(), 0.0)
+        assertFalse(hold.followBends)
+        assertFalse(hold.runStraight)
+        val straight = GameField.STEERING.set(GameSettings(), 1.0)
+        assertFalse(straight.followBends)
+        assertTrue(straight.runStraight)
+        val bends = GameField.STEERING.set(straight, 2.0)
+        assertTrue(bends.followBends)
+        assertFalse(bends.runStraight)
+        assertEquals(0.0, GameField.STEERING.get(hold), 0.0)
+        assertEquals(1.0, GameField.STEERING.get(straight), 0.0)
+        assertEquals(2.0, GameField.STEERING.get(bends), 0.0)
+    }
+
+    @Test
+    fun anOldInstallKeepsItsBendAssistSwitch() {
+        val on = gameSettingsFrom(mapOf(GameField.FOLLOW_BENDS to 1.0, GameField.STEERING to null))
+        assertEquals("Bend assist", GameField.STEERING.format(GameField.STEERING.get(on)))
+        val off = gameSettingsFrom(mapOf(GameField.FOLLOW_BENDS to 0.0, GameField.STEERING to null))
+        assertEquals("Hold to move", GameField.STEERING.format(GameField.STEERING.get(off)))
+    }
+
+    @Test
+    fun aStoredSteeringWinsWhateverTheOrder() {
+        val s = gameSettingsFrom(mapOf(GameField.STEERING to 1.0, GameField.FOLLOW_BENDS to 1.0, GameField.RUN_STRAIGHT to 0.0))
+        assertFalse(s.followBends)
+        assertTrue(s.runStraight)
+    }
+
+    @Test
+    fun adjustStepsThroughTheSteeringChoices() {
+        val f = GameField.STEERING
+        val hold = GameSettings(followBends = false)
+        val straight = adjust(hold, f, 1, 0)
+        assertEquals(1.0, f.get(straight), 0.0)
+        assertEquals(2.0, f.get(adjust(straight, f, 1, 0)), 0.0)
+        assertEquals(2.0, f.get(adjust(GameSettings(), f, 1, 0)), 0.0)
+        assertEquals(0.0, f.get(adjust(hold, f, -1, 0)), 0.0)
+        assertEquals(1.0, f.get(adjust(GameSettings(), f, -1, 0)), 0.0)
+    }
+
+    @Test
     fun formats() {
         assertEquals("On", GameField.MULTICOLOR.format(1.0))
         assertEquals("Off", GameField.MULTICOLOR.format(0.0))

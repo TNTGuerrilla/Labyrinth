@@ -24,7 +24,10 @@ import com.bydesigninteractive.labyrinth.maze.direction
 class KeyboardSteer {
     val held = ArrayList<Int>()
 
-    /** Touch steering: a swipe holds nothing, but the dot runs on (through bends with bend assist on, straight with it off). */
+    /**
+     * A swipe, or an arrow with Steering on Run straight: nothing is held, but the dot runs on
+     * (through bends with bend assist on, straight with it off).
+     */
     var coast = false
     var request: Int? = null
     var now = 0.0

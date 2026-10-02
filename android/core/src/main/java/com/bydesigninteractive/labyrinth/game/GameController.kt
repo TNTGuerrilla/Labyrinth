@@ -283,7 +283,8 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
                 r.move(dt * s.glideSpeed, { cell, _ -> traceChoose(cell) })
             } else {
                 val stops = listOf(r.start, r.end)
-                keys.coast = swiping
+                // Run straight: arrows coast like a straight swipe, so one press is enough.
+                keys.coast = swiping || (s.runStraight && !s.followBends)
                 r.move(dt * s.glideSpeed, { cell, came ->
                     keys.choose(r.grid, cell, came, s.followBends, stops, r.end, s.lookahead, forkPause, s.pauseAtForks)
                 })

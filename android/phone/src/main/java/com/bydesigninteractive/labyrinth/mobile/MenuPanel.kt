@@ -24,8 +24,6 @@ import com.bydesigninteractive.labyrinth.game.GameField
 import com.bydesigninteractive.labyrinth.game.GameSettings
 import com.bydesigninteractive.labyrinth.game.Kind
 import com.bydesigninteractive.labyrinth.game.MenuAction
-import com.bydesigninteractive.labyrinth.game.SIZES
-import com.bydesigninteractive.labyrinth.game.SIZE_LABELS
 import com.bydesigninteractive.labyrinth.game.adjust
 import com.bydesigninteractive.labyrinth.game.toggle
 
@@ -172,7 +170,7 @@ class MenuPanel(context: Context, private val host: Host) : LinearLayout(context
             is MenuRow.Game -> when (row.field.kind) {
                 Kind.TOGGLE -> toggleRow(row, row.field.label, { row.field.get(host.game) != 0.0 }) { setGame(toggle(host.game, row.field)) }
                 Kind.NUMBER -> numberRow(row, row.field)
-                Kind.CHOICE -> choiceRow(row, row.field.label, SIZES.map { SIZE_LABELS.getValue(it) }, { row.field.get(host.game).toInt() }) { i ->
+                Kind.CHOICE -> choiceRow(row, row.field.label, row.field.choices(), { row.field.get(host.game).toInt() }) { i ->
                     setGame(row.field.set(host.game, i.toDouble()))
                 }
             }

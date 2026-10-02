@@ -10,6 +10,7 @@ import kotlin.math.roundToInt
 
 data class GameSettings(
     val followBends: Boolean = true,
+    val runStraight: Boolean = false,
     val pauseAtForks: Boolean = true,
     val animated: Boolean = true,
     val multicolor: Boolean = true,
@@ -33,6 +34,11 @@ enum class Kind { TOGGLE, NUMBER, CHOICE }
 
 private fun bit(on: Boolean) = if (on) 1.0 else 0.0
 
+/** Steering's choices, by value: Hold to move (0), Run straight (1), Bend assist (2). */
+val STEERING_LABELS = listOf("Hold to move", "Run straight", "Bend assist")
+
+private fun steering(s: GameSettings) = if (s.followBends) 2.0 else if (s.runStraight) 1.0 else 0.0
+
 enum class GameField(
     val label: String,
     val kind: Kind,
@@ -45,6 +51,12 @@ enum class GameField(
 ) {
     FOLLOW_BENDS("Bend assist", Kind.TOGGLE, 0.0, 1.0, 1.0, true,
         { bit(it.followBends) }, { s, v -> s.copy(followBends = v != 0.0) }),
+    RUN_STRAIGHT("Run straight", Kind.TOGGLE, 0.0, 1.0, 1.0, true,
+        { bit(it.runStraight) }, { s, v -> s.copy(runStraight = v != 0.0) }),
+    // The menus show Steering in place of the two switches above, which stay stored. It comes
+    // after them so a stored Steering wins; an old install without it keeps its Bend assist.
+    STEERING("Steering", Kind.CHOICE, 0.0, 2.0, 1.0, true,
+        ::steering, { s, v -> s.copy(followBends = v == 2.0, runStraight = v == 1.0) }),
     PAUSE_AT_FORKS("Pause at forks", Kind.TOGGLE, 0.0, 1.0, 1.0, true,
         { bit(it.pauseAtForks) }, { s, v -> s.copy(pauseAtForks = v != 0.0) }),
     LOOKAHEAD("Look-ahead (cells)", Kind.NUMBER, 0.0, 12.0, 1.0, true,
@@ -90,16 +102,24 @@ enum class GameField(
     fun format(value: Double): String = when {
         kind == Kind.TOGGLE -> if (value != 0.0) "On" else "Off"
         this == SIZE -> SIZE_LABELS.getValue(SIZES[value.toInt()])
+        this == STEERING -> STEERING_LABELS[value.toInt()]
         this == ZOOM -> "${(100 * ZOOM_STEP.pow(value)).roundToInt()}%"
         value == floor(value) -> value.toLong().toString()
         else -> BigDecimal.valueOf(value).stripTrailingZeros().toPlainString()
     }
+
+    /** A choice's labels, in value order; empty for other kinds. */
+    fun choices(): List<String> =
+        if (kind != Kind.CHOICE) emptyList() else (low.toInt()..high.toInt()).map { format(it.toDouble()) }
 }
 
-/** Build GameSettings from untrusted values. Bad or missing keys keep their defaults. */
+/**
+ * Build GameSettings from untrusted values. Bad or missing keys keep their defaults. Fields
+ * are applied in enum order, so a stored Steering wins over the switches it replaces.
+ */
 fun gameSettingsFrom(raw: Map<GameField, Double?>): GameSettings {
     var s = GameSettings()
-    for ((field, value) in raw) field.validate(value)?.let { s = field.set(s, it) }
+    for (field in GameField.entries) if (field in raw) field.validate(raw[field])?.let { s = field.set(s, it) }
     return s
 }
 

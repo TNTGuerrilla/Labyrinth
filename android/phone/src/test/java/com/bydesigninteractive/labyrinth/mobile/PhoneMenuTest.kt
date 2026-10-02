@@ -51,9 +51,18 @@ class PhoneMenuTest {
     }
 
     @Test
-    fun pauseAtForksShowsOnlyWithBendAssistOff() {
+    fun pauseAtForksShowsOnlyForHoldToMove() {
         assertFalse(GameField.PAUSE_AT_FORKS in fields(PhoneTab.ASSISTS))
         assertTrue(GameField.PAUSE_AT_FORKS in fields(PhoneTab.ASSISTS, s.copy(followBends = false)))
+        assertFalse(GameField.PAUSE_AT_FORKS in fields(PhoneTab.ASSISTS, s.copy(followBends = false, runStraight = true)))
+        for (game in listOf(s, s.copy(followBends = false), s.copy(followBends = false, runStraight = true))) {
+            val f = fields(PhoneTab.ASSISTS, game)
+            assertEquals(GameField.STEERING, f[0])
+            assertFalse(GameField.FOLLOW_BENDS in f)
+            assertFalse(GameField.RUN_STRAIGHT in f)
+        }
+        assertTrue("Steering" in BENDS_NOTE)
+        assertFalse("Bend assist off" in BENDS_NOTE)
         assertEquals(MenuRow.Note(BENDS_NOTE), phoneRows(PhoneTab.ASSISTS, s, p, "1.0.0").last())
     }
 

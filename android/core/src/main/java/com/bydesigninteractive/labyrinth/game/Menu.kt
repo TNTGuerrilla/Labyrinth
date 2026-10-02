@@ -47,8 +47,8 @@ fun rows(tab: Tab, s: GameSettings): List<Row> = when (tab) {
         Row.Setting(GameField.MAX_LEADS),
     )
     Tab.ASSISTS -> listOfNotNull(
-        Row.Setting(GameField.FOLLOW_BENDS),
-        if (!s.followBends) Row.Setting(GameField.PAUSE_AT_FORKS) else null,
+        Row.Setting(GameField.STEERING),
+        if (!s.followBends && !s.runStraight) Row.Setting(GameField.PAUSE_AT_FORKS) else null,
         Row.Setting(GameField.LOOKAHEAD),
         Row.Setting(GameField.HINT_LENGTH),
         Row.Setting(GameField.SOLVE_SPEED),

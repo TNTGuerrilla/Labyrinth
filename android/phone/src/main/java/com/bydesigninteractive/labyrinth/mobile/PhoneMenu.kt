@@ -39,7 +39,8 @@ const val COPYRIGHT = "\u00a9 2026 ByDesign Interactive"
 const val LICENSE_LINE = "Licensed under Apache 2.0"
 const val PROJECT_ADDRESS = "github.com/TNTGuerrilla/Labyrinth"
 const val SIZE_NOTE = "Sizes are cell widths on your screen: Small 8 mm, Medium 5 mm, Large 3.5 mm, XL 2.5 mm."
-const val BENDS_NOTE = "Swipes stop at every fork, and with Bend assist off also at bends. Pause at forks is for keys and controllers."
+const val BENDS_NOTE = "Swipes stop at every fork, and also at bends unless Steering is Bend assist. " +
+    "Steering is how keys and controllers move the dot; Pause at forks is for Hold to move."
 
 val KEY_HELP = listOf(
     "Keyboards and controllers: the arrows, WASD, the D-pad or the left stick steer.",
@@ -76,8 +77,8 @@ fun phoneRows(tab: PhoneTab, s: GameSettings, p: PhoneSettings, version: String,
         MenuRow.Note(SIZE_NOTE),
     )
     PhoneTab.ASSISTS -> listOfNotNull(
-        MenuRow.Game(GameField.FOLLOW_BENDS),
-        if (!s.followBends) MenuRow.Game(GameField.PAUSE_AT_FORKS) else null,
+        MenuRow.Game(GameField.STEERING),
+        if (!s.followBends && !s.runStraight) MenuRow.Game(GameField.PAUSE_AT_FORKS) else null,
         MenuRow.Game(GameField.LOOKAHEAD),
         MenuRow.Game(GameField.HINT_LENGTH),
         MenuRow.Game(GameField.SOLVE_SPEED),

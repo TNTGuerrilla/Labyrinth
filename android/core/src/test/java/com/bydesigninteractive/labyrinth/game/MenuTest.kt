@@ -131,9 +131,21 @@ class MenuTest {
     }
 
     @Test
-    fun pauseAtForksOnlyShowsWithoutBendAssist() {
+    fun pauseAtForksOnlyShowsForHoldToMove() {
         assertFalse(rows(Tab.ASSISTS, S).contains(Row.Setting(GameField.PAUSE_AT_FORKS)))
         assertTrue(rows(Tab.ASSISTS, S.copy(followBends = false)).contains(Row.Setting(GameField.PAUSE_AT_FORKS)))
+        assertFalse(rows(Tab.ASSISTS, S.copy(followBends = false, runStraight = true)).contains(Row.Setting(GameField.PAUSE_AT_FORKS)))
+    }
+
+    @Test
+    fun assistsStartWithSteeringAndHideTheOldSwitches() {
+        for (s in listOf(S, S.copy(followBends = false), S.copy(followBends = false, runStraight = true))) {
+            val r = rows(Tab.ASSISTS, s)
+            assertEquals(Row.Setting(GameField.STEERING), r[0])
+            assertFalse(r.contains(Row.Setting(GameField.FOLLOW_BENDS)))
+            assertFalse(r.contains(Row.Setting(GameField.RUN_STRAIGHT)))
+        }
+        for (tab in Tab.entries) assertFalse(rows(tab, S).contains(Row.Setting(GameField.RUN_STRAIGHT)))
     }
 
     @Test
