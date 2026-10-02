@@ -21,12 +21,12 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
     /**
      * The last steering came from touch: the pause at forks leaves out the remote's lag and
      * cooldown, which touch does not have. Only the joystick, a tap and a drag are touch steering
-     * without coasting; a swipe follows the bend assist setting.
+     * without coasting; a swipe follows bends only when Steering is Bend assist.
      */
     var touch = false
         private set
 
-    /** The last steering was a swipe: coast through corridors (and bends, when bend assist is on). */
+    /** The last steering was a swipe: coast through corridors (and bends, when Steering is Bend assist). */
     private var swiping = false
     /** The cells a tap still has the dot walk; while not empty, nothing else steers. */
     private val route = ArrayDeque<Cell>()
@@ -90,15 +90,18 @@ class GameController(var settings: GameSettings, var remote: RemoteProfile) {
 
     fun releaseArrow(d: Int) {
         val grace = remote.holdGraceSeconds
+        val s = settings
         // Only a held arrow can stutter. One pressed during growth never became held, and a
         // grace for its release would swallow the first real press of it once play starts.
-        if (grace == null || d !in keys.held) keys.release(d) else pendingRelease[d] = now + grace
+        // Run straight does not use holds, and a grace would swallow a quick second tap.
+        val holdless = !touch && s.runStraight && !s.followBends
+        if (grace == null || d !in keys.held || holdless) keys.release(d) else pendingRelease[d] = now + grace
     }
 
     /**
      * A swipe: the dot runs that way along corridors and stops at the next fork, dead end, start
-     * or finish. It runs through bends when bend assist is on; with it off it runs straight and
-     * stops at bends too. A swipe while it runs is the turn to take at the first
+     * or finish. It runs through bends when Steering is Bend assist; otherwise it runs straight
+     * and stops at bends too. A swipe while it runs is the turn to take at the first
      * cell where that way is open; one that cannot be taken at the next fork is dropped there.
      */
     fun swipe(d: Int) {

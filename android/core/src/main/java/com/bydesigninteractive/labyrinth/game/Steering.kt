@@ -1,8 +1,8 @@
 // Choosers: what decides where the dot goes each time it reaches a cell center. Ported
 // from maze_game/steering.py (keyboard and auto-solve only; the TV has no mouse).
 //
-// TV addition: with bend assist off, pauseAtForks makes the dot pause at forks the way
-// bend assist does, so a slow remote still gets time to turn.
+// TV addition: with Steering on Hold to move, pauseAtForks makes the dot pause at forks the
+// way Bend assist does, so a slow remote still gets time to turn.
 package com.bydesigninteractive.labyrinth.game
 
 import com.bydesigninteractive.labyrinth.maze.Cell
@@ -12,13 +12,18 @@ import com.bydesigninteractive.labyrinth.maze.direction
 /**
  * Keyboard (remote) steering.
  *
- * Bend assist off: the most recently pressed held direction steers; the dot stops where
- * that way is closed. With pauseAtForks, it also pauses at forks for `pause` seconds
- * unless a direction was pressed since it left the previous cell.
+ * The Steering setting picks one of three modes.
  *
- * Bend assist on: held keys keep the dot moving along its heading and through corridor
- * bends; only a fresh press (the request) turns it into a side passage; forks pause for
- * `pause` seconds so the player can react, then carry straight on if a key is still held.
+ * Hold to move (followBends off, no coast): the most recently pressed held direction
+ * steers; the dot stops where that way is closed. With pauseAtForks, it also pauses at
+ * forks for `pause` seconds unless a direction was pressed since it left the previous cell.
+ *
+ * Run straight (followBends off, coast on; also a swipe unless Steering is Bend assist): one
+ * press runs the dot straight on with nothing held, to the first bend, wall or junction.
+ *
+ * Bend assist (followBends on): held keys keep the dot moving along its heading and through
+ * corridor bends; only a fresh press (the request) turns it into a side passage; forks pause
+ * for `pause` seconds so the player can react, then carry straight on if a key is still held.
  * Branches that visibly dead-end within the look-ahead distance are not counted as choices.
  */
 class KeyboardSteer {
@@ -26,7 +31,7 @@ class KeyboardSteer {
 
     /**
      * A swipe, or a button arrow with Steering on Run straight: nothing is held, but the dot runs on
-     * (through bends with bend assist on, straight with it off).
+     * (through bends with Bend assist, otherwise straight).
      */
     var coast = false
     var request: Int? = null
@@ -91,6 +96,9 @@ class KeyboardSteer {
             stopped = false
         }
         lastCell = cell
+        // Any other steering: a press made under it must not start a run later, should the
+        // setting change to Run straight while the dot sits mid-corridor.
+        if (followBends || !coast) coasting = false
         if (!followBends) {
             return if (coast) straight(grid, cell, cameFrom, stops)
             else classic(grid, cell, cameFrom, stops, pause, pauseAtForks)
@@ -125,7 +133,7 @@ class KeyboardSteer {
     }
 
     /**
-     * A swipe with bend assist off: the dot runs straight and stops at the first bend, wall or
+     * Run straight, or a swipe unless Steering is Bend assist: the dot runs straight and stops at the first bend, wall or
      * fork. A swipe (the request) turns it at the first cell where that way is open; at a stop
      * where it is not open, it is dropped. Forks are counted from every opening except the way it
      * came, without look-ahead, so a short dead end ahead does not hide a live branch. Only a

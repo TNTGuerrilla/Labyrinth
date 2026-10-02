@@ -200,6 +200,7 @@ class GameActivity : Activity() {
     // --- menu ------------------------------------------------------------------------------
 
     private fun openMenu(first: Tab?) {
+        view.send { clearKeys() } // a run or hold stops when the menu opens, as on the phone
         menuSettingsBefore = settings
         menu.open(now(), first)
         view.send { paused = true }

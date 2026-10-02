@@ -369,6 +369,32 @@ class GameControllerTest {
     }
 
     @Test
+    fun aPressUnderHoldToMoveDoesNotStartARunWhenSteeringChangesToRunStraight() {
+        val g = controller(settings = TEST.copy(followBends = false, pauseAtForks = false))
+        g.pressArrow(E)
+        repeat(200) { if (g.round.mover.to != c(2, 1)) g.frame(0.02) }
+        g.releaseArrow(E)
+        g.frames(50)
+        assertEquals(c(2, 1), g.round.dot) // Hold to move: stopped mid-corridor on release
+        g.settings = RUN_STRAIGHT
+        g.frames(100)
+        assertEquals(c(2, 1), g.round.dot) // no press, so no run
+        assertEquals(RoundPhase.PLAY, g.round.phase)
+    }
+
+    @Test
+    fun runStraightTakesAQuickSecondTapDespiteTheStutterGrace() {
+        val g = controller(settings = RUN_STRAIGHT, remote = RemoteProfile(arrowHoldGapMs = 100), end = c(1, 0))
+        g.tap(E)
+        g.frames(6) // 0.12 s: at the junction, inside the 0.15 s grace
+        assertEquals(c(1, 1), g.round.dot)
+        assertFalse(g.dotMoving)
+        g.tap(E)
+        g.frames(100)
+        assertEquals(c(3, 1), g.round.dot) // carried straight on to the dead end
+    }
+
+    @Test
     fun runStraightDoesNotRunOnAfterAutoSolveLetsGo() {
         val g = controller(settings = RUN_STRAIGHT)
         g.toggleAuto()
