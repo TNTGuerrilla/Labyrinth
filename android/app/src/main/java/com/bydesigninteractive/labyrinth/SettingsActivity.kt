@@ -186,7 +186,7 @@ class SettingsActivity : Activity() {
         showUpdate(release ?: sessionOffer)
     }
 
-    /** The check fetched the notes an open What's new lacked: they replace its fallback in place. */
+    /** A check (automatic or Check now) fetched the notes an open What's new lacked: they replace its fallback in place. */
     private fun showArrivedNotes() {
         val news = shownNews?.let { withArrivedNotes(it, UpdateStore.loadSeen(this).notes) } ?: return
         shownNews = news
@@ -309,7 +309,9 @@ class SettingsActivity : Activity() {
         updateStatus.text = "Checking..."
         Updates.checkNow(this) { outcome ->
             checkingNow = false
-            if (isDestroyed || downloading) return@checkNow
+            if (isDestroyed) return@checkNow
+            showArrivedNotes()
+            if (downloading) return@checkNow
             when (outcome) {
                 is Updates.CheckOutcome.Available -> {
                     sessionOffer = outcome.release

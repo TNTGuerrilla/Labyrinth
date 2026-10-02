@@ -76,6 +76,17 @@ fun fetchedNotes(json: String, fetch: NotesFetch, product: Product): List<NoteEn
     return notesIn(json, low, high, product)
 }
 
+/**
+ * The notes one release list gives a check: those up to [newest] when it found a newer release,
+ * plus the [wanted] notes a start found missing.
+ */
+fun checkNotes(json: String, current: String, newest: String?, wanted: NotesFetch?, product: Product): List<NoteEntry> {
+    val fresh = ArrayList<NoteEntry>()
+    if (newest != null) fresh += collectNotes(json, current, newest, product)
+    if (wanted != null) fresh += fetchedNotes(json, wanted, product)
+    return fresh
+}
+
 /** Notes of [product] releases above [low] (no lower bound when null) up to and including [high]. */
 private fun notesIn(json: String, low: List<Int>?, high: List<Int>, product: Product): List<NoteEntry> {
     val releases = try {

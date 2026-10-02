@@ -76,6 +76,21 @@ class NotesTest {
     }
 
     @Test
+    fun oneListServesTheNewerReleaseAndTheMissingNotes() {
+        val json = listing(
+            release("labyrinth-tv-v1.5.0", "Five"), release("labyrinth-tv-v1.4.0", "Four"),
+            release("labyrinth-tv-v1.3.0", "Three"), release("labyrinth-tv-v1.2.0", "Two"),
+        )
+        assertEquals(
+            listOf("1.5.0", "1.4.0", "1.3.0"),
+            checkNotes(json, "1.4.0", "1.5.0", NotesFetch("1.2.0", "1.4.0"), TV_PRODUCT).map { it.version },
+        )
+        assertEquals(listOf(NoteEntry("1.5.0", "Five")), checkNotes(json, "1.4.0", "1.5.0", null, TV_PRODUCT))
+        assertEquals(listOf(NoteEntry("1.4.0", "Four")), checkNotes(json, "1.4.0", null, NotesFetch(null, "1.4.0"), TV_PRODUCT))
+        assertEquals(emptyList<NoteEntry>(), checkNotes(json, "1.4.0", null, null, TV_PRODUCT))
+    }
+
+    @Test
     fun mergeKeepsUnshownNotesAndAddsNewOnes() {
         val stored = listOf(NoteEntry("1.2.0", "Two"), NoteEntry("1.1.0", "One"), NoteEntry("1.5.0", "Pulled"))
         val fresh = listOf(NoteEntry("1.4.0", "Four"), NoteEntry("1.3.0", "Three"))

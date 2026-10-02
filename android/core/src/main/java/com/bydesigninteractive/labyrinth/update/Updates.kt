@@ -105,9 +105,7 @@ object Updates {
                 val json = fetch(UpdateConfig.releasesUrl)
                 requireListing(json)
                 val found = newestRelease(json, current, UpdateConfig.product)
-                val fresh = ArrayList<NoteEntry>()
-                if (found != null) fresh += collectNotes(json, current, found.version, UpdateConfig.product)
-                if (wanted != null) fresh += fetchedNotes(json, wanted, UpdateConfig.product)
+                val fresh = checkNotes(json, current, found?.version, wanted, UpdateConfig.product)
                 if (found != null || fresh.isNotEmpty()) {
                     UpdateStore.editSeen(app) { it.copy(notes = mergeNotes(it.notes, fresh, current)) }
                 }
@@ -272,7 +270,8 @@ object Updates {
 
     /**
      * The user selected Check now: asks GitHub even with checks off and reports the outcome on
-     * the main thread. A dismissed version found this way is offered again.
+     * the main thread. A dismissed version found this way is offered again. The user asked for
+     * this request, so it also fetches the notes a start found missing, as [check] does.
      */
     fun checkNow(context: Context, onDone: (CheckOutcome) -> Unit) {
         val app = context.applicationContext
@@ -284,12 +283,13 @@ object Updates {
         }
         val current = currentVersion(app)
         thread(name = "update-check-now", isDaemon = true) {
+            val wanted = wantedNotes.getAndSet(null)
             val outcome = try {
                 val json = fetch(UpdateConfig.releasesUrl)
                 requireListing(json)
                 val found = newestRelease(json, current, UpdateConfig.product)
-                if (found != null) {
-                    val fresh = collectNotes(json, current, found.version, UpdateConfig.product)
+                val fresh = checkNotes(json, current, found?.version, wanted, UpdateConfig.product)
+                if (found != null || fresh.isNotEmpty()) {
                     UpdateStore.editSeen(app) { it.copy(notes = mergeNotes(it.notes, fresh, current)) }
                 }
                 val next = UpdateStore.edit(app) { state ->

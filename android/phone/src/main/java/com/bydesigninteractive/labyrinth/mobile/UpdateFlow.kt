@@ -2,7 +2,8 @@
 // the download with its progress, the hand-off to Android's installer, Dismiss, Check now and
 // the weekly-check switch. The game screen shows [status] in Menu > About, a dot on the Menu
 // button while an update is on offer, and the update card on a fresh launch; [onChange] runs
-// on the main thread whenever any of that changes.
+// on the main thread whenever any of that changes, and [onNotes] after every check that came
+// back, as it may have stored release notes an open What's new lacks.
 package com.bydesigninteractive.labyrinth.mobile
 
 import android.app.Activity
@@ -19,7 +20,7 @@ import com.bydesigninteractive.labyrinth.update.visibleUpdate
 import java.io.IOException
 import kotlin.concurrent.thread
 
-class UpdateFlow(private val activity: Activity, private val onChange: () -> Unit) {
+class UpdateFlow(private val activity: Activity, private val onNotes: () -> Unit, private val onChange: () -> Unit) {
     var offered: Release? = null
         private set
     /** What Check now found this session, kept on offer even with weekly checks off. */
@@ -64,7 +65,9 @@ class UpdateFlow(private val activity: Activity, private val onChange: () -> Uni
     }
 
     private fun onCheck(release: Release?) {
-        if (activity.isDestroyed || downloading || checkingNow) return
+        if (activity.isDestroyed) return
+        onNotes() // before the early return: a check or download in progress must not keep the notes back
+        if (downloading || checkingNow) return
         // A check that finds nothing must not drop an offer the player just chose on the card
         // (the Install unknown apps round trip resumes the game): keep it while it is still newer
         // than this install. Dismiss clears [offered], so a dismissed offer never survives here.
@@ -177,7 +180,9 @@ class UpdateFlow(private val activity: Activity, private val onChange: () -> Uni
         onChange()
         Updates.checkNow(activity) { outcome ->
             checkingNow = false
-            if (activity.isDestroyed || downloading) return@checkNow
+            if (activity.isDestroyed) return@checkNow
+            onNotes()
+            if (downloading) return@checkNow
             when (outcome) {
                 is Updates.CheckOutcome.Available -> {
                     sessionOffer = outcome.release

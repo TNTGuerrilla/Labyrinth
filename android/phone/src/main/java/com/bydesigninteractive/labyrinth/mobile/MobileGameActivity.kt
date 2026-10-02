@@ -198,7 +198,7 @@ class MobileGameActivity : Activity() {
         phone = PhoneStore.load(this)
         appVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         updatePpi()
-        updates = UpdateFlow(this) { onUpdateChange() }
+        updates = UpdateFlow(this, onNotes = ::showArrivedNotes) { onUpdateChange() }
         remote = GameStore.loadRemote(this) ?: RemoteProfile()
         controllerUsed = PhoneStore.controllerUsed(this)
         view = GameView(this, settings, remote, startPaused = savedInstanceState == null && !PhoneStore.howToPlaySeen(this),
@@ -692,9 +692,9 @@ class MobileGameActivity : Activity() {
 
     /**
      * Shows a card over the paused maze: a title, lines (plain or styled notes) and buttons, the
-     * first of which takes a controller's focus.
+     * first of which takes a controller's focus. Returns the first body line's view, if any.
      */
-    private fun showCard(kind: LaunchCard, title: String, body: List<CharSequence>, buttons: List<Pair<String, () -> Unit>>) {
+    private fun showCard(kind: LaunchCard, title: String, body: List<CharSequence>, buttons: List<Pair<String, () -> Unit>>): TextView? {
         if (cardOpen) closeCard()
         cardOpen = true
         card = kind
@@ -711,11 +711,14 @@ class MobileGameActivity : Activity() {
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
         }, LinearLayout.LayoutParams(MATCH, WRAP))
+        var firstLine: TextView? = null
         for (line in body) {
-            cardPanel.addView(label("", 16f, TEXT).apply {
+            val view = label("", 16f, TEXT).apply {
                 text = line
                 setPadding(0, dp(10), 0, 0)
-            }, LinearLayout.LayoutParams(MATCH, WRAP))
+            }
+            if (firstLine == null) firstLine = view
+            cardPanel.addView(view, LinearLayout.LayoutParams(MATCH, WRAP))
         }
         cardButton = null
         for ((text, action) in buttons) {
@@ -725,6 +728,7 @@ class MobileGameActivity : Activity() {
         }
         scrim.visibility = View.VISIBLE
         cardScroll.visibility = View.VISIBLE
+        return firstLine
     }
 
     /** Closes the card (Back, a tap outside, or its buttons) and resumes the game. */
@@ -738,17 +742,17 @@ class MobileGameActivity : Activity() {
         view.send { paused = false }
     }
 
-    private fun showHowToPlay() =
+    private fun showHowToPlay() {
         showCard(LaunchCard.HOW_TO_PLAY, "How to play", howToPlay(phone.touch), listOf("Play" to ::closeCard))
+    }
 
     private fun showWhatsNew(news: WhatsNew) {
         val notes = label("", 16f, DIM_TEXT)
-        showCard(LaunchCard.WHATS_NEW, "Updated to ${news.version}", listOf(styledNotes(news.lines(), notes.paint)), listOf("Play" to ::closeCard))
+        cardNotes = showCard(LaunchCard.WHATS_NEW, "Updated to ${news.version}", listOf(styledNotes(news.lines(), notes.paint)), listOf("Play" to ::closeCard))
         cardNews = news
-        cardNotes = cardPanel.getChildAt(1) as? TextView // after the title
     }
 
-    /** The check fetched the notes an open What's new card lacked: they replace its fallback in place. */
+    /** A check (automatic or Check now) fetched the notes an open What's new card lacked: they replace its fallback in place. */
     private fun showArrivedNotes() {
         if (!cardOpen || card != LaunchCard.WHATS_NEW) return
         val news = cardNews?.let { withArrivedNotes(it, UpdateStore.loadSeen(this).notes) } ?: return
@@ -774,7 +778,6 @@ class MobileGameActivity : Activity() {
     }
 
     private fun onUpdateChange() {
-        showArrivedNotes()
         toolbar.setBadge(updates.offered != null)
         if (menuOpen) menu.changed()
     }
