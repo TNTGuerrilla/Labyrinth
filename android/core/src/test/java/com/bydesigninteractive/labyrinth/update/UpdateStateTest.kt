@@ -27,6 +27,16 @@ class UpdateStateTest {
     }
 
     @Test
+    fun missingNotesAskEvenWhenTheWeeklyCheckIsNotDueButNeverWithChecksOff() {
+        assertTrue(asksGitHub(enabled = true, due = false, notesWanted = true))
+        assertTrue(asksGitHub(enabled = true, due = true, notesWanted = true)) // one request serves both
+        assertTrue(asksGitHub(enabled = true, due = true, notesWanted = false))
+        assertFalse(asksGitHub(enabled = true, due = false, notesWanted = false))
+        assertFalse(asksGitHub(enabled = false, due = false, notesWanted = true))
+        assertFalse(asksGitHub(enabled = false, due = true, notesWanted = true))
+    }
+
+    @Test
     fun offersOnlyNewerUndismissedReleases() {
         assertEquals(REL, visibleUpdate(UpdateState(found = REL), "1.1.0"))
         assertNull(visibleUpdate(UpdateState(found = REL, dismissed = "1.2.0"), "1.1.0"))

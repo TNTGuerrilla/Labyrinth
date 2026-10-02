@@ -29,7 +29,7 @@ class WhatsNewTest {
         val state = SeenState("1.1.0", notes = NOTES)
         val (after, shown) = onStart(state, "1.2.0")
         assertEquals(state, after)
-        assertEquals(WhatsNew("1.2.0", listOf(NoteEntry("1.2.0", "Two"))), shown)
+        assertEquals(WhatsNew("1.2.0", listOf(NoteEntry("1.2.0", "Two")), since = "1.1.0"), shown)
         assertEquals(listOf(NoteLine(LineKind.TEXT, "Two")), shown!!.lines())
     }
 
@@ -59,6 +59,53 @@ class WhatsNewTest {
         assertEquals(state, markSeen(state, "1.2.0"))
         assertEquals(WhatsNew("1.2.0", listOf(NoteEntry("1.2.0", "Two"))), runningNotes(state, "1.2.0"))
         assertEquals(listOf(NoteEntry("1.2.0", "Two")), runningNotes(SeenState("1.1.0", notes = NOTES), "1.2.0").entries)
+    }
+
+    @Test
+    fun aStartWithoutTheRunningVersionsNotesFetchesThem() {
+        // Installed outside the updater (adb install -r): nothing stored for the new version.
+        assertEquals(NotesFetch(null, "1.4.0"), notesToFetch(SeenState("1.4.0", notes = NOTES), "1.4.0"))
+        assertEquals(NotesFetch(null, "1.4.0"), notesToFetch(SeenState(notes = NOTES), "1.4.0")) // first run
+        // What's new is pending: every skipped version since the last run.
+        assertEquals(NotesFetch("1.1.0", "1.4.0"), notesToFetch(SeenState("1.1.0"), "1.4.0"))
+        assertNull(notesToFetch(SeenState("1.1.0"), "junk"))
+    }
+
+    @Test
+    fun storedNotesAreNotFetchedAgain() {
+        assertNull(notesToFetch(SeenState("1.3.0", notes = NOTES), "1.3.0"))
+        assertNull(notesToFetch(SeenState("1.1.0", notes = NOTES), "1.3.0"))
+        assertNull(notesToFetch(SeenState("1.2.0", notes = listOf(NoteEntry("1.3.0", "Three"))), "1.3.00"))
+    }
+
+    @Test
+    fun anUpdateThroughTheUpdaterStillShowsItsNotesWithoutAFetch() {
+        // The check that found 1.3.0 stored its notes before the install.
+        val checked = SeenState("1.1.0", notes = mergeNotes(emptyList(), NOTES.take(2), "1.1.0"))
+        val (after, shown) = onStart(checked, "1.3.0")
+        assertNull(notesToFetch(checked, "1.3.0"))
+        assertEquals(checked, after)
+        assertEquals(WhatsNew("1.3.0", NOTES.take(2), since = "1.1.0"), shown)
+    }
+
+    @Test
+    fun anOpenFallbackShowsTheNotesWhenTheyArrive() {
+        val start = SeenState("1.1.0")
+        val shown = onStart(start, "1.3.0").second!!
+        assertEquals(listOf(NoteLine(LineKind.TEXT, "Updated to version 1.3.0."), NoteLine(LineKind.TEXT, RELEASES_TEXT)), shown.lines())
+        assertEquals(NotesFetch("1.1.0", "1.3.0"), notesToFetch(start, "1.3.0"))
+        // Shown once at start, so it counts as seen before the fetch comes back.
+        val seen = markSeen(start, "1.3.0")
+        val fetched = NOTES.take(2)
+        val state = seen.copy(notes = mergeNotes(seen.notes, fetched, "1.3.0"))
+        val updated = withArrivedNotes(shown, state.notes)
+        assertEquals(WhatsNew("1.3.0", fetched, since = "1.1.0"), updated)
+        assertNull(withArrivedNotes(updated!!, state.notes)) // already showing notes: left alone
+        assertNull(withArrivedNotes(shown, emptyList())) // still none
+        assertNull(withArrivedNotes(shown, listOf(NoteEntry("1.1.0", "One")))) // only older ones
+        // The What's new button shows them from then on.
+        assertEquals(fetched, runningNotes(state, "1.3.0").entries)
+        assertNull(notesToFetch(state, "1.3.0"))
     }
 
     @Test

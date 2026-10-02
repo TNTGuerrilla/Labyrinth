@@ -65,6 +65,19 @@ private fun newestFirst(entries: Collection<Pair<List<Int>, NoteEntry>>) =
 fun collectNotes(json: String, current: String, newest: String, product: Product): List<NoteEntry> {
     val low = parseVersion(current) ?: return emptyList()
     val high = parseVersion(newest) ?: return emptyList()
+    return notesIn(json, low, high, product)
+}
+
+/** The notes a start fetches (see [notesToFetch]), newest first. */
+fun fetchedNotes(json: String, fetch: NotesFetch, product: Product): List<NoteEntry> {
+    val high = parseVersion(fetch.version) ?: return emptyList()
+    if (fetch.after == null) return notesIn(json, null, high, product).filter { parseVersion(it.version) == high }
+    val low = parseVersion(fetch.after) ?: return emptyList()
+    return notesIn(json, low, high, product)
+}
+
+/** Notes of [product] releases above [low] (no lower bound when null) up to and including [high]. */
+private fun notesIn(json: String, low: List<Int>?, high: List<Int>, product: Product): List<NoteEntry> {
     val releases = try {
         JSONArray(json)
     } catch (_: JSONException) {
@@ -77,7 +90,7 @@ fun collectNotes(json: String, current: String, newest: String, product: Product
         val tag = release.optString("tag_name")
         if (!tag.startsWith(product.tagPrefix)) continue
         val version = parseVersion(tag.removePrefix(product.tagPrefix)) ?: continue
-        if (compareVersions(version, low) <= 0 || compareVersions(version, high) > 0) continue
+        if ((low != null && compareVersions(version, low) <= 0) || compareVersions(version, high) > 0) continue
         // isNull first: Android's optString turns a JSON null into the text "null".
         val body = if (release.isNull("body")) null else release.optString("body")
         val notes = extractNotes(body).take(MAX_NOTES_CHARS)

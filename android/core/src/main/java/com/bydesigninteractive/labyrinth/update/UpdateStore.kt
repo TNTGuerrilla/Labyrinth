@@ -85,10 +85,18 @@ object UpdateStore {
         return after
     }
 
-    /** Call once when the dream or the app starts: What's new to show now, or null. */
+    /**
+     * Call once when the dream or the app starts: What's new to show now, or null. Also notes
+     * which release notes the next check should fetch, if the running version's are missing.
+     */
     fun startWhatsNew(context: Context, current: String): WhatsNew? {
         var shown: WhatsNew? = null
-        editSeen(context) { state -> onStart(state, current).also { shown = it.second }.first }
+        var missing: NotesFetch? = null
+        editSeen(context) { state ->
+            missing = notesToFetch(state, current)
+            onStart(state, current).also { shown = it.second }.first
+        }
+        Updates.wantNotes(missing)
         return shown
     }
 

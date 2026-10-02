@@ -12,6 +12,13 @@ fun isDue(state: UpdateState, nowMs: Long): Boolean {
     return age < 0 || age >= CHECK_INTERVAL_MS
 }
 
+/**
+ * Whether an automatic check asks GitHub: never with checks off; otherwise when it is [due]
+ * (weekly, or the settings screen's), or when this start found the running version's notes
+ * missing ([notesWanted]) even if the weekly check is not due. One request serves both.
+ */
+fun asksGitHub(enabled: Boolean, due: Boolean, notesWanted: Boolean): Boolean = enabled && (due || notesWanted)
+
 /** How long a successful check answers the settings screen's checks on resume. */
 const val RECHECK_INTERVAL_MS = 10L * 60 * 1000
 

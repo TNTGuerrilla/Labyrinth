@@ -42,6 +42,7 @@ import com.bydesigninteractive.labyrinth.update.UpdateStore
 import com.bydesigninteractive.labyrinth.update.Updates
 import com.bydesigninteractive.labyrinth.update.WhatsNew
 import com.bydesigninteractive.labyrinth.update.visibleUpdate
+import com.bydesigninteractive.labyrinth.update.withArrivedNotes
 import java.io.IOException
 import java.net.Inet4Address
 import kotlin.concurrent.thread
@@ -66,6 +67,8 @@ class SettingsActivity : Activity() {
     private lateinit var column: LinearLayout
     private lateinit var help: LinearLayout
     private var notesBlock: LinearLayout? = null
+    private var notesText: TextView? = null
+    private var shownNews: WhatsNew? = null
     private lateinit var updateStatus: TextView
     private lateinit var updateButton: TextView
     private lateinit var dismissButton: TextView
@@ -177,8 +180,17 @@ class SettingsActivity : Activity() {
      * found earlier this session, if anything, stays on offer.
      */
     private fun onAutoCheck(release: Release?) {
-        if (isDestroyed || downloading || checkingNow) return
+        if (isDestroyed) return
+        showArrivedNotes()
+        if (downloading || checkingNow) return
         showUpdate(release ?: sessionOffer)
+    }
+
+    /** The check fetched the notes an open What's new lacked: they replace its fallback in place. */
+    private fun showArrivedNotes() {
+        val news = shownNews?.let { withArrivedNotes(it, UpdateStore.loadSeen(this).notes) } ?: return
+        shownNews = news
+        notesText?.let { it.text = styledNotes(news.lines(), it.paint) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -340,6 +352,8 @@ class SettingsActivity : Activity() {
         block.addView(notes)
         column.addView(block, 1) // index 0 is the title
         notesBlock = block
+        notesText = notes
+        shownNews = news
         if (focus) block.requestFocus()
     }
 

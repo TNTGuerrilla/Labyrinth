@@ -39,6 +39,7 @@ import com.bydesigninteractive.labyrinth.update.UpdateStore
 import com.bydesigninteractive.labyrinth.update.Updates
 import com.bydesigninteractive.labyrinth.update.WhatsNew
 import com.bydesigninteractive.labyrinth.update.notesBetween
+import com.bydesigninteractive.labyrinth.update.withArrivedNotes
 import com.bydesigninteractive.labyrinth.game.Command
 import com.bydesigninteractive.labyrinth.game.GameInput
 import com.bydesigninteractive.labyrinth.game.GameSettings
@@ -685,6 +686,9 @@ class MobileGameActivity : Activity() {
 
     /** The card shown now, so closing it can do what that card needs. */
     private var card: LaunchCard? = null
+    /** The What's new card's notes and their text view, while it is the open card. */
+    private var cardNews: WhatsNew? = null
+    private var cardNotes: TextView? = null
 
     /**
      * Shows a card over the paused maze: a title, lines (plain or styled notes) and buttons, the
@@ -740,6 +744,16 @@ class MobileGameActivity : Activity() {
     private fun showWhatsNew(news: WhatsNew) {
         val notes = label("", 16f, DIM_TEXT)
         showCard(LaunchCard.WHATS_NEW, "Updated to ${news.version}", listOf(styledNotes(news.lines(), notes.paint)), listOf("Play" to ::closeCard))
+        cardNews = news
+        cardNotes = cardPanel.getChildAt(1) as? TextView // after the title
+    }
+
+    /** The check fetched the notes an open What's new card lacked: they replace its fallback in place. */
+    private fun showArrivedNotes() {
+        if (!cardOpen || card != LaunchCard.WHATS_NEW) return
+        val news = cardNews?.let { withArrivedNotes(it, UpdateStore.loadSeen(this).notes) } ?: return
+        cardNews = news
+        cardNotes?.let { it.text = styledNotes(news.lines(), it.paint) }
     }
 
     private fun showUpdateCard(release: Release) {
@@ -760,6 +774,7 @@ class MobileGameActivity : Activity() {
     }
 
     private fun onUpdateChange() {
+        showArrivedNotes()
         toolbar.setBadge(updates.offered != null)
         if (menuOpen) menu.changed()
     }

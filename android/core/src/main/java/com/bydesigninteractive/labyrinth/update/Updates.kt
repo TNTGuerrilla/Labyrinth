@@ -18,6 +18,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 import org.json.JSONArray
 import org.json.JSONException
@@ -38,6 +39,11 @@ object Updates {
     private val awaitingInstall = AtomicBoolean(false)
     /** When a check last reached GitHub and read the list, on the monotonic clock. */
     @Volatile private var lastSuccessAt: Long? = null
+    /** The notes this launch's start found missing, claimed by the next check that asks GitHub. */
+    private val wantedNotes = AtomicReference<NotesFetch?>(null)
+
+    /** Set by [UpdateStore.startWhatsNew] on every start: the notes to fetch, or null. */
+    internal fun wantNotes(fetch: NotesFetch?) = wantedNotes.set(fetch)
 
     /**
      * Claims the one update download for the whole process. A download keeps running after
@@ -68,34 +74,41 @@ object Updates {
     /**
      * Calls [onDone] on the main thread with the update to offer, if any. Asks GitHub first
      * when checks are on and a week has passed, or when [force] is set (the settings screen
-     * opened) and no check succeeded in the last ten minutes. With checks off it answers null
-     * without any network access.
+     * opened) and no check succeeded in the last ten minutes. Also asks, once per start, when
+     * the start found the running version's notes missing (see [notesToFetch]). With checks off
+     * it answers null without any network access.
      */
     fun check(context: Context, force: Boolean, onDone: (Release?) -> Unit) {
         val app = context.applicationContext
-        if (!UpdateStore.enabled(app)) {
+        val enabled = UpdateStore.enabled(app)
+        if (!enabled) {
             onDone(null)
             return
         }
         val current = currentVersion(app)
         val state = UpdateStore.load(app)
-        val ask = if (force) {
+        val due = if (force) {
             !checkedRecently(lastSuccessAt, SystemClock.elapsedRealtime())
         } else {
             isDue(state, System.currentTimeMillis())
         }
+        val ask = asksGitHub(enabled, due, wantedNotes.get() != null)
         if (!ask || !checking.compareAndSet(false, true)) {
             onDone(visibleUpdate(state, current))
             return
         }
         val main = Handler(Looper.getMainLooper())
         thread(name = "update-check", isDaemon = true) {
+            // Claimed even if this check fails: the notes are fetched at most once per start.
+            val wanted = wantedNotes.getAndSet(null)
             val offer = try {
                 val json = fetch(UpdateConfig.releasesUrl)
                 requireListing(json)
                 val found = newestRelease(json, current, UpdateConfig.product)
-                if (found != null) {
-                    val fresh = collectNotes(json, current, found.version, UpdateConfig.product)
+                val fresh = ArrayList<NoteEntry>()
+                if (found != null) fresh += collectNotes(json, current, found.version, UpdateConfig.product)
+                if (wanted != null) fresh += fetchedNotes(json, wanted, UpdateConfig.product)
+                if (found != null || fresh.isNotEmpty()) {
                     UpdateStore.editSeen(app) { it.copy(notes = mergeNotes(it.notes, fresh, current)) }
                 }
                 val next = UpdateStore.edit(app) { it.copy(lastCheck = System.currentTimeMillis(), found = found) }

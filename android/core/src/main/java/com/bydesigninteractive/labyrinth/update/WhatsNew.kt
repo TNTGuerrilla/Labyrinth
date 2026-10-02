@@ -12,7 +12,8 @@ const val CLOSES_AFTER = "Closes after this maze"
 /** lastRunVersion: the version whose What's new was last seen (or the first that ran). */
 data class SeenState(val lastRunVersion: String? = null, val runs: Int = 0, val notes: List<NoteEntry> = emptyList())
 
-data class WhatsNew(val version: String, val entries: List<NoteEntry> = emptyList()) {
+/** [since]: the version it counts from, so its notes are those above it (all stored ones when null). */
+data class WhatsNew(val version: String, val entries: List<NoteEntry> = emptyList(), val since: String? = null) {
     fun lines(): List<NoteLine> {
         if (entries.isEmpty()) {
             return listOf(NoteLine(LineKind.TEXT, "Updated to version $version."), NoteLine(LineKind.TEXT, RELEASES_TEXT))
@@ -47,7 +48,9 @@ fun isPending(state: SeenState, current: String): Boolean {
 fun onStart(state: SeenState, current: String): Pair<SeenState, WhatsNew?> {
     if (parseVersion(current) == null) return state to null
     if (parseVersion(state.lastRunVersion) == null) return state.copy(lastRunVersion = current, runs = 0) to null
-    if (isPending(state, current)) return state to WhatsNew(current, notesBetween(state.notes, state.lastRunVersion, current))
+    if (isPending(state, current)) {
+        return state to WhatsNew(current, notesBetween(state.notes, state.lastRunVersion, current), state.lastRunVersion)
+    }
     return state to null
 }
 
@@ -64,8 +67,34 @@ fun countRun(state: SeenState, current: String): SeenState {
     return if (runs >= SHOW_RUNS) markSeen(state, current) else state.copy(runs = runs)
 }
 
-fun runningNotes(state: SeenState, current: String): WhatsNew =
-    WhatsNew(current, notesBetween(state.notes, if (isPending(state, current)) state.lastRunVersion else null, current))
+fun runningNotes(state: SeenState, current: String): WhatsNew {
+    val since = if (isPending(state, current)) state.lastRunVersion else null
+    return WhatsNew(current, notesBetween(state.notes, since, current), since)
+}
+
+/**
+ * Notes to fetch on a start: those of releases above [after] up to [version], or [version]'s
+ * own when [after] is null.
+ */
+data class NotesFetch(val after: String?, val version: String)
+
+/**
+ * What a start must fetch when the stored notes have nothing for the running version (it was
+ * installed outside the updater): its own notes and, while What's new is pending, those of
+ * every release since the last run. Null when they are stored.
+ */
+fun notesToFetch(state: SeenState, current: String): NotesFetch? {
+    val ours = parseVersion(current) ?: return null
+    if (state.notes.any { e -> parseVersion(e.version)?.let { compareVersions(it, ours) == 0 } == true }) return null
+    return NotesFetch(if (isPending(state, current)) state.lastRunVersion else null, current)
+}
+
+/** [shown], open with the fallback, with the notes that have arrived since; null if it needs no change. */
+fun withArrivedNotes(shown: WhatsNew, notes: List<NoteEntry>): WhatsNew? {
+    if (shown.entries.isNotEmpty()) return null
+    val arrived = notesBetween(notes, shown.since, shown.version)
+    return if (arrived.isEmpty()) null else shown.copy(entries = arrived)
+}
 
 /** Whole seconds left, 60 down to 1, or null once the minute is over. */
 fun countdownSeconds(elapsedMs: Long): Int? =

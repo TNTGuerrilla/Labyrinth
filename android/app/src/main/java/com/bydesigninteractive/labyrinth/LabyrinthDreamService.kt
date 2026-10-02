@@ -34,6 +34,7 @@ import com.bydesigninteractive.labyrinth.update.Updates
 import com.bydesigninteractive.labyrinth.update.WhatsNew
 import com.bydesigninteractive.labyrinth.update.countdownSeconds
 import com.bydesigninteractive.labyrinth.update.splitScreen
+import com.bydesigninteractive.labyrinth.update.withArrivedNotes
 import kotlin.math.ceil
 
 private const val CORNER_MS = 3L * 60 * 1000
@@ -49,6 +50,8 @@ class LabyrinthDreamService : DreamService(), MazeListener {
     private var maze: MazeView? = null
     private var root: FrameLayout? = null
     private var section: View? = null
+    private var sectionNews: WhatsNew? = null
+    private var sectionNotes: TextView? = null
     private var clock: SectionClock? = null
     private var split: Split? = null
     private var restorePending = false
@@ -100,7 +103,9 @@ class LabyrinthDreamService : DreamService(), MazeListener {
         setContentView(root)
         attached = true
         Updates.check(this, force = false) { release ->
-            if (!attached || release == null || notice != null) return@check
+            if (!attached) return@check
+            showArrivedNotes()
+            if (release == null || notice != null) return@check
             if (noticeShows) {
                 showNotice(root, release)
             } else {
@@ -116,6 +121,8 @@ class LabyrinthDreamService : DreamService(), MazeListener {
         section?.animate()?.cancel()
         handler.removeCallbacksAndMessages(null)
         section = null
+        sectionNews = null
+        sectionNotes = null
         clock = null
         restorePending = false
         pendingRelease = null
@@ -147,6 +154,8 @@ class LabyrinthDreamService : DreamService(), MazeListener {
         val pad = maxOf(6, cardH / 40)
         val notes = dimText("", body)
         notes.text = styledNotes(news.lines(), notes.paint)
+        sectionNews = news
+        sectionNotes = notes
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
@@ -179,6 +188,16 @@ class LabyrinthDreamService : DreamService(), MazeListener {
             addView(words)
             addView(number)
         }
+    }
+
+    /** The check fetched the notes the open card lacked: they replace its fallback in place. */
+    private fun showArrivedNotes() {
+        if (section == null) return
+        val notes = sectionNotes ?: return
+        val news = sectionNews?.let { withArrivedNotes(it, UpdateStore.loadSeen(this).notes) } ?: return
+        sectionNews = news
+        notes.text = styledNotes(news.lines(), notes.paint)
+        notes.post { cutToFit(notes) }
     }
 
     /** As many lines as fit; when some do not, the last rows become the More at line. */

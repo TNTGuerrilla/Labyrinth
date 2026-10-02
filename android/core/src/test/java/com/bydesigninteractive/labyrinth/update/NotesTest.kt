@@ -51,6 +51,31 @@ class NotesTest {
     }
 
     @Test
+    fun fetchesOnlyTheRunningVersionsNotesWhenNothingIsPending() {
+        val json = listing(
+            release("labyrinth-tv-v1.4.0", "Four"), release("labyrinth-tv-v1.3.0", "Three\n---\nsha"),
+            release("labyrinth-tv-v1.2.0", "Two"), release("labyrinth-mobile-v1.3.0", "phone"),
+        )
+        assertEquals(listOf(NoteEntry("1.3.0", "Three")), fetchedNotes(json, NotesFetch(null, "1.3.0"), TV_PRODUCT))
+        assertEquals(emptyList<NoteEntry>(), fetchedNotes(json, NotesFetch(null, "1.3.1"), TV_PRODUCT))
+    }
+
+    @Test
+    fun fetchesEverySkippedVersionWhileWhatsNewIsPending() {
+        val json = listing(
+            release("labyrinth-tv-v1.5.0", "Five"), release("labyrinth-tv-v1.4.0", "Four\n---\nsha"),
+            release("labyrinth-tv-v1.3.5", "d", draft = true), release("labyrinth-tv-v1.3.2", "p", prerelease = true),
+            release("labyrinth-tv-v1.3.1", ""), release("labyrinth-tv-v1.3.0", "Three"), release("labyrinth-v1.3.3", "game"),
+            release("labyrinth-tv-v1.2.0", "Two"), release("labyrinth-tv-v1.1.0", "One"),
+        )
+        assertEquals(
+            listOf(NoteEntry("1.4.0", "Four"), NoteEntry("1.3.0", "Three"), NoteEntry("1.2.0", "Two")),
+            fetchedNotes(json, NotesFetch("1.1.0", "1.4.0"), TV_PRODUCT),
+        )
+        assertEquals(emptyList<NoteEntry>(), fetchedNotes("junk", NotesFetch("1.1.0", "1.4.0"), TV_PRODUCT))
+    }
+
+    @Test
     fun mergeKeepsUnshownNotesAndAddsNewOnes() {
         val stored = listOf(NoteEntry("1.2.0", "Two"), NoteEntry("1.1.0", "One"), NoteEntry("1.5.0", "Pulled"))
         val fresh = listOf(NoteEntry("1.4.0", "Four"), NoteEntry("1.3.0", "Three"))
