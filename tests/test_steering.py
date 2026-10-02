@@ -437,3 +437,16 @@ def test_auto_steer_at_the_end_is_done():
     g = fork_grid()
     a = AutoSteer(toward_end(g, (2, 1)), (2, 1))
     assert a.choose((2, 1)) is None and a.done
+
+
+def test_a_press_under_another_steering_does_not_start_a_run_straight_run_later():
+    """A press made under Hold to move or Bend assist must not leave a run pending for
+    when Steering is switched to Run straight mid-corridor."""
+    g = grid_of(4, 1, (((0, 0), (1, 0)), ((1, 0), (2, 0)), ((2, 0), (3, 0))))
+    for follow_bends in (False, True):
+        k = KeyboardSteer()
+        k.press(E)
+        assert k.choose(g, (1, 0), (0, 0), follow_bends, (), FAR, 4, 0.0) == (2, 0)
+        k.release(E)
+        k.choose(g, (2, 0), (1, 0), follow_bends, (), FAR, 4, 0.0)
+        assert straight(k, g, (2, 0), (1, 0), stops=()) is None

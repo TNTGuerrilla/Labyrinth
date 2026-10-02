@@ -14,10 +14,11 @@ _UNREAD = object()  # PathSteer has not drawn its next cell yet
 class KeyboardSteer:
     """Keyboard steering.
 
-    Follow bends off: the most recently pressed held direction steers; the dot stops
-    where that way is closed. Follow bends on: held keys keep the dot moving along its
-    heading and through corridor bends; only a fresh press (the request) turns it into
-    a side passage; forks pause for `pause` seconds so the player can react, then carry
+    The Steering setting picks one of three modes. Hold to move (follow bends and run
+    straight off): the most recently pressed held direction steers; the dot stops
+    where that way is closed. Bend assist (follow bends on): held keys keep the dot
+    moving along its heading and through corridor bends; only a fresh press (the
+    request) turns it into a side passage; forks pause for `pause` seconds so the player can react, then carry
     straight on if a key is still held. Branches that visibly dead-end within the
     look-ahead distance are not counted as choices.
 
@@ -86,9 +87,12 @@ class KeyboardSteer:
     def choose(self, grid: Grid, cell: Cell, came_from: Optional[Cell], follow_bends: bool,
                stops: Iterable[Cell], end: Cell, lookahead: int,
                pause: float, run_straight: bool = False) -> Optional[Cell]:
+        if not follow_bends and run_straight:
+            return self._straight(grid, cell, came_from, stops)
+        # Any other steering: a press made under it must not start a run later, should
+        # the setting change to Run straight while the dot sits mid-corridor.
+        self._coasting = False
         if not follow_bends:
-            if run_straight:
-                return self._straight(grid, cell, came_from, stops)
             d = self.wanted
             if d is not None and grid.open_dirs(cell) & d:
                 return step(cell, d)
