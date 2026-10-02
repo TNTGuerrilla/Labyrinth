@@ -446,8 +446,10 @@ class Game:
             target = self.camera.to_cells(mx - pr.x, my - pr.y)
             return (lambda c, came: steer_toward(r.grid, c, target)), s.glide_speed, False
         stops = (r.start, r.end)
+        run_straight = s.run_straight and not s.follow_bends
         return ((lambda c, came: self.keys.choose(r.grid, c, came, s.follow_bends, stops,
-                                                   r.end, s.lookahead, s.turn_pause)),
+                                                   r.end, s.lookahead, s.turn_pause,
+                                                   run_straight)),
                 s.glide_speed, False)
 
     def frame(self, dt: float) -> None:

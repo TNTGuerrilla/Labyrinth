@@ -31,9 +31,9 @@ def test_clicking_arrows_changes_values():
     glide_index = next(i for i, row in enumerate(p.model.rows()) if row.name == "glide_speed")
     p.click(p.hits.rect_for(("inc", glide_index)).center)
     assert p.model.draft.glide_speed == 6.0
-    bends_index = next(i for i, row in enumerate(p.model.rows()) if row.name == "follow_bends")
-    p.click(p.hits.rect_for(("inc", bends_index)).center)
-    assert p.model.draft.follow_bends is False
+    steering_index = next(i for i, row in enumerate(p.model.rows()) if row.name == "steering")
+    p.click(p.hits.rect_for(("inc", steering_index)).center)
+    assert (p.model.draft.follow_bends, p.model.draft.run_straight) == (False, False)
 
 
 def test_headers_are_drawn_but_not_clickable():
@@ -45,7 +45,7 @@ def test_headers_are_drawn_but_not_clickable():
     first = p.hits.rect_for(("row", 1))
     header_spot = (first.x + 12, first.y - 12)  # the header line sits just above
     assert tuple(surface.get_at(header_spot))[:3] != (0, 0, 0)
-    assert p.click(header_spot) is None and p.model.selected.name == "follow_bends"
+    assert p.click(header_spot) is None and p.model.selected.name == "steering"
 
 
 def test_clicking_apply_returns_apply():

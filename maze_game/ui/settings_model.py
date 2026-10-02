@@ -25,6 +25,9 @@ class Row:
     step: float = 1
     choices: tuple = ()  # (value, label) pairs for "choice"
     slot: int = 0  # key slot for "key" rows
+    # A "choice" row that writes several settings fields: each value is a tuple holding
+    # one value per field, and name is only the row's id.
+    fields: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -43,7 +46,12 @@ def header(title: str) -> Row:
 
 GAMEPLAY_ROWS = (
     header("Movement"),
-    Row("bool", "Follow bends", "follow_bends"),
+    # A stored pair the panel never writes (both on) shows as Bend assist: the game
+    # lets follow_bends win.
+    Row("choice", "Steering", "steering",
+        choices=(((False, False), "Hold to move"), ((False, True), "Run straight"),
+                 ((True, False), "Bend assist")),
+        fields=("follow_bends", "run_straight")),
     Row("number", "Glide speed (cells/s)", "glide_speed", 2, 40, 1),
     Row("number", "Turn pause (s)", "turn_pause", 0, 1, 0.05),
     header("Display"),
@@ -186,7 +194,7 @@ class SettingsModel:
         if row.kind == "bool":
             return "On" if getattr(self.draft, row.name) else "Off"
         if row.kind == "choice":
-            value = getattr(self.draft, row.name)
+            value = self._choice_value(row)
             return next(label for v, label in row.choices if v == value)
         if row.kind == "number":
             value = getattr(self.draft, row.name)
@@ -203,6 +211,18 @@ class SettingsModel:
         if row.name == "benchmark":
             return self.bench_text()
         return ""
+
+    def _choice_value(self, row: Row):
+        """A choice row's current value. For a row over several fields, a stored
+        combination it does not list counts as the last choice that matches its first
+        field."""
+        if not row.fields:
+            return getattr(self.draft, row.name)
+        value = tuple(getattr(self.draft, f) for f in row.fields)
+        values = [v for v, _ in row.choices]
+        if value in values:
+            return value
+        return [v for v in values if v[0] == value[0]][-1]
 
     def select(self, index: int, direction: int = 1) -> None:
         """Select a row, stepping past section headers and info lines in `direction`."""
@@ -223,12 +243,15 @@ class SettingsModel:
         row = self.selected
         if row.kind not in ("bool", "choice", "number"):
             return
+        if row.kind == "choice":
+            values = [v for v, _ in row.choices]
+            new = values[(values.index(self._choice_value(row)) + delta) % len(values)]
+            changes = dict(zip(row.fields, new)) if row.fields else {row.name: new}
+            self.draft = replace(self.draft, **changes)
+            return
         value = getattr(self.draft, row.name)
         if row.kind == "bool":
             new = not value
-        elif row.kind == "choice":
-            values = [v for v, _ in row.choices]
-            new = values[(values.index(value) + delta) % len(values)]
         else:
             new = min(row.hi, max(row.lo, value + delta * row.step))
             new = int(new) if isinstance(value, int) else round(float(new), 4)

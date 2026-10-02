@@ -36,7 +36,7 @@ def test_tab_key_cycles_tabs():
 def test_every_tab_is_split_into_sections():
     m = model()
     assert headers(m) == ["Movement", "Display", "Maze growth", "Assists"]
-    assert names(m)[:3] == ["follow_bends", "glide_speed", "turn_pause"]
+    assert names(m)[:3] == ["steering", "glide_speed", "turn_pause"]
     m.set_tab(1)
     assert headers(m) == ["Maze size", "Performance"]
     m.set_tab(2)
@@ -49,7 +49,7 @@ def test_every_tab_is_split_into_sections():
 
 def test_headers_are_never_selected():
     m = model()
-    assert m.selected.name == "follow_bends"  # the header above it is skipped
+    assert m.selected.name == "steering"  # the header above it is skipped
     for _ in range(len(m.rows()) * 2):
         m.handle("down")
         assert m.selected.kind != "header"
@@ -72,15 +72,52 @@ def test_navigation_wraps():
     m.handle("up")
     assert m.index == len(m.rows()) - 1
     m.handle("down")
-    assert m.selected.name == "follow_bends"
+    assert m.selected.name == "steering"
 
 
 def test_bool_toggles_with_arrows_and_enter():
     m = model()
+    m.select(row_index(m, "multicolor"))
     m.handle("right")
-    assert m.draft.follow_bends is False
+    assert m.draft.multicolor is False
     m.handle("confirm")
-    assert m.draft.follow_bends is True
+    assert m.draft.multicolor is True
+
+
+def test_steering_row_offers_the_three_choices():
+    m = model()
+    row = m.rows()[row_index(m, "steering")]
+    assert row.kind == "choice" and row.label == "Steering"
+    assert [label for _, label in row.choices] == ["Hold to move", "Run straight", "Bend assist"]
+    assert "follow_bends" not in names(m) and "run_straight" not in names(m)
+
+
+def test_steering_writes_both_stored_fields():
+    m = model()
+    row = m.rows()[row_index(m, "steering")]
+    assert m.value_text(row) == "Bend assist"  # the default
+    m.select(row_index(m, "steering"))
+    m.handle("right")  # wraps to the first choice
+    assert (m.draft.follow_bends, m.draft.run_straight) == (False, False)
+    assert m.value_text(row) == "Hold to move"
+    m.handle("right")
+    assert (m.draft.follow_bends, m.draft.run_straight) == (False, True)
+    assert m.value_text(row) == "Run straight"
+    m.handle("confirm")
+    assert (m.draft.follow_bends, m.draft.run_straight) == (True, False)
+    assert m.value_text(row) == "Bend assist"
+    m.handle("left")
+    assert (m.draft.follow_bends, m.draft.run_straight) == (False, True)
+
+
+def test_steering_shows_old_settings_by_their_stored_bend_assist():
+    old = model(follow_bends=False)
+    assert old.value_text(old.rows()[row_index(old, "steering")]) == "Hold to move"
+    both = model(follow_bends=True, run_straight=True)  # not written by the panel
+    assert both.value_text(both.rows()[row_index(both, "steering")]) == "Bend assist"
+    both.select(row_index(both, "steering"))
+    both.handle("right")
+    assert (both.draft.follow_bends, both.draft.run_straight) == (False, False)
 
 
 def test_numbers_step_and_clamp():
@@ -136,7 +173,8 @@ def test_bench_text():
 
 def test_value_text():
     m = model()
-    assert m.value_text(m.rows()[row_index(m, "follow_bends")]) == "On"
+    assert m.value_text(m.rows()[row_index(m, "steering")]) == "Bend assist"
+    assert m.value_text(m.rows()[row_index(m, "multicolor")]) == "On"
     assert m.value_text(m.rows()[row_index(m, "animated")]) == "Animated"
     assert m.value_text(m.rows()[row_index(m, "glide_speed")]) == "5"
     m.set_tab(2)

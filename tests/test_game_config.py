@@ -18,6 +18,24 @@ def test_defaults():
         None)
 
 
+def test_run_straight_defaults_off_and_round_trips(tmp_path):
+    assert GameSettings().run_straight is False
+    assert from_dict({"run_straight": True, "follow_bends": False}) == GameSettings(
+        follow_bends=False, run_straight=True)
+    assert from_dict({"run_straight": 1}) == GameSettings()
+    p = tmp_path / "config.json"
+    s = GameSettings(follow_bends=False, run_straight=True)
+    save(s, Keymap(), p)
+    assert load(p)[0] == s
+
+
+def test_an_old_config_without_run_straight_keeps_its_follow_bends():
+    assert from_dict({"follow_bends": False}) == GameSettings(follow_bends=False,
+                                                              run_straight=False)
+    assert from_dict({"follow_bends": True}) == GameSettings(follow_bends=True,
+                                                             run_straight=False)
+
+
 def test_new_fields_validate():
     s = from_dict({"turn_pause": 2, "show_grid": 1, "glide_speed": 3})
     assert s == GameSettings(glide_speed=3.0)

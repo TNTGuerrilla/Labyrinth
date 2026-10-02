@@ -20,6 +20,11 @@ class KeyboardSteer:
     a side passage; forks pause for `pause` seconds so the player can react, then carry
     straight on if a key is still held. Branches that visibly dead-end within the
     look-ahead distance are not counted as choices.
+
+    Run straight (follow bends off, run_straight on): one press is enough. The dot runs
+    straight on with no key held and stops at the first bend, wall or junction, and at
+    the start and finish. A press while it runs turns it at the first cell where that
+    way is open; at a stop where it is not open, the press is dropped.
     """
 
     def __init__(self):
@@ -30,12 +35,14 @@ class KeyboardSteer:
         self._pause_until = 0.0
         self._stopped = False
         self._last_cell: Optional[Cell] = None
+        self._coasting = False  # Run straight: a press set the dot running
 
     def press(self, d: int) -> None:
         if d in self.held:
             self.held.remove(d)
         self.held.append(d)
         self.request = d
+        self._coasting = True
 
     def release(self, d: int) -> None:
         if d in self.held:
@@ -47,6 +54,7 @@ class KeyboardSteer:
         self._pause_cell = None
         self._stopped = False
         self._last_cell = None
+        self._coasting = False
 
     def reset_round(self) -> None:
         """A new round, or a replay of one, is starting. Any turn request buffered
@@ -61,10 +69,12 @@ class KeyboardSteer:
         """Mouse or dash steering just moved the dot on its own. Any pause, stop or
         last-cell tracking left over from keyboard steering is stale and must not
         linger when the keyboard chooser is next consulted, even if the dot ends up
-        back at the same cell it left. Held keys are left alone."""
+        back at the same cell it left. A Run straight run ends here too, so the dot
+        is not run on when they let go of it. Held keys are left alone."""
         self._pause_cell = None
         self._stopped = False
         self._last_cell = None
+        self._coasting = False
 
     def tick(self, dt: float) -> None:
         self.now += dt
@@ -75,8 +85,10 @@ class KeyboardSteer:
 
     def choose(self, grid: Grid, cell: Cell, came_from: Optional[Cell], follow_bends: bool,
                stops: Iterable[Cell], end: Cell, lookahead: int,
-               pause: float) -> Optional[Cell]:
+               pause: float, run_straight: bool = False) -> Optional[Cell]:
         if not follow_bends:
+            if run_straight:
+                return self._straight(grid, cell, came_from, stops)
             d = self.wanted
             if d is not None and grid.open_dirs(cell) & d:
                 return step(cell, d)
@@ -94,6 +106,25 @@ class KeyboardSteer:
         if result is not None:
             self._stopped = False
         return result
+
+    def _straight(self, grid: Grid, cell: Cell, came_from: Optional[Cell],
+                  stops: Iterable[Cell]) -> Optional[Cell]:
+        """Run straight: on to the first bend, wall or junction. Junctions are counted
+        from every opening except the way it came, without look-ahead, so a short dead
+        end ahead does not hide a live branch."""
+        if not self._coasting:
+            return None
+        r = self.request
+        if r is not None and grid.open_dirs(cell) & r:
+            self.request = None
+            return step(cell, r)
+        if (came_from is None or cell in stops
+                or not grid.open_dirs(cell) & direction(came_from, cell)
+                or len([n for n in grid.open_neighbors(cell) if n != came_from]) >= 2):
+            self.request = None
+            self._coasting = False
+            return None
+        return step(cell, direction(came_from, cell))
 
     def _guided(self, grid: Grid, cell: Cell, came_from: Optional[Cell], stops: Iterable[Cell],
                 end: Cell, lookahead: int, pause: float) -> Optional[Cell]:

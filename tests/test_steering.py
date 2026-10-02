@@ -237,6 +237,114 @@ def test_zero_pause_does_not_cost_a_frame_at_a_fork():
     assert k.choose(g, (1, 1), (0, 1), True, (), FAR, 0, 0.0) == (2, 1)
 
 
+# Run straight: a corridor from (0,1) east to a junction at (2,1), where east is a
+# 1-cell dead end and north is the live way, bending east at (2,0) toward (4,0).
+DEAD_END_FORK = (((0, 1), (1, 1)), ((1, 1), (2, 1)), ((2, 1), (3, 1)),
+                 ((2, 1), (2, 0)), ((2, 0), (3, 0)), ((3, 0), (4, 0)))
+RS_STOPS = ((0, 1), (4, 0))
+
+
+def tap(k, d):
+    k.press(d)
+    k.release(d)
+
+
+def straight(k, g, cell, came, stops=RS_STOPS):
+    return k.choose(g, cell, came, False, stops, (4, 0), 2, 0.2, run_straight=True)
+
+
+def run(k, g, cell, came=None, stops=RS_STOPS, steps=50, on_cell=None):
+    """Drive the chooser like the game does, cell by cell, until it stops. on_cell is
+    called with each cell the dot reaches before it is asked where to go next."""
+    path = [cell]
+    for _ in range(steps):
+        if on_cell is not None:
+            on_cell(cell)
+        nxt = straight(k, g, cell, came, stops)
+        if nxt is None:
+            break
+        came, cell = cell, nxt
+        path.append(cell)
+    return path
+
+
+def test_run_straight_one_press_runs_to_the_junction_and_stops():
+    g = grid_of(5, 2, DEAD_END_FORK)
+    k = KeyboardSteer()
+    tap(k, E)
+    # not on into the short dead end at (3,1): forks are counted without look-ahead
+    assert run(k, g, (0, 1)) == [(0, 1), (1, 1), (2, 1)]
+    assert k.request is None and k.held == []
+    assert straight(k, g, (2, 1), (1, 1)) is None  # stays stopped on later frames
+
+
+def test_run_straight_a_press_while_running_turns_at_the_junction():
+    g = grid_of(5, 2, DEAD_END_FORK)
+    k = KeyboardSteer()
+    tap(k, E)
+
+    def turn_once(cell):
+        if cell == (1, 1):
+            tap(k, N)
+
+    path = run(k, g, (0, 1), on_cell=turn_once)
+    assert path == [(0, 1), (1, 1), (2, 1), (2, 0)]  # turned at (2,1), stopped at the bend
+    assert (3, 1) not in path
+
+
+def test_run_straight_runs_down_a_corridor_with_no_key_held_and_stops_at_the_wall():
+    g = grid_of(4, 1, (((0, 0), (1, 0)), ((1, 0), (2, 0)), ((2, 0), (3, 0))))
+    k = KeyboardSteer()
+    tap(k, E)
+    assert k.wanted is None
+    assert run(k, g, (0, 0), stops=()) == [(0, 0), (1, 0), (2, 0), (3, 0)]
+
+
+def test_run_straight_stops_at_a_bend():
+    g = grid_of(2, 2, BEND)
+    k = KeyboardSteer()
+    tap(k, E)
+    assert run(k, g, (0, 0), stops=()) == [(0, 0), (1, 0)]
+
+
+def test_run_straight_stops_at_the_start_and_finish():
+    g = grid_of(4, 1, (((0, 0), (1, 0)), ((1, 0), (2, 0)), ((2, 0), (3, 0))))
+    k = KeyboardSteer()
+    tap(k, E)
+    assert run(k, g, (0, 0), stops=((0, 0), (2, 0))) == [(0, 0), (1, 0), (2, 0)]
+
+
+def test_run_straight_drops_a_press_that_cannot_be_taken_at_a_stop():
+    g = grid_of(5, 2, DEAD_END_FORK)
+    k = KeyboardSteer()
+    tap(k, E)
+    run(k, g, (0, 1))
+    tap(k, S)  # closed at (2,1)
+    assert straight(k, g, (2, 1), (1, 1)) is None
+    assert k.request is None
+    tap(k, N)  # a usable press starts it again
+    assert run(k, g, (2, 1), (1, 1)) == [(2, 1), (2, 0)]
+
+
+def test_run_straight_does_not_coast_after_something_else_moved_the_dot():
+    """Mouse drags and click-to-dash move the dot on their own; when they let go, the
+    keyboard chooser must leave it where it is rather than run it on."""
+    g = grid_of(4, 1, (((0, 0), (1, 0)), ((1, 0), (2, 0)), ((2, 0), (3, 0))))
+    k = KeyboardSteer()
+    assert straight(k, g, (1, 0), (0, 0), stops=()) is None
+    tap(k, E)
+    assert straight(k, g, (1, 0), (0, 0), stops=()) == (2, 0)
+    k.forget_position()  # a mouse press or a dash took over
+    assert straight(k, g, (2, 0), (1, 0), stops=()) is None
+
+
+def test_hold_to_move_ignores_a_tap():
+    g = grid_of(4, 1, (((0, 0), (1, 0)), ((1, 0), (2, 0)), ((2, 0), (3, 0))))
+    k = KeyboardSteer()
+    tap(k, E)
+    assert k.choose(g, (0, 0), None, False, (), FAR, 4, 0.2) is None
+
+
 def test_is_reverse():
     assert is_reverse((0, 0), (1, 0), W)
     assert not is_reverse((0, 0), (1, 0), E)

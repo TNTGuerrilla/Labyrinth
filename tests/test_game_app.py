@@ -175,6 +175,105 @@ def test_dash_click_moves_one_straight_run(game):
     assert r.path.route[:2] == [r.start, n]
 
 
+@pytest.fixture
+def straight_game(tmp_path):
+    pygame.init()
+    g = Game(GameSettings(animated=False, glide_speed=40, solve_speed=500, follow_bends=False,
+                          run_straight=True), Keymap(), tmp_path / "config.json")
+    yield g
+    pygame.quit()
+
+
+def straight_stop(grid, start, end, d):
+    """Where Run straight stops a dot sent from start toward d: the first bend, wall or
+    junction (counted without look-ahead), or the start or finish cell."""
+    came, cell = start, step(start, d)
+    while True:
+        if cell in (start, end):
+            return cell
+        heading = direction(came, cell)
+        others = [n for n in grid.open_neighbors(cell) if n != came]
+        if not grid.open_dirs(cell) & heading or len(others) >= 2:
+            return cell
+        came, cell = cell, step(cell, heading)
+
+
+def tap_key(game, key):
+    press(game, key)
+    release(game, key)
+
+
+def test_run_straight_one_key_press_runs_the_dot_to_the_next_stop(straight_game):
+    game = straight_game
+    until_play(game)
+    r = game.round
+    d = next(d for d in (N, E, S, W) if r.grid.open_dirs(r.start) & d)
+    tap_key(game, KEY_FOR_DIR[d])
+    frames(game, 600)
+    assert r.dot == straight_stop(r.grid, r.start, r.end, d)
+    assert not r.mover.moving
+
+
+def test_hold_to_move_ignores_a_key_tap(tmp_path):
+    pygame.init()
+    try:
+        g = Game(GameSettings(animated=False, glide_speed=40, follow_bends=False), Keymap(),
+                 tmp_path / "config.json")
+        until_play(g)
+        r = g.round
+        d = next(d for d in (N, E, S, W) if r.grid.open_dirs(r.start) & d)
+        tap_key(g, KEY_FOR_DIR[d])
+        frames(g, 60)
+        assert r.dot == r.start and r.explored == 0
+    finally:
+        pygame.quit()
+
+
+def _neighbor_spot(game):
+    """Grow mazes until one has a neighbor of the start where Run straight would not
+    stop, so a keyboard chooser that ran on after the mouse let go would show. Returns
+    that neighbor and the screen point at its center."""
+    for seed in range(100):
+        game.rng = random.Random(seed)
+        game.new_round()
+        until_play(game)
+        r = game.round
+        d = next(d for d in (N, E, S, W) if r.grid.open_dirs(r.start) & d)
+        n = step(r.start, d)
+        if straight_stop(r.grid, r.start, r.end, d) != n:
+            break
+    else:
+        raise AssertionError("no maze with a straight run from the start")
+    x, y, w, h = game.camera.cell_rect(n)
+    pr = game.play_rect
+    return n, (pr.x + x + w // 2, pr.y + y + h // 2)
+
+
+def test_run_straight_leaves_a_dash_click_alone(straight_game):
+    game = straight_game
+    n, pos = _neighbor_spot(game)
+    r = game.round
+    game.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=pos))
+    game.handle(pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=pos))
+    frames(game, 120)
+    assert r.dot == n and not r.mover.moving
+    assert r.path.route == [r.start, n]
+
+
+def test_run_straight_leaves_mouse_drag_steering_alone(straight_game, monkeypatch):
+    game = straight_game
+    n, pos = _neighbor_spot(game)
+    r = game.round
+    monkeypatch.setattr(pygame.mouse, "get_pos", lambda: pos)
+    game.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=pos))
+    game.dragging = True
+    frames(game, 60)
+    assert r.dot == n and not r.mover.moving
+    game.handle(pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=pos))
+    frames(game, 120)
+    assert r.dot == n and not r.mover.moving
+
+
 def test_mouse_press_and_dash_forget_keyboard_steering_position(game):
     until_play(game)
     r = game.round
@@ -277,7 +376,7 @@ def test_escape_opens_and_closes_settings(game):
 
 def test_settings_apply_saves(game, tmp_path):
     press(game, pygame.K_ESCAPE)
-    press(game, pygame.K_d)  # Follow bends -> Off
+    press(game, pygame.K_d)  # Steering: Bend assist -> Hold to move
     press(game, pygame.K_UP)  # wraps to Cancel
     press(game, pygame.K_UP)  # Apply
     press(game, pygame.K_RETURN)

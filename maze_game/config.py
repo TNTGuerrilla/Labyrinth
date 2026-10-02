@@ -18,7 +18,8 @@ MAX_CUSTOM = 100_000
 
 @dataclass(frozen=True)
 class GameSettings:
-    follow_bends: bool = True
+    follow_bends: bool = True  # Steering: Bend assist (wins over run_straight)
+    run_straight: bool = False  # Steering: Run straight (with follow_bends off)
     animated: bool = True
     multicolor: bool = True
     show_grid: bool = True
@@ -62,7 +63,8 @@ NUMERIC_RANGES = {
     "custom_min": (MIN_CUSTOM, MAX_CUSTOM, True),
     "custom_max": (MIN_CUSTOM, MAX_CUSTOM, True),
 }
-BOOL_FIELDS = ("follow_bends", "animated", "multicolor", "show_grid", "check_updates")
+BOOL_FIELDS = ("follow_bends", "run_straight", "animated", "multicolor", "show_grid",
+               "check_updates")
 
 
 def _is_number(value: Any) -> bool:
