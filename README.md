@@ -90,7 +90,7 @@ To avoid administrator prompts entirely, keep `Labyrinth.scr` in a folder you ow
 
 Guide a dot from the green start to the red finish. Each maze grows in front of you (or appears instantly), and if you get stuck, Hint lights up the next few cells and Auto-solve takes over from wherever you are.
 
-Run `Labyrinth.exe` (on Linux, see [Install on Linux](#install-on-linux)). Hold a direction to glide; the dot follows corridor bends on its own and stops at forks and dead ends. Walking back over your trail dims it, so the bright line is always your route from the start. When zoomed in, the view follows the dot and keeps it centered. Settings > Display has Screen coverage (how much of the window below the toolbar the maze fills, 50 to 100%) and Grid strength.
+Run `Labyrinth.exe` (on Linux, see [Install on Linux](#install-on-linux)). Hold a direction to glide; the dot follows corridor bends on its own and stops at forks and dead ends. That is the default **Steering**, Bend assist; Settings > Movement also offers Hold to move (the dot moves only while you hold a direction) and Run straight (one press runs the dot to the next bend, wall or junction). Walking back over your trail dims it, so the bright line is always your route from the start. When zoomed in, the view follows the dot and keeps it centered. Settings > Display has Screen coverage (how much of the window below the toolbar the maze fills, 50 to 100%) and Grid strength.
 
 | Action | Default key |
 |---|---|
@@ -179,7 +179,7 @@ Open **Labyrinth** from the TV's app list and select **Play**. The first time, a
 | Volume up, down | Zoom in, out (on TVs that pass these buttons to apps) |
 | Any other button while the maze grows | Skip to the finished maze |
 
-The menu has tabs: Controls, Play (Hint, Auto-solve, Flash finish, Replay, New maze), Maze (size and growth), Assists (bend assist, pause at forks, look-ahead, hint length, auto-solve speed), Movement (glide speed, turn pause, and Test remote to measure the remote again) and Look (colors, grid, grid strength, screen coverage, zoom). Left and right switch tabs, up and down pick a row, OK changes it, and Back closes the menu. A thin bar along the top shows the cells explored and the time. When zoomed in, the view follows the dot, keeping it centered; each maze grows at 100% and zooms back in when play starts.
+The menu has tabs: Controls, Play (Hint, Auto-solve, Flash finish, Replay, New maze), Maze (size and growth), Assists (steering, pause at forks, look-ahead, hint length, auto-solve speed), Movement (glide speed, turn pause, and Test remote to measure the remote again) and Look (colors, grid, grid strength, screen coverage, zoom). **Steering** picks how the arrows move the dot: Hold to move (the dot moves while you hold an arrow), Run straight (one press runs the dot to the next bend, wall or junction) or Bend assist (the default: a held arrow follows corridor bends and the dot pauses at forks). Pause at forks shows only for Hold to move. Left and right switch tabs, up and down pick a row, OK changes it, and Back closes the menu. A thin bar along the top shows the cells explored and the time. When zoomed in, the view follows the dot, keeping it centered; each maze grows at 100% and zooms back in when play starts.
 
 **Use as** on the settings screen chooses Game and screensaver, Game only, or Screensaver only. With Game only, Labyrinth leaves the TV's screensaver list; with Screensaver only, Play is hidden.
 
@@ -286,9 +286,9 @@ Keyboards and controllers work too: the arrows, WASD, the D-pad or the left stic
 
 ### Menu and settings
 
-The menu has tabs: Controls (touch controls, Show traced path for Drag, joystick hand, and the keys for keyboards and controllers), Play (Resume, Hint, Auto-solve, Flash finish, Replay, New maze), Maze (size, growth and max leads), Assists (Bend assist, Pause at forks, look-ahead, hint length, auto-solve speed), Movement (glide speed and turn pause), Look (colors, grid, grid strength, screen coverage, zoom, orientation and hiding the system bars) and About (version, updates, What's new, How to play, license).
+The menu has tabs: Controls (touch controls, Show traced path for Drag, joystick hand, and the keys for keyboards and controllers), Play (Resume, Hint, Auto-solve, Flash finish, Replay, New maze), Maze (size, growth and max leads), Assists (Steering, Pause at forks, look-ahead, hint length, auto-solve speed), Movement (glide speed and turn pause), Look (colors, grid, grid strength, screen coverage, zoom, orientation and hiding the system bars) and About (version, updates, What's new, How to play, license).
 
-Maze sizes are cell widths on your screen, in millimetres: Small 8 mm, Medium 5 mm, Large 3.5 mm and XL 2.5 mm, so a maze has similar cells on a phone and a tablet. **Orientation** is Auto, Portrait or Landscape. **Hide system bars** (on by default) hides the status and navigation bars while you play. Swipes stop at every fork, and with Bend assist off also at bends; Pause at forks is for keyboards and controllers. **Show traced path** (Controls tab, shown for Drag, on by default) highlights the cells you have drawn ahead of the dot.
+Maze sizes are cell widths on your screen, in millimetres: Small 8 mm, Medium 5 mm, Large 3.5 mm and XL 2.5 mm, so a maze has similar cells on a phone and a tablet. **Orientation** is Auto, Portrait or Landscape. **Hide system bars** (on by default) hides the status and navigation bars while you play. **Steering** is Hold to move, Run straight (one press runs the dot to the next bend, wall or junction) or Bend assist (the default) for keyboards and controllers. Swipes stop at every fork, and follow bends only with Bend assist; otherwise they stop at bends too. Pause at forks shows only for Hold to move. **Show traced path** (Controls tab, shown for Drag, on by default) highlights the cells you have drawn ahead of the dot.
 
 ### Updating Labyrinth Mobile
 
