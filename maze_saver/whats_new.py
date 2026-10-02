@@ -3,7 +3,7 @@ its countdown, when it closes, and (card_size, split_monitor) where it goes. Pur
 whats_new_view draws it."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable, Optional
 
 from labyrinth_update.notes import NoteLine
@@ -23,6 +23,17 @@ class SaverWhatsNew:
     title: str
     lines: tuple[NoteLine, ...]
     on_seen: Callable[[], None]  # called once, when the section has faded out
+    # While it shows the fallback text: the notes' lines once they have arrived, else ().
+    arrived: Optional[Callable[[], tuple[NoteLine, ...]]] = None
+
+
+def with_arrived_notes(whats_new: SaverWhatsNew) -> Optional[SaverWhatsNew]:
+    """The section with the notes that arrived since it opened with the fallback text, or
+    None when there is nothing new to show."""
+    if whats_new.arrived is None:
+        return None
+    lines = whats_new.arrived()
+    return replace(whats_new, lines=lines, arrived=None) if lines else None
 
 
 def countdown(elapsed: float) -> Optional[int]:

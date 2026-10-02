@@ -60,8 +60,15 @@ def _whats_new(updater):
     # interrupted run must still count toward the limit of SHOW_RUNS.
     updater.count_whats_new_run()
     from .whats_new import SaverWhatsNew
+
+    def arrived():
+        # Notes the check fetches after start, when none were stored for this version.
+        fresh = updater.running_whats_new()
+        return tuple(fresh.lines()) if fresh.entries else ()
+
     return SaverWhatsNew(f"Labyrinth Screensaver updated to {shown.version}",
-                         tuple(shown.lines()), updater.mark_whats_new_seen)
+                         tuple(shown.lines()), updater.mark_whats_new_seen,
+                         None if shown.entries else arrived)
 
 
 def _run(argv: Sequence[str]) -> None:

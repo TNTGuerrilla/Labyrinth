@@ -19,7 +19,7 @@ from .layout import Layout, Monitor, Rect, plan_layout, scale_to_fit
 from .preview import claim_name, is_superseded, make_token, preview_should_run
 from .render import BLACK, BoardRenderer
 from .watermark import Watermark, primary_index
-from .whats_new import SaverWhatsNew, SectionClock
+from .whats_new import SaverWhatsNew, SectionClock, with_arrived_notes
 from .whats_new_view import WhatsNewSection
 
 TITLE = "Labyrinth Screensaver"
@@ -266,6 +266,7 @@ def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Option
         signature = monitors.virtual_screen_signature()
         next_poll = time.monotonic() + DISPLAY_POLL_SECONDS
         next_notice = 0.0
+        next_notes = 0.0
 
         def rebuild() -> None:
             nonlocal stage, watcher, signature, current
@@ -301,6 +302,12 @@ def run_saver(settings: Settings, force_multiwindow: bool = False, leads: Option
                 message = notice()
                 if message:
                     stage.show_notice(message, now)
+            if showing and now >= next_notes:
+                next_notes = now + NOTICE_POLL_SECONDS
+                fresh = with_arrived_notes(whats_new)
+                if fresh is not None:
+                    whats_new = fresh
+                    attach(stage)  # redraws the card with the notes, on the same clock
             stage.frame(dt)
     finally:
         pygame.quit()

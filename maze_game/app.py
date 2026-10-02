@@ -17,6 +17,7 @@ from labyrinth_update.info import LICENSE_URL, REPO_URL, status_text
 from labyrinth_update.install import install_game, relaunch
 from labyrinth_update.updater import AVAILABLE, DOWNLOADING, FAILED, READY, Updater
 from labyrinth_update.version import running_version
+from labyrinth_update.whats_new import WhatsNew
 
 from . import benchmark, config, difficulty
 from .assist import route
@@ -91,6 +92,11 @@ def nav_for(key_name: str, keymap: Keymap) -> Optional[str]:
     return None
 
 
+def whats_new_dialog(shown: WhatsNew, first_run: bool = False) -> WhatsNewDialog:
+    return WhatsNewDialog(f"Labyrinth updated to {shown.version}", shown.lines(),
+                          first_run=first_run, fallback=not shown.entries)
+
+
 class Game:
     def __init__(self, settings: GameSettings, keymap: Keymap,
                  config_path: Optional[Path] = None, updater: Optional[Updater] = None):
@@ -128,8 +134,7 @@ class Game:
         self._dialog_below: Optional[Dialog] = None  # the dialog a What's new panel covers
         shown = updater.start_whats_new() if updater is not None else None
         if shown is not None:
-            self._open_dialog(WhatsNewDialog(f"Labyrinth updated to {shown.version}",
-                                             shown.lines(), first_run=True))
+            self._open_dialog(whats_new_dialog(shown, first_run=True))
 
     @property
     def play_rect(self) -> pygame.Rect:
@@ -513,6 +518,11 @@ class Game:
         if self.dialog is not None:
             if isinstance(self.dialog, SettingsPanel):
                 self.dialog.model.set_info(self._info_state())
+            elif (isinstance(self.dialog, WhatsNewDialog) and self.dialog.fallback
+                  and self.updater is not None):
+                shown = self.updater.running_whats_new()  # notes fetched since it opened
+                if shown.entries:
+                    self.dialog.show_notes(shown.lines())
             self.dialog.draw(self.screen)
         self.window.flip()
 
@@ -630,8 +640,7 @@ class Game:
             if self.updater is not None:
                 shown = self.updater.running_whats_new()
                 below = self.dialog
-                self._open_dialog(WhatsNewDialog(f"Labyrinth updated to {shown.version}",
-                                                 shown.lines()))
+                self._open_dialog(whats_new_dialog(shown))
                 self._dialog_below = below  # Esc or OK returns to Settings
 
     # --- benchmark --------------------------------------------------------------

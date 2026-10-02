@@ -4,7 +4,7 @@ install steps) stay on GitHub only."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Optional, Sequence
 
 from .releases import Product
 from .version import parse_version
@@ -168,11 +168,31 @@ def collect_notes(releases: Any, product: Product, current: str,
     return [found[v] for v in sorted(found, reverse=True)][:MAX_ENTRIES]
 
 
+def has_notes(notes: Sequence[NoteEntry], version: str) -> bool:
+    """True when `notes` has an entry for `version`."""
+    wanted = parse_version(version)
+    return wanted is not None and any(parse_version(e.version) == wanted for e in notes)
+
+
+def notes_for_run(releases: Any, product: Product, current: str,
+                  last_run: Optional[str]) -> list[NoteEntry]:
+    """The notes What's new needs when none are stored for the running version: its own,
+    plus while What's new is pending (`last_run` below `current`) those of every release
+    above `last_run`. Newest first, filtered as collect_notes does."""
+    ours, last = parse_version(current), parse_version(last_run)
+    if ours is None:
+        return []
+    if last is not None and last < ours:
+        return collect_notes(releases, product, version_text(last), current)
+    return [e for e in collect_notes(releases, product, "0.0.0", current)
+            if parse_version(e.version) == ours]
+
+
 def merge_notes(stored: Sequence[NoteEntry], fresh: Sequence[NoteEntry],
                 current: str) -> tuple[NoteEntry, ...]:
-    """What to keep after a check found a newer release: the fresh notes, plus the stored
-    ones at or below the running version (not yet shown, or reopened by What's new).
-    Newest first."""
+    """What to keep after a check found a newer release or notes What's new lacked: the
+    fresh notes, plus the stored ones at or below the running version (not yet shown, or
+    reopened by What's new). Newest first."""
     ours = parse_version(current)
     kept: dict[tuple[int, int, int], NoteEntry] = {}
     for entry in stored:

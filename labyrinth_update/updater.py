@@ -15,7 +15,7 @@ from . import state as state_file
 from . import whats_new as news
 from .install import cleanup_old
 from .net import Progress, UpdateError
-from .notes import collect_notes, merge_notes
+from .notes import collect_notes, has_notes, merge_notes, notes_for_run
 from .releases import Product, Release, fetch_releases, newest
 from .version import current_binary, running_version
 from .whats_new import WhatsNew
@@ -61,6 +61,10 @@ class Updater:
         self._asked = False  # Check now ran this session: offer even with weekly checks off
         self._asking = False  # a Check now waits for the check in flight to report
         self._checking = False  # a check thread is running, set and cleared under the lock
+        # A check ran this launch, so it also asked for notes missing for the running
+        # version (a build put in place without the updater stores none); once is enough.
+        self._notes_asked = False
+        self._run_before: Optional[str] = None  # last_run_version when the check started
         self._report = CheckReport()
         self._snapshot = self._offer()
 
@@ -84,6 +88,10 @@ class Updater:
         return Snapshot(AVAILABLE, release) if release is not None else Snapshot()
 
     def _start_check(self) -> None:
+        self._notes_asked = True
+        # Read now: What's new may be marked seen while the check runs, and the notes of
+        # the versions that update skipped are still wanted then.
+        self._run_before = self._state.last_run_version
         self._report = CheckReport(CHECKING)
         self._checking = True
         self._check_thread = threading.Thread(target=self._check, daemon=True)
@@ -99,15 +107,20 @@ class Updater:
             pass
 
     def check(self, force: bool = False) -> None:
-        """Ask GitHub in the background when enabled and a week has passed, or when forced
-        (a settings screen was opened). A running install is left alone; a click on Update
-        must not be dropped just because a check is also in flight."""
+        """Ask GitHub in the background when enabled and a week has passed, when forced
+        (a settings screen was opened), or once a launch when no notes are stored for the
+        running version. A running install is left alone; a click on Update must not be
+        dropped just because a check is also in flight."""
         with self._lock:
             if not self.enabled or self._checking or self._install_busy():
                 return
-            if not force and not state_file.is_due(self._state, self._clock()):
+            if (not force and not state_file.is_due(self._state, self._clock())
+                    and not self._wants_notes()):
                 return
             self._start_check()
+
+    def _wants_notes(self) -> bool:
+        return not self._notes_asked and not has_notes(self._state.notes, self.current)
 
     def check_now(self) -> None:
         """The user pressed Check now: check even with weekly checks off, report the outcome
@@ -134,6 +147,7 @@ class Updater:
             found = newest(listing, self.product, self.current)
             fresh = ([] if found is None
                      else collect_notes(listing, self.product, self.current, found.version))
+            running = notes_for_run(listing, self.product, self.current, self._run_before)
         except UpdateError as exc:
             self._check_failed(str(exc))  # offline or rate limited: try again next launch
             return
@@ -144,10 +158,12 @@ class Updater:
             asked, self._asking = self._asking, False
             self._checking = False
             state = replace(self._state, last_check=self._clock(), found=found)
-            if found is not None:  # the spec stores notes only when something newer exists
+            if not has_notes(state.notes, self.current):
+                fresh = fresh + running  # the notes What's new lacks, from the same list
+            if found is not None or fresh:
                 state = replace(state, notes=merge_notes(state.notes, fresh, self.current))
-                if asked and found.version == state.dismissed:
-                    state = replace(state, dismissed=None)  # the user asked: offer it again
+            if asked and found is not None and found.version == state.dismissed:
+                state = replace(state, dismissed=None)  # the user asked: offer it again
             self._state = state
             self._save()
             self._report = CheckReport(UP_TO_DATE) if found is None else CheckReport()

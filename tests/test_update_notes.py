@@ -89,3 +89,35 @@ def test_merge_keeps_unshown_notes_and_adds_new_ones():
     assert merge_notes(stored, fresh, "1.2.0") == (
         NoteEntry("1.4.0", "Four"), NoteEntry("1.3.0", "Three"), NoteEntry("1.2.0", "Two"),
         NoteEntry("1.1.0", "One"))
+
+
+from labyrinth_update.notes import has_notes, notes_for_run  # noqa: E402
+
+RUN_LISTING = [rel("labyrinth-v1.6.0", "Six"), rel("labyrinth-v1.5.0", "Five\n---\nsha"),
+               rel("labyrinth-v1.4.1", "d", draft=True), rel("labyrinth-v1.4.0", "Four"),
+               rel("labyrinth-v1.3.0", ""), rel("labyrinth-v1.2.0", "Two"),
+               rel("labyrinth-screensaver-v1.5.0", "Other product")]
+
+
+def test_notes_for_run_is_the_running_version_alone_when_nothing_is_pending():
+    for last_run in (None, "1.5.0", "1.7.0", "bad"):
+        assert notes_for_run(RUN_LISTING, GAME_WINDOWS, "1.5.0", last_run) == [
+            NoteEntry("1.5.0", "Five")]
+
+
+def test_notes_for_run_covers_every_skipped_version_while_pending():
+    assert notes_for_run(RUN_LISTING, GAME_WINDOWS, "1.5.0", "1.2.0") == [
+        NoteEntry("1.5.0", "Five"), NoteEntry("1.4.0", "Four")]
+
+
+def test_notes_for_run_handles_bad_input():
+    assert notes_for_run("junk", GAME_WINDOWS, "1.5.0", None) == []
+    assert notes_for_run(RUN_LISTING, GAME_WINDOWS, "bad", None) == []
+    assert notes_for_run(RUN_LISTING, GAME_WINDOWS, "1.3.0", None) == []  # empty notes
+
+
+def test_has_notes():
+    notes = (NoteEntry("1.5.0", "Five"), NoteEntry("1.4.0", "Four"))
+    assert has_notes(notes, "1.5.0") and has_notes(notes, "1.4.0")
+    assert not has_notes(notes, "1.3.0") and not has_notes((), "1.5.0")
+    assert not has_notes(notes, "bad")

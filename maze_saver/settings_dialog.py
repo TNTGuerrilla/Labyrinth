@@ -127,11 +127,13 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
     frame.grid()
 
     notes_frame = None
+    notes_fallback = False  # the frame shows "Updated to version X" until the notes arrive
 
     def show_notes(shown) -> None:
-        nonlocal notes_frame
+        nonlocal notes_frame, notes_fallback
         if notes_frame is not None:
             notes_frame.destroy()
+        notes_fallback = not shown.entries
         notes_frame = ttk.LabelFrame(info, text=f"Updated to {shown.version}", padding=8)
         notes_frame.grid(row=7, column=0, columnspan=2, sticky="we", pady=(8, 0))
         box = tk.Text(notes_frame, height=8, width=56, wrap="word", relief="flat",
@@ -228,6 +230,10 @@ def run_dialog(owner_hwnd: Optional[int] = None, path: Optional[Path] = None, up
                 updater.snapshot, updater.current, updater.check_report,
                 installing=switch is not None and switch.committed)
             status.configure(text=message)
+            if notes_fallback:
+                fresh = updater.running_whats_new()  # notes the check fetched since
+                if fresh.entries:
+                    show_notes(fresh)
             for widget, show, column in ((update_button, can_update, 1),
                                          (dismiss_button, can_dismiss, 2)):
                 if show:

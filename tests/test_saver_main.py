@@ -29,3 +29,53 @@ def test_whats_new_counts_the_run_before_the_screensaver_starts():
     assert saver.lines == tuple(WhatsNew("9.9.9").lines())
     saver.on_seen()
     assert updater.calls[-1] == "seen"
+
+
+def test_whats_new_takes_notes_that_arrive_while_it_shows():
+    from labyrinth_update.notes import NoteEntry
+    from maze_saver.whats_new import with_arrived_notes
+
+    class FakeUpdater:
+        def __init__(self):
+            self.running = WhatsNew("9.9.9")
+
+        def start_whats_new(self):
+            return WhatsNew("9.9.9")
+
+        def count_whats_new_run(self):
+            pass
+
+        def mark_whats_new_seen(self):
+            pass
+
+        def running_whats_new(self):
+            return self.running
+
+    updater = FakeUpdater()
+    saver = _whats_new(updater)
+    assert with_arrived_notes(saver) is None  # still the fallback text
+    arrived = WhatsNew("9.9.9", (NoteEntry("9.9.9", "- Faster"),))
+    updater.running = arrived
+    fresh = with_arrived_notes(saver)
+    assert fresh.lines == tuple(arrived.lines()) and fresh.title == saver.title
+    assert with_arrived_notes(fresh) is None  # taken once
+
+
+def test_whats_new_with_notes_never_changes():
+    from labyrinth_update.notes import NoteEntry
+    from maze_saver.whats_new import with_arrived_notes
+
+    class FakeUpdater:
+        def start_whats_new(self):
+            return WhatsNew("9.9.9", (NoteEntry("9.9.9", "Shown"),))
+
+        def count_whats_new_run(self):
+            pass
+
+        def mark_whats_new_seen(self):
+            pass
+
+        def running_whats_new(self):
+            raise AssertionError("not asked again")
+
+    assert with_arrived_notes(_whats_new(FakeUpdater())) is None

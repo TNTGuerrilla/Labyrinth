@@ -1043,3 +1043,49 @@ def test_a_solve_that_stops_short_moves_on_to_the_next_maze(saver, monkeypatch):
         if saver.round is not first:
             break
     assert saver.round is not first and saver.screensaver
+
+
+def test_whats_new_fills_in_when_the_missing_notes_arrive(tmp_path):
+    """A build put in place without the updater stored no notes: What's new opens with the
+    fallback text, and the notes fetched on start replace it while it is open."""
+    pygame.init()
+    try:
+        save_state(tmp_path / "update.json",
+                   UpdateState(last_check=1000.0, last_run_version="0.9.0"))
+        rels = [{"tag_name": "labyrinth-v1.0.0", "body": "- Faster mazes\n---\nsha",
+                 "assets": []}]
+        u = Updater(GAME_WINDOWS, "1.0.0", tmp_path / "update.json", True,
+                    fetch=lambda: rels, clock=lambda: 2000.0,
+                    target=tmp_path / "Labyrinth.exe")
+        g = Game(GameSettings(animated=False), Keymap(), tmp_path / "config.json", updater=u)
+        assert g.dialog.lines == WhatsNew("1.0.0").lines()
+        u.check()
+        u.wait(5)
+        g.frame(1 / 60)
+        assert g.dialog.lines == WhatsNew("1.0.0", (NoteEntry("1.0.0", "- Faster mazes"),)).lines()
+        assert g.dialog.first_run
+    finally:
+        pygame.quit()
+
+
+def test_whats_new_from_info_fills_in_when_the_notes_arrive(tmp_path):
+    pygame.init()
+    try:
+        save_state(tmp_path / "update.json",
+                   UpdateState(last_check=1000.0, last_run_version="1.0.0"))
+        rels = [{"tag_name": "labyrinth-v1.0.0", "body": "Faster", "assets": []}]
+        u = Updater(GAME_WINDOWS, "1.0.0", tmp_path / "update.json", True,
+                    fetch=lambda: rels, clock=lambda: 2000.0,
+                    target=tmp_path / "Labyrinth.exe")
+        g = Game(GameSettings(animated=False), Keymap(), tmp_path / "config.json", updater=u)
+        assert g.dialog is None
+        g.do("settings")  # forces the check, which also brings the notes
+        g._dialog_outcome("whats_new")
+        u.wait(5)
+        g.frame(1 / 60)
+        assert g.dialog.lines == WhatsNew("1.0.0", (NoteEntry("1.0.0", "Faster"),)).lines()
+    finally:
+        pygame.quit()
+
+
+from labyrinth_update.whats_new import WhatsNew  # noqa: E402

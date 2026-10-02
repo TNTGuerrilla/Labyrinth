@@ -67,6 +67,8 @@ def test_first_run_checks_and_offers(tmp_path):
 
 
 def test_checks_are_weekly(tmp_path):
+    # The running version's notes are stored, so start has no notes to fetch.
+    save(tmp_path / "update.json", UpdateState(notes=(NoteEntry("1.1.0", "Eleven"),)))
     first = Fetch(listing("1.2.0"))
     checked(make(tmp_path, first))
     later = Fetch(listing("1.3.0"))
@@ -420,4 +422,125 @@ def test_automatic_force_check_stays_off_after_check_now_with_weekly_checks_off(
     assert fetch.calls == 1
     u.check(force=True)
     u.wait(5)
+    assert fetch.calls == 1
+
+
+# Missing notes: a build that replaced the program without the updater stored no notes for
+# the running version, so start fetches them (once per launch) when checks are on.
+
+def noted(*pairs):
+    """A listing of (version, body) releases."""
+    rels = listing(*(v for v, _ in pairs))
+    for rel, (_, body) in zip(rels, pairs):
+        rel["body"] = body
+    return rels
+
+
+def not_due(tmp_path, **fields):
+    save(tmp_path / "update.json", UpdateState(last_check=1000.0, **fields))
+
+
+def test_missing_running_notes_are_fetched_on_start_when_the_check_is_not_due(tmp_path):
+    not_due(tmp_path, last_run_version="1.1.0")
+    fetch = Fetch(noted(("1.1.0", "Eleven\n---\nsha"), ("1.0.0", "Ten")))
+    u = make(tmp_path, fetch, now=1000.0 + DAY)
+    assert u.start_whats_new() is None
+    checked(u)
+    assert fetch.calls == 1
+    assert u.running_whats_new().entries == (NoteEntry("1.1.0", "Eleven"),)
+    data = json.loads((tmp_path / "update.json").read_text(encoding="utf-8"))
+    assert data["notes"] == [{"version": "1.1.0", "notes": "Eleven"}]
+
+
+def test_missing_notes_are_fetched_at_most_once_per_launch(tmp_path):
+    not_due(tmp_path, last_run_version="1.1.0")
+    fetch = Fetch(noted(("1.1.0", "")))  # the release has no notes to store
+    u = make(tmp_path, fetch, now=1000.0 + DAY)
+    checked(u)
+    checked(u)
+    assert fetch.calls == 1 and u._state.notes == ()
+    checked(make(tmp_path, fetch, now=1000.0 + DAY))  # the next launch tries again
+    assert fetch.calls == 2
+
+
+def test_missing_notes_are_not_fetched_with_checks_off(tmp_path):
+    not_due(tmp_path, last_run_version="1.1.0")
+    fetch = Fetch(noted(("1.1.0", "Eleven")))
+    u = make(tmp_path, fetch, enabled=False, now=1000.0 + DAY)
+    checked(u)
+    assert fetch.calls == 0 and u.running_whats_new().entries == ()
+
+
+def test_missing_notes_cover_every_skipped_version_while_whats_new_is_pending(tmp_path):
+    not_due(tmp_path, last_run_version="1.0.0")
+    rels = noted(("1.4.0", "Fourteen"), ("1.3.0", "Thirteen"), ("1.2.5", "Draft"),
+                 ("1.2.0", "Twelve"), ("1.1.0", "Eleven"), ("1.0.0", "Ten"))
+    rels[2]["draft"] = True
+    u = make(tmp_path, Fetch(rels), now=1000.0 + DAY, current="1.3.0")
+    shown = u.start_whats_new()
+    assert shown.entries == ()  # the fallback text, until the notes arrive
+    checked(u)
+    assert u.running_whats_new().entries == (
+        NoteEntry("1.3.0", "Thirteen"), NoteEntry("1.2.0", "Twelve"),
+        NoteEntry("1.1.0", "Eleven"))
+    assert u.snapshot.status == AVAILABLE and u.snapshot.release.version == "1.4.0"
+
+
+def test_stored_running_notes_are_not_fetched_again(tmp_path):
+    not_due(tmp_path, last_run_version="1.1.0", notes=(NoteEntry("1.1.0", "Eleven"),))
+    fetch = Fetch(noted(("1.1.0", "Changed")))
+    u = make(tmp_path, fetch, now=1000.0 + DAY)
+    checked(u)
+    assert fetch.calls == 0
+    assert u.running_whats_new().entries == (NoteEntry("1.1.0", "Eleven"),)
+
+
+def test_a_due_check_fetches_missing_notes_with_the_same_request(tmp_path):
+    fetch = Fetch(noted(("1.2.0", "Twelve"), ("1.1.0", "Eleven")))
+    u = make(tmp_path, fetch)
+    assert u.start_whats_new() is None
+    checked(u)
+    checked(u)
+    assert fetch.calls == 1
+    assert u._state.notes == (NoteEntry("1.2.0", "Twelve"), NoteEntry("1.1.0", "Eleven"))
+    assert u.snapshot.release.version == "1.2.0"
+
+
+def test_a_failed_notes_fetch_is_silent(tmp_path):
+    not_due(tmp_path, last_run_version="1.1.0")
+    fetch = Fetch(UpdateError("offline"))
+    u = make(tmp_path, fetch, now=1000.0 + DAY)
+    checked(u)
+    assert fetch.calls == 1
+    assert u.check_report == CheckReport() and u.snapshot.status == IDLE
+    assert u._state.last_check == 1000.0
+
+
+def test_missing_notes_keep_the_skipped_versions_when_seen_during_the_fetch(tmp_path):
+    """The screensaver's settings window checks, then marks What's new seen at once; the
+    fetch still brings every version that update skipped."""
+    not_due(tmp_path, last_run_version="1.0.0")
+    fetch = BlockingFetch(noted(("1.1.0", "Eleven"), ("1.0.5", "Ten and a half")))
+    u = make(tmp_path, fetch, now=1000.0 + DAY)
+    u.check(force=True)
+    assert fetch.started.wait(5)
+    assert u.start_whats_new().entries == ()
+    u.mark_whats_new_seen()
+    fetch.release_event.set()
+    u.wait(5)
+    assert u.running_whats_new().entries == (NoteEntry("1.1.0", "Eleven"),
+                                             NoteEntry("1.0.5", "Ten and a half"))
+
+
+def test_an_in_app_update_starts_without_a_notes_fetch(tmp_path):
+    """The check that offered 1.1.0 stored its notes, so the updated program starts as
+    before: What's new shows them and no request is made until the weekly check is due."""
+    fetch = Fetch(noted(("1.1.0", "Eleven")))
+    old = make(tmp_path, fetch, current="1.0.0")
+    assert old.start_whats_new() is None
+    checked(old)
+    assert old.snapshot.release.version == "1.1.0" and fetch.calls == 1
+    new = make(tmp_path, fetch, now=1000.0 + DAY)
+    assert new.start_whats_new().entries == (NoteEntry("1.1.0", "Eleven"),)
+    checked(new)
     assert fetch.calls == 1

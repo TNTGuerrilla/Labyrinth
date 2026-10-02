@@ -17,14 +17,23 @@ WHEEL_LINES = 3
 
 
 class WhatsNewDialog:
-    def __init__(self, title: str, lines: Sequence[NoteLine], first_run: bool = False):
+    def __init__(self, title: str, lines: Sequence[NoteLine], first_run: bool = False,
+                 fallback: bool = False):
         self.title = title
         self.lines = list(lines)
         self.first_run = first_run  # closing it marks the update as seen
+        self.fallback = fallback  # shows "Updated to version X" until the notes arrive
         self.scroll = 0  # index of the first wrapped row shown
         self.hits = Hits()
         self._max_scroll = 0
         self._wrapped: tuple[int, list[NoteLine]] = (-1, [])  # (width, rows) cache
+
+    def show_notes(self, lines: Sequence[NoteLine]) -> None:
+        """Replace the fallback text with notes that arrived while it was open."""
+        self.lines = list(lines)
+        self.fallback = False
+        self.scroll = 0
+        self._wrapped = (-1, [])
 
     def handle(self, nav: str, now: float = 0.0) -> Optional[str]:
         if nav == "up":
