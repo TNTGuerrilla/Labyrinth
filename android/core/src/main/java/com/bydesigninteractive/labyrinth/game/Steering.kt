@@ -36,11 +36,14 @@ class KeyboardSteer {
     private var pauseUntil = 0.0
     private var stopped = false
     private var lastCell: Cell? = null
+    /** A straight run (Run straight or a straight swipe) was started by a press and has not stopped. */
+    private var coasting = false
 
     fun press(d: Int) {
         held.remove(d)
         held.add(d)
         request = d
+        coasting = true
     }
 
     fun release(d: Int) {
@@ -53,6 +56,7 @@ class KeyboardSteer {
         pauseCell = null
         stopped = false
         lastCell = null
+        coasting = false
     }
 
     /** A new round, or a replay: a buffered request is stale. Held keys are kept. */
@@ -61,11 +65,15 @@ class KeyboardSteer {
         forgetPosition()
     }
 
-    /** Something else moved the dot (auto-solve): pause, stop and last-cell tracking are stale. */
+    /**
+     * Something else moved the dot (auto-solve): pause, stop and last-cell tracking are stale,
+     * and a straight run ends, so the dot is not run on when that steering lets go.
+     */
     fun forgetPosition() {
         pauseCell = null
         stopped = false
         lastCell = null
+        coasting = false
     }
 
     fun tick(dt: Double) {
@@ -120,9 +128,11 @@ class KeyboardSteer {
      * A swipe with bend assist off: the dot runs straight and stops at the first bend, wall or
      * fork. A swipe (the request) turns it at the first cell where that way is open; at a stop
      * where it is not open, it is dropped. Forks are counted from every opening except the way it
-     * came, without look-ahead, so a short dead end ahead does not hide a live branch.
+     * came, without look-ahead, so a short dead end ahead does not hide a live branch. Only a
+     * press starts a run; once the dot stops, it stays until the next press.
      */
     private fun straight(grid: Grid, cell: Cell, cameFrom: Cell?, stops: Collection<Cell>): Cell? {
+        if (!coasting) return null
         val r = request
         if (r != null && (grid.openDirs(cell) and r) != 0) {
             request = null
@@ -130,6 +140,7 @@ class KeyboardSteer {
         }
         if (cameFrom == null || cell in stops) {
             request = null
+            coasting = false
             return null
         }
         val heading = direction(cameFrom, cell)
@@ -137,6 +148,7 @@ class KeyboardSteer {
             grid.openNeighbors(cell).filter { it != cameFrom }.size >= 2
         ) {
             request = null
+            coasting = false
             return null
         }
         return cell.step(heading)

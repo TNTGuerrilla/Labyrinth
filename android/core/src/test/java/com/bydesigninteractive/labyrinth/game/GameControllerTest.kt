@@ -369,6 +369,22 @@ class GameControllerTest {
     }
 
     @Test
+    fun runStraightDoesNotRunOnAfterAutoSolveLetsGo() {
+        val g = controller(settings = RUN_STRAIGHT)
+        g.toggleAuto()
+        repeat(200) { if (g.round.mover.to != c(2, 1)) g.frame(0.02) }
+        assertEquals(c(2, 1), g.round.mover.to) // mid-corridor, past the junction
+        g.toggleAuto()
+        g.frames(100)
+        assertEquals(c(2, 1), g.round.dot) // stops at the next center, not on to the finish
+        assertFalse(g.dotMoving)
+        assertEquals(RoundPhase.PLAY, g.round.phase)
+        g.tap(E) // a press starts a run again
+        g.frames(100)
+        assertEquals(RoundPhase.WON, g.round.phase)
+    }
+
+    @Test
     fun runStraightLeavesTheJoystickHoldToMove() {
         val g = controller(settings = RUN_STRAIGHT, end = c(1, 0))
         g.holdTouch(E)
