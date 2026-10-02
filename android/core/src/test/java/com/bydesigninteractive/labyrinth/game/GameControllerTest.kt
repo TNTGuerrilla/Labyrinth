@@ -279,6 +279,19 @@ class GameControllerTest {
     }
 
     @Test
+    fun aHeldArrowPausesAtAForkEvenWhenTheWayAheadIsAShortDeadEnd() {
+        val s = TEST.copy(followBends = false, pauseAtForks = true, lookahead = 2)
+        val g = GameController(s, RemoteProfile()).apply { start(Round.ofMaze(deadEndForkGrid(), c(0, 1), c(4, 0), s)) }
+        g.pressArrow(E)
+        g.frames(15) // 0.3 s: reaches the fork at (2,1) after 0.2 s, then pauses for 0.2 s
+        assertEquals(c(2, 1), g.round.dot)
+        assertFalse(g.dotMoving)
+        g.pressArrow(N) // a turn during the pause takes the live branch, up to its bend
+        g.frames(50)
+        assertEquals(c(2, 0), g.round.dot)
+    }
+
+    @Test
     fun aGuidedSwipeRunsPastTheDeadEndAlongTheLiveBranch() {
         val s = TEST.copy(followBends = true, lookahead = 2)
         val g = GameController(s, RemoteProfile()).apply { start(Round.ofMaze(deadEndForkGrid(), c(0, 1), c(4, 0), s)) }
