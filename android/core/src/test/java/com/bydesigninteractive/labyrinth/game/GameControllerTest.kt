@@ -369,6 +369,18 @@ class GameControllerTest {
     }
 
     @Test
+    fun runStraightLeavesTheJoystickHoldToMove() {
+        val g = controller(settings = RUN_STRAIGHT, end = c(1, 0))
+        g.holdTouch(E)
+        repeat(200) { if (g.round.mover.to != c(2, 1)) g.frame(0.02) }
+        assertEquals(c(2, 1), g.round.mover.to) // held past the junction
+        g.releaseTouch(E)
+        g.frames(100)
+        assertEquals(c(2, 1), g.round.dot) // stops at the next center, not on to (3,1)
+        assertFalse(g.dotMoving)
+    }
+
+    @Test
     fun runStraightLeavesATapAlone() {
         val g = controller(settings = RUN_STRAIGHT, end = c(1, 0))
         assertTrue(g.goTo(c(1, 1)))

@@ -25,7 +25,7 @@ class KeyboardSteer {
     val held = ArrayList<Int>()
 
     /**
-     * A swipe, or an arrow with Steering on Run straight: nothing is held, but the dot runs on
+     * A swipe, or a button arrow with Steering on Run straight: nothing is held, but the dot runs on
      * (through bends with bend assist on, straight with it off).
      */
     var coast = false
